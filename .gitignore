@@ -8,3 +8,9 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Local inputs and generated outputs
+data/
+experiments/outputs/
+showcase/outputs/
+sandbox/
