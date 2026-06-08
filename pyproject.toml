@@ -26,8 +26,12 @@ analysis = [
     "pandas>=3.0.3",
 ]
 llm = [
+    "langchain-core>=1.4.1",
+    "langchain-openai>=1.2.2",
+    "langgraph>=1.2.4",
     "openai>=2.41.0",
     "pillow>=12.2.0",
+    "python-dotenv>=1.2.2",
 ]
 
 [build-system]

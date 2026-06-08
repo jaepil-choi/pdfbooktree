@@ -1,3 +1,53 @@
 {
-  "experiments": []
+  "experiments": [
+    {
+      "id": "001_extract_pdf_signals",
+      "purpose": "silver label PDF에서 기존 bookmark를 정답 후보로 추출할 수 있는지 확인하고, 첫 30페이지의 text layer와 TOC 탐지용 page feature가 충분히 안정적인지 검증한다.",
+      "inputs": [
+        "data\\native-pdf-indexed\\John Hull - Options, Futures, and Other Derivatives, Global Edition-Pearson (2021).pdf",
+        "data\\scanned-pdf-indexed\\(Springer Finance) Steven E. Shreve - Stochastic Calculus for Finance I The Binomial Asset Pricing Model-Springer (2005)-indexed.pdf"
+      ],
+      "outputs": "experiments\\outputs\\001_extract_pdf_signals",
+      "finding": "john_hull는 bookmark 470개를 추출했고 level 분포는 {'1': 54, '2': 416}이다. 빈 제목 0개, 페이지 역행 0개로 silver label 후보 판단은 True이다. 첫 30페이지 임시 TOC 후보 상위 page는 28, 11, 10이며 keyword 후보 page [11, 10, 5, 7]. shreve_binomial는 bookmark 238개를 추출했고 level 분포는 {'1': 34, '2': 189, '3': 15}이다. 빈 제목 0개, 페이지 역행 0개로 silver label 후보 판단은 True이다. 첫 30페이지 임시 TOC 후보 상위 page는 4, 6, 5이며 상위 후보에서 keyword는 확인되지 않음.",
+      "ran_at": "2026-06-07T19:42:29"
+    },
+    {
+      "id": "002_label_toc_pages_and_observe_features",
+      "purpose": "3개 silver label PDF의 bookmark 정보를 정답 label 생성에만 사용해 첫 30페이지 안의 TOC page를 자동 라벨링하고, bookmark 없이 추출한 objective page feature가 TOC page에서 어떤 특성을 보이는지 관찰한다.",
+      "inputs": [
+        "data\\native-pdf-indexed\\John Hull - Options, Futures, and Other Derivatives, Global Edition-Pearson (2021).pdf",
+        "data\\scanned-pdf-indexed\\(Springer Finance) Steven E. Shreve - Stochastic Calculus for Finance I The Binomial Asset Pricing Model-Springer (2005)-indexed.pdf",
+        "data\\scanned-pdf-indexed\\David G. Luenberger, Investment Science 2nd - adobeOCR - indexed.pdf"
+      ],
+      "outputs": "experiments\\outputs\\002_label_toc_pages_and_observe_features",
+      "finding": "john_hull는 bookmark title 기반 label 생성으로 TOC page [6, 7, 8, 9, 10, 11, 12, 13, 14]를 얻었다. TOC page 평균 line-final number count는 3, non-TOC 평균은 3.2857142857142856이고, monotonicity 평균은 TOC 1.0, non-TOC 0.4297491039426523이다. shreve_binomial는 bookmark title 기반 label 생성으로 TOC page [3, 4, 5, 6, 7, 9, 10]를 얻었다. TOC page 평균 line-final number count는 31.714285714285715, non-TOC 평균은 7.304347826086956이고, monotonicity 평균은 TOC 0.9550492831541219, non-TOC 0.8124690785405071이다. luenberger_investment_science는 bookmark title 기반 label 생성으로 TOC page [7, 15]를 얻었다. TOC page 평균 line-final number count는 29.5, non-TOC 평균은 15.642857142857142이고, monotonicity 평균은 TOC 0.9375, non-TOC 0.9603490950342907이다.",
+      "ran_at": "2026-06-08T19:16:38"
+    },
+    {
+      "id": "003_ensemble_toc_page_labelers",
+      "purpose": "bookmark가 있는 silver label PDF에서 TOC 정답 page range를 deterministic하게 복원하기 위해 bookmark anchor, printed page number sequence, TOC entry pattern, contiguous window mass, target-page offset consistency라는 5개 orthogonal weak labeler를 ensemble한다.",
+      "inputs": [
+        "data\\native-pdf-indexed\\John Hull - Options, Futures, and Other Derivatives, Global Edition-Pearson (2021).pdf",
+        "data\\scanned-pdf-indexed\\(Springer Finance) Steven E. Shreve - Stochastic Calculus for Finance I The Binomial Asset Pricing Model-Springer (2005)-indexed.pdf",
+        "data\\scanned-pdf-indexed\\David G. Luenberger, Investment Science 2nd - adobeOCR - indexed.pdf"
+      ],
+      "outputs": "experiments\\outputs\\003_ensemble_toc_page_labelers",
+      "finding": "john_hull ensemble accepted pages는 [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]이고, 사용자 검수 accepted range 대비 precision 1.0, recall 1.0, missing [], extra []이다. shreve_binomial ensemble accepted pages는 [3, 4, 5, 6, 7, 8, 9, 10, 11]이고, 사용자 검수 accepted range 대비 precision 1.0, recall 1.0, missing [], extra []이다. luenberger_investment_science ensemble accepted pages는 [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]이고, 사용자 검수 accepted range 대비 precision 1.0, recall 1.0, missing [], extra []이다.",
+      "ran_at": "2026-06-08T19:31:47"
+    },
+    {
+      "id": "004_llm_binomial_search_toc_pages",
+      "purpose": "첫 30페이지 텍스트를 대상으로 LLM이 현재 page가 목차인지, 아니면 목차를 찾기 위해 왼쪽/오른쪽 중 어디로 이동해야 하는지 판단하게 하고, LangGraph 상태 머신으로 binomial search와 greedy boundary expansion을 결합한다.",
+      "inputs": [
+        "data\\native-pdf-indexed\\John Hull - Options, Futures, and Other Derivatives, Global Edition-Pearson (2021).pdf",
+        "data\\scanned-pdf-indexed\\(Springer Finance) Steven E. Shreve - Stochastic Calculus for Finance I The Binomial Asset Pricing Model-Springer (2005)-indexed.pdf",
+        "data\\scanned-pdf-indexed\\David G. Luenberger, Investment Science 2nd - adobeOCR - indexed.pdf"
+      ],
+      "outputs": "experiments\\outputs\\004_llm_binomial_search_toc_pages",
+      "model": "gpt-5.4-mini",
+      "temperature": 0.0,
+      "finding": "john_hull는 LLM binomial search로 [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]를 예측했고, 사용자 검수 accepted range 대비 precision 1.0, recall 1.0, missing [], extra []이다. shreve_binomial는 LLM binomial search로 [3, 4, 5, 6, 7, 8, 9, 10, 11]를 예측했고, 사용자 검수 accepted range 대비 precision 1.0, recall 1.0, missing [], extra []이다. luenberger_investment_science는 LLM binomial search로 [9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]를 예측했고, 사용자 검수 accepted range 대비 precision 1.0, recall 0.7857142857142857, missing [7, 8, 20], extra []이다.",
+      "ran_at": "2026-06-08T22:40:11"
+    }
+  ]
 }
