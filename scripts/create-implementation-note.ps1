@@ -69,7 +69,8 @@ function Get-NextImplementationNumber {
         return 1
     }
 
-    return (($numbers | Measure-Object -Maximum).Maximum + 1)
+    $maximum = ($numbers | Measure-Object -Maximum).Maximum
+    return ([int] $maximum + 1)
 }
 
 $repoRoot = (Invoke-Git -GitArgs @("rev-parse", "--show-toplevel") | Select-Object -First 1).Trim()
@@ -92,7 +93,7 @@ if ($existingNoteForCommit) {
     }
 }
 else {
-    $nextNumber = Get-NextImplementationNumber -DirectoryPath $implementationDirPath
+    $nextNumber = [int] (Get-NextImplementationNumber -DirectoryPath $implementationDirPath)
     $fileName = "{0:D3}_{1}.md" -f $nextNumber, $shortCommitId
     $notePath = Join-Path -Path $implementationDirPath -ChildPath $fileName
 }
