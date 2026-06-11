@@ -109,10 +109,10 @@ $content = @"
 
 ## 메타데이터
 
-- 구현 커밋: `$shortCommitId`
-- 전체 커밋 ID: `$fullCommitId`
-- 커밋 일시: `$commitDate`
-- 노트 생성 일시: `$createdAt`
+- 구현 커밋: ``$shortCommitId``
+- 전체 커밋 ID: ``$fullCommitId``
+- 커밋 일시: ``$commitDate``
+- 노트 생성 일시: ``$createdAt``
 
 ## 변경 배경
 
