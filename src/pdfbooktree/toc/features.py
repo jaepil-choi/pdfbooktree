@@ -64,6 +64,26 @@ def has_toc_keyword(text: str) -> bool:
     return any(keyword in lowered for keyword in TOC_KEYWORDS)
 
 
+def is_toc_entry_like(line: str) -> bool:
+    """TOC 항목처럼 보이는 line인지 판단한다."""
+
+    normalized = normalize_text(line)
+    if len(normalized) < 8:
+        return False
+    if extract_line_final_number(normalized) is None:
+        return False
+
+    lowered = normalized.lower()
+    patterns = (
+        r"^\d+(\.\d+)*\s+\S+",
+        r"^chapter\s+\d+",
+        r"^part\s+[ivx0-9]+",
+        r"^appendix\s+[a-z0-9]+",
+        r"^[a-z]\.\d+\s+\S+",
+    )
+    return any(re.search(pattern, lowered) for pattern in patterns)
+
+
 def calculate_page_feature(page: PdfPageText, total_pages: int) -> PageFeature:
     """단일 page의 TOC 탐지 feature를 계산한다."""
 
@@ -74,11 +94,15 @@ def calculate_page_feature(page: PdfPageText, total_pages: int) -> PageFeature:
         if (final_number := extract_line_final_number(line)) is not None
     ]
     gaps = gap_stats(final_numbers)
+    toc_entry_lines = [line for line in page.lines if is_toc_entry_like(line)]
     return PageFeature(
         pdf_page=page.pdf_page,
         line_count=len(page.lines),
         word_count=len(normalize_text(page.text).split()),
         mean_line_length=statistics.mean(line_lengths) if line_lengths else 0.0,
+        line_length_std=statistics.pstdev(line_lengths)
+        if len(line_lengths) > 1
+        else 0.0,
         line_final_number_count=len(final_numbers),
         line_final_numbers=final_numbers,
         line_final_number_monotonicity=monotonicity(final_numbers),
@@ -86,6 +110,15 @@ def calculate_page_feature(page: PdfPageText, total_pages: int) -> PageFeature:
         line_final_number_gap_median=gaps["median_gap"],
         line_final_number_gap_max=gaps["max_gap"],
         line_final_number_negative_gap_count=gaps["negative_gap_count"],
+        toc_entry_pattern_count=len(toc_entry_lines),
+        toc_entry_pattern_ratio=len(toc_entry_lines) / len(page.lines)
+        if page.lines
+        else 0.0,
+        chapter_or_part_line_count=sum(
+            1
+            for line in page.lines
+            if re.search(r"\b(chapter|part|appendix)\b", line, re.I)
+        ),
         page_position=page.pdf_page / total_pages,
         toc_keyword_presence=has_toc_keyword(page.text),
     )

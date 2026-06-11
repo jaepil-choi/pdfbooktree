@@ -16,21 +16,42 @@
 from __future__ import annotations
 
 from pdfbooktree.models import PageFeature, TocDetectionResult
+from pdfbooktree.toc.segments import score_toc_pages, select_toc_segment
 
 
 def detect_toc_pages(features: list[PageFeature]) -> TocDetectionResult:
-    """기본 TOC 탐지기의 공개 계약만 고정한다.
+    """feature 기반 vote와 segment mass로 TOC page range를 고른다."""
 
-    실제 scoring과 segment 선택 로직은 다음 구현 단계에서 채운다.
-    현재는 scaffold 상태를 명확히 드러내기 위해 빈 결과를 반환한다.
-    """
+    page_scores = score_toc_pages(features)
+    segment = select_toc_segment(page_scores)
+    candidates = [
+        {
+            "pdf_page": score.pdf_page,
+            "printed_page_sequence_score": score.printed_page_sequence_score,
+            "toc_entry_pattern_score": score.toc_entry_pattern_score,
+            "window_mass_score": score.window_mass_score,
+            "vote_count": score.vote_count,
+            "voters": score.voters,
+        }
+        for score in page_scores
+    ]
+    if segment is None:
+        return TocDetectionResult(
+            pages=[],
+            start_page=None,
+            end_page=None,
+            confidence=0.0,
+            method="feature_vote_segment",
+            candidates=candidates,
+        )
 
-    candidates = [{"pdf_page": feature.pdf_page} for feature in features]
+    max_possible_vote_sum = max(1, segment.length * 3)
+    confidence = min(1.0, segment.vote_sum / max_possible_vote_sum)
     return TocDetectionResult(
-        pages=[],
-        start_page=None,
-        end_page=None,
-        confidence=0.0,
-        method="toc_detector_scaffold",
+        pages=segment.pages,
+        start_page=segment.start_page,
+        end_page=segment.end_page,
+        confidence=confidence,
+        method="feature_vote_segment",
         candidates=candidates,
     )

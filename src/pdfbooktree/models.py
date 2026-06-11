@@ -28,6 +28,7 @@ class PageFeature:
     line_count: int
     word_count: int
     mean_line_length: float
+    line_length_std: float
     line_final_number_count: int
     line_final_numbers: list[int]
     line_final_number_monotonicity: float | None
@@ -35,6 +36,9 @@ class PageFeature:
     line_final_number_gap_median: float | None
     line_final_number_gap_max: int | None
     line_final_number_negative_gap_count: int
+    toc_entry_pattern_count: int
+    toc_entry_pattern_ratio: float
+    chapter_or_part_line_count: int
     page_position: float
     toc_keyword_presence: bool
 
