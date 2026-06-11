@@ -1,3 +1,16 @@
 {
-  "showcases": []
+  "showcases": [
+    {
+      "id": "001_toc_detection_interfaces",
+      "purpose": "TOC page detection public interface가 bookmark 없는 feature 기반 탐지와 bookmark 기준 신호 기반 탐지를 모두 제공하고, metric 함수로 결과를 검증할 수 있음을 synthetic page text로 보여준다.",
+      "inputs": [
+        "showcase/001_toc_detection_interfaces.py 내부 synthetic PdfPageText",
+        "showcase/001_toc_detection_interfaces.py 내부 synthetic bookmark 목록"
+      ],
+      "outputs": "showcase/outputs/001_toc_detection_interfaces/result.json",
+      "finding": "runtime detector와 bookmark-guided detector가 모두 expected TOC pages [2, 3]을 반환하고, metric 비교에서 precision 1.0, recall 1.0을 얻는 흐름을 검증한다.",
+      "command": "uv run python showcase/001_toc_detection_interfaces.py",
+      "ran_at": "2026-06-11T13:14:12+09:00"
+    }
+  ]
 }
