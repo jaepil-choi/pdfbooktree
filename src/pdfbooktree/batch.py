@@ -39,7 +39,7 @@ class BatchProcessor:
                 1 for result in results if result.status == "skipped"
             ),
             failed_count=sum(1 for result in results if result.status == "failed"),
-            silver_label_candidate_count=sum(
+            bookmark_reference_candidate_count=sum(
                 1 for result in results if result.status == "skipped"
             ),
             created_bookmarked_pdf_paths=[

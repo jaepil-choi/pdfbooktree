@@ -148,7 +148,7 @@ class BatchResult:
     processed_count: int
     skipped_existing_bookmark_count: int
     failed_count: int
-    silver_label_candidate_count: int
+    bookmark_reference_candidate_count: int
     created_bookmarked_pdf_paths: list[Path] = field(default_factory=list)
     created_markdown_dirs: list[Path] = field(default_factory=list)
     results: list[ProcessingResult] = field(default_factory=list)

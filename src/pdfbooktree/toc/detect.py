@@ -1,4 +1,17 @@
-"""TOC page detector의 v0.1 인터페이스를 제공한다."""
+"""bookmark 없이 TOC page range를 찾는 기본 탐지기의 자리다.
+
+역할:
+- PDF 앞부분에서 추출한 page feature만 입력으로 받아 TOC page range를 고른다.
+- 기존 PDF bookmark, 평가용 정답, 사람이 검수한 label은 참조하지 않는다.
+- `Processor`가 호출하는 기본 TOC page detection 진입점으로 유지한다.
+
+책임 밖:
+- 기존 bookmark title을 기준으로 TOC page를 복원하는 흐름은
+  `toc.detect_from_bookmarks`가 담당한다.
+- 탐지 결과의 IoU, start/end error, precision/recall 같은 metric 계산은
+  `metrics.toc_pages`가 담당한다.
+- TOC line에서 chapter/section item을 파싱하는 일은 `toc.parse`가 담당한다.
+"""
 
 from __future__ import annotations
 
@@ -6,44 +19,18 @@ from pdfbooktree.models import PageFeature, TocDetectionResult
 
 
 def detect_toc_pages(features: list[PageFeature]) -> TocDetectionResult:
-    """feature 기반의 얇은 heuristic으로 TOC 후보 range를 고른다."""
+    """기본 TOC 탐지기의 공개 계약만 고정한다.
 
-    candidates: list[dict[str, object]] = []
-    selected: list[int] = []
-    for feature in features:
-        monotone = feature.line_final_number_monotonicity or 0.0
-        score = feature.line_final_number_count * monotone
-        if feature.toc_keyword_presence:
-            score += 3.0
-        if feature.line_final_number_negative_gap_count:
-            score -= feature.line_final_number_negative_gap_count * 2.0
-        candidates.append({"pdf_page": feature.pdf_page, "score": score})
-        if score >= 5.0:
-            selected.append(feature.pdf_page)
+    실제 scoring과 segment 선택 로직은 다음 구현 단계에서 채운다.
+    현재는 scaffold 상태를 명확히 드러내기 위해 빈 결과를 반환한다.
+    """
 
-    pages = _largest_contiguous_group(selected)
-    confidence = min(1.0, len(pages) / 5) if pages else 0.0
+    candidates = [{"pdf_page": feature.pdf_page} for feature in features]
     return TocDetectionResult(
-        pages=pages,
-        start_page=pages[0] if pages else None,
-        end_page=pages[-1] if pages else None,
-        confidence=confidence,
-        method="feature_heuristic_scaffold",
+        pages=[],
+        start_page=None,
+        end_page=None,
+        confidence=0.0,
+        method="toc_detector_scaffold",
         candidates=candidates,
     )
-
-
-def _largest_contiguous_group(pages: list[int]) -> list[int]:
-    if not pages:
-        return []
-
-    groups: list[list[int]] = []
-    current = [pages[0]]
-    for page in pages[1:]:
-        if page == current[-1] + 1:
-            current.append(page)
-            continue
-        groups.append(current)
-        current = [page]
-    groups.append(current)
-    return max(groups, key=lambda group: (len(group), sum(group)))
