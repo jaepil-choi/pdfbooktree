@@ -44,6 +44,10 @@
 - 공개 인터페이스를 만든 뒤 실제 사용 흐름을 확인하기 위해 `showcase/` 아래에 showcase 파일을 만든다.
 - 파일명은 `001_설명.py`, `002_설명.py`처럼 세 자리 번호와 짧은 설명을 사용한다.
 - showcase는 public interface가 예상대로 동작하는지 확인하는 용도다.
+- showcase는 항상 real data와 live call로 실제 작동을 보여줘야 한다.
+- showcase에서 synthetic data, mock data, stub call, hardcoded in-memory fake input만으로 성공을 증명하지 않는다.
+- showcase 입력은 가능하면 `experiments/experiments.json`에 기록된 실제 데이터와 실험 결과를 참고해 고른다.
+- 실제 데이터가 로컬에 없어서 showcase를 실행할 수 없으면 가짜 데이터로 대체하지 말고 blocked/failed 사유를 기록한다.
 - showcase 실행 결과와 판단은 `showcase/showcase.json`에 기록한다.
 - showcase 결과 파일이 필요하면 `showcase/outputs/` 같은 별도 output 디렉터리를 사용하고 Git 포함 여부를 명확히 관리한다.
 - showcase 변경에는 별도 `tests/` 테스트를 만들지 않는다.
@@ -121,7 +125,8 @@
 
 - [ ] `feat/` 또는 `fix/` 브랜치에서 진행 중인지 확인한다.
 - [ ] `showcase/NNN_설명.py` 파일을 만든다.
-- [ ] public interface 호출 흐름을 보여준다.
+- [ ] real data와 live call로 public interface 호출 흐름을 보여준다.
+- [ ] synthetic/mock/stub 입력만으로 showcase 성공을 주장하지 않는다.
 - [ ] 결과를 `showcase/showcase.json`에 기록한다.
 - [ ] 테스트와 implementation note는 만들지 않는다.
 - [ ] 커밋 요청이 있으면 `showcase:` 태그로 커밋한다.
