@@ -1013,6 +1013,33 @@ parent match accuracy
 optional tree edit distance
 ```
 
+### 14.4 Existing bookmark 기반 TOC page 복원 feature
+
+기존 bookmark가 있는 PDF는 처리 대상이 아니라 evaluation용 silver label이다.
+이때 TOC page 위치를 사람이 전부 직접 지정하지 않도록, bookmark와 page text를 함께 사용해 TOC page 후보를 복원한다.
+
+핵심 feature:
+
+```text
+bookmark title anchor density:
+  한 page 안에 bookmark title과 fuzzy match되는 text window가 얼마나 많이 있는지 측정한다.
+
+bookmark order density:
+  match된 bookmark order가 page 안에서 얼마나 조밀하게 이어지는지 측정한다.
+
+bookmark target offset consistency:
+  page text에서 regex로 추출한 숫자들과 bookmark target PDF page의 offset이
+  여러 bookmark 항목에서 얼마나 비슷하게 반복되는지 측정한다.
+```
+
+중요한 점:
+
+* offset consistency는 line-final page number만 보지 않는다.
+* TOC line 끝 숫자가 OCR/layout 때문에 깨질 수 있으므로 page text window 안의 standalone 숫자 후보도 함께 본다.
+* chapter/section 번호처럼 noise가 섞일 수 있지만, 여러 bookmark 항목에서 같은 offset이 반복되면 강한 신호로 본다.
+* 이 feature는 bookmark가 있는 PDF의 silver label 생성과 detector 평가 보조용이다.
+* bookmark가 없는 일반 처리 경로의 TOC detection primary feature로 사용하지 않는다.
+
 ---
 
 ## 15. LLM fallback 설계
