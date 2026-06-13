@@ -60,8 +60,8 @@
         "lightgbm",
         "random_forest"
       ],
-      "finding": "4610개 page row와 367개 PDF를 PDF 단위 group holdout으로 train/test split했다. best run은 random_forest_structural_only이며 F1 0.949, precision 0.958, recall 0.940, ROC-AUC 0.988이다. random_forest_structural_only는 F1 0.949이고 상위 feature는 toc_keyword_presence, line_final_number_monotonicity, line_final_number_count이다. lightgbm_structural_only는 F1 0.948이고 상위 feature는 mean_line_length, word_count, line_count이다.",
-      "ran_at": "2026-06-13T17:39:17"
+      "finding": "정답 page가 bookmark를 반드시 포함해야 한다는 조건이 추가된 dataset으로 재실행했다. 15826개 page row와 368개 PDF를 PDF 단위 group holdout으로 train/test split했다. best run은 random_forest_structural_only이며 F1 0.725, precision 0.756, recall 0.697, ROC-AUC 0.833이다. 이전 dataset 대비 성능이 낮아졌고, random_forest_structural_only는 F1 0.725이며 상위 feature는 line_final_number_gap_mean, mean_line_length, line_length_std이다. lightgbm_structural_only는 F1 0.721이고 상위 feature는 line_final_number_gap_mean, line_final_number_gap_max, line_length_std이다.",
+      "ran_at": "2026-06-13T17:50:18"
     },
     {
       "id": "006_tree_feature_attribution",
@@ -72,8 +72,8 @@
       ],
       "outputs": "experiments\\outputs\\006_tree_feature_attribution",
       "source_experiment": "005_tree_toc_page_classifier",
-      "finding": "005_tree_toc_page_classifier의 학습 모델 2개를 로드해 내장 importance, permutation importance, SHAP, PDP/ICE를 생성했다. random_forest_structural_only의 1위 feature는 내장 toc_keyword_presence, permutation toc_keyword_presence, SHAP toc_keyword_presence이다. lightgbm_structural_only의 1위 feature는 내장 mean_line_length, permutation toc_keyword_presence, SHAP toc_keyword_presence이다.",
-      "ran_at": "2026-06-13T17:40:14"
+      "finding": "005_tree_toc_page_classifier의 재학습 모델 2개를 로드해 내장 importance, permutation importance, SHAP, PDP/ICE를 생성했다. bookmark 포함 조건이 추가된 dataset에서는 random_forest_structural_only의 1위 feature가 내장 line_final_number_gap_mean, permutation line_final_number_gap_mean, SHAP line_final_number_gap_mean이다. lightgbm_structural_only도 1위 feature가 내장 line_final_number_gap_mean, permutation line_final_number_gap_mean, SHAP line_final_number_gap_mean이다. 이전 dataset에서 강했던 toc_keyword_presence보다 line-final number gap 계열 구조 feature가 더 강하게 나타났다.",
+      "ran_at": "2026-06-13T17:52:44"
     }
   ]
 }
