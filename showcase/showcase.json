@@ -9,9 +9,9 @@
         "data\\scanned-pdf-indexed\\David G. Luenberger, Investment Science 2nd - adobeOCR - indexed.pdf"
       ],
       "outputs": "showcase/outputs/001_toc_detection_interfaces/result.json",
-      "finding": "실제 PDF 3권에서 text layer와 기존 bookmark를 live로 읽어 detector를 호출했다. runtime detector exact match는 0/3이며 john_hull precision 1.0 recall 0.636, shreve precision 0.9 recall 1.0, luenberger precision 1.0 recall 0.929이다. bookmark-guided detector exact match는 2/3이며 john_hull과 luenberger는 precision/recall 1.0, shreve는 page 2 extra로 precision 0.9 recall 1.0이다.",
+      "finding": "실제 PDF 3권에서 text layer와 기존 bookmark를 live로 읽어 detector를 호출했다. segment-level line-final number 흐름 보정 후 runtime detector는 3권 모두 precision 1.0이며 john_hull recall 0.545, shreve recall 0.889, luenberger recall 0.857이다. bookmark-guided detector는 3/3 exact match로 precision/recall 1.0이다.",
       "command": "uv run python showcase/001_toc_detection_interfaces.py",
-      "ran_at": "2026-06-11T16:25:03+09:00"
+      "ran_at": "2026-06-11T20:36:55+09:00"
     }
   ]
 }
