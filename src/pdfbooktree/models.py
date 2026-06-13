@@ -8,6 +8,7 @@ from typing import Any, Literal
 
 
 ProcessingStatus = Literal["processed", "skipped", "failed"]
+BookmarkTocDetectionStatus = Literal["detected", "not_detected", "failed"]
 
 
 @dataclass(frozen=True)
@@ -53,6 +54,40 @@ class TocDetectionResult:
     confidence: float
     method: str
     candidates: list[dict[str, Any]] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class BookmarkedPdfTocDetection:
+    """bookmark가 있는 단일 PDF의 TOC page detection 결과다."""
+
+    status: BookmarkTocDetectionStatus
+    input_pdf: Path
+    root_relative_pdf: Path | None = None
+    total_pages: int = 0
+    observed_text_pages: int = 0
+    bookmark_count: int = 0
+    toc_pages: list[int] = field(default_factory=list)
+    confidence: float | None = None
+    method: str | None = None
+    detection: TocDetectionResult | None = None
+    warnings: list[str] = field(default_factory=list)
+    error: str | None = None
+
+
+@dataclass(frozen=True)
+class BookmarkedPdfTocBatchResult:
+    """임의 디렉터리 아래 bookmark 보유 PDF들의 TOC detection 요약이다."""
+
+    root_dir: Path
+    recursive: bool
+    max_text_pages: int
+    total_pdf_count: int
+    bookmarked_pdf_count: int
+    skipped_no_bookmark_count: int
+    detected_count: int
+    not_detected_count: int
+    failed_count: int
+    results: list[BookmarkedPdfTocDetection] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
