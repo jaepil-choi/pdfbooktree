@@ -10,7 +10,10 @@ from rich import print as rich_print
 from pdfbooktree.batch import BatchProcessor
 from pdfbooktree.config import ProcessingConfig
 from pdfbooktree.processor import Processor
-from pdfbooktree.toc.bookmark_batch import BookmarkTocBatchDetector
+from pdfbooktree.toc.bookmark_batch import (
+    BookmarkTocBatchDetector,
+    write_toc_page_dataset_csv,
+)
 from pdfbooktree.utils.jsonio import to_jsonable
 from pdfbooktree.utils.jsonio import write_json
 
@@ -68,10 +71,31 @@ def detect_bookmark_toc(
         "-o",
         help="탐지 결과를 저장할 JSON 파일이다.",
     ),
+    dataset_json: Path | None = typer.Option(
+        None,
+        "--dataset-json",
+        help="page feature dataset row만 저장할 JSON 파일이다.",
+    ),
+    dataset_csv: Path | None = typer.Option(
+        None,
+        "--dataset-csv",
+        help="page feature dataset row만 저장할 CSV 파일이다.",
+    ),
     max_text_pages: int = typer.Option(
         80,
         "--max-text-pages",
         help="각 PDF 앞부분에서 TOC 탐지에 사용할 최대 page 수다.",
+    ),
+    random_seed: int = typer.Option(
+        42,
+        "--random-seed",
+        help="negative page sampling을 재현하기 위한 난수 seed다.",
+    ),
+    workers: int = typer.Option(
+        1,
+        "--workers",
+        min=1,
+        help="PDF 파일 단위 병렬 처리 worker 수다.",
     ),
     recursive: bool = typer.Option(
         True,
@@ -90,11 +114,34 @@ def detect_bookmark_toc(
         input_dir,
         max_text_pages=max_text_pages,
         recursive=recursive,
+        random_seed=random_seed,
+        workers=workers,
         diagnostics=typer.echo if diagnostics else None,
     ).run()
     if output_json is not None:
         write_json(output_json, result)
-    rich_print(to_jsonable(result))
+    if dataset_json is not None:
+        write_json(dataset_json, result.dataset_rows)
+    if dataset_csv is not None:
+        write_toc_page_dataset_csv(dataset_csv, result.dataset_rows)
+    rich_print(
+        to_jsonable(
+            {
+                "root_dir": result.root_dir,
+                "workers": result.workers,
+                "total_pdf_count": result.total_pdf_count,
+                "bookmarked_pdf_count": result.bookmarked_pdf_count,
+                "skipped_no_bookmark_count": result.skipped_no_bookmark_count,
+                "detected_count": result.detected_count,
+                "not_detected_count": result.not_detected_count,
+                "failed_count": result.failed_count,
+                "dataset_row_count": result.dataset_row_count,
+                "output_json": output_json,
+                "dataset_json": dataset_json,
+                "dataset_csv": dataset_csv,
+            }
+        )
+    )
 
 
 def main() -> None:

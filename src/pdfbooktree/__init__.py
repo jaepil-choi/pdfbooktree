@@ -2,7 +2,11 @@
 
 from pdfbooktree.batch import BatchProcessor
 from pdfbooktree.config import ProcessingConfig
-from pdfbooktree.models import BookmarkedPdfTocBatchResult, ProcessingResult
+from pdfbooktree.models import (
+    BookmarkedPdfTocBatchResult,
+    ProcessingResult,
+    TocPageDatasetRow,
+)
 from pdfbooktree.processor import Processor
 from pdfbooktree.toc.bookmark_batch import BookmarkTocBatchDetector
 
@@ -13,4 +17,5 @@ __all__ = [
     "ProcessingConfig",
     "ProcessingResult",
     "Processor",
+    "TocPageDatasetRow",
 ]

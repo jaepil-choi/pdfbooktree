@@ -70,8 +70,40 @@ class BookmarkedPdfTocDetection:
     confidence: float | None = None
     method: str | None = None
     detection: TocDetectionResult | None = None
+    dataset_rows: list[TocPageDatasetRow] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     error: str | None = None
+
+
+@dataclass(frozen=True)
+class TocPageDatasetRow:
+    """TOC page classifier 학습/분석용 단일 page row다."""
+
+    input_pdf: Path
+    root_relative_pdf: Path | None
+    pdf_page: int
+    label: int
+    sample_role: Literal["positive", "negative"]
+    label_source: str
+    total_pages: int
+    bookmark_count: int
+    detection_confidence: float
+    line_count: int
+    word_count: int
+    mean_line_length: float
+    line_length_std: float
+    line_final_number_count: int
+    line_final_numbers: list[int]
+    line_final_number_monotonicity: float | None
+    line_final_number_gap_mean: float | None
+    line_final_number_gap_median: float | None
+    line_final_number_gap_max: int | None
+    line_final_number_negative_gap_count: int
+    toc_entry_pattern_count: int
+    toc_entry_pattern_ratio: float
+    chapter_or_part_line_count: int
+    page_position: float
+    toc_keyword_presence: bool
 
 
 @dataclass(frozen=True)
@@ -81,13 +113,16 @@ class BookmarkedPdfTocBatchResult:
     root_dir: Path
     recursive: bool
     max_text_pages: int
+    workers: int
     total_pdf_count: int
     bookmarked_pdf_count: int
     skipped_no_bookmark_count: int
     detected_count: int
     not_detected_count: int
     failed_count: int
+    dataset_row_count: int = 0
     results: list[BookmarkedPdfTocDetection] = field(default_factory=list)
+    dataset_rows: list[TocPageDatasetRow] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
