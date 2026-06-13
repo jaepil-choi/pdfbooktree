@@ -107,6 +107,7 @@ def analyze_case(case: dict[str, Any]) -> dict[str, Any]:
 def summarize_detection(detection: Any) -> dict[str, Any]:
     """showcase 결과 파일에 남길 detector 출력을 핵심 필드로 줄인다."""
 
+    selected_pages = set(detection.pages)
     return {
         "pages": detection.pages,
         "start_page": detection.start_page,
@@ -114,6 +115,33 @@ def summarize_detection(detection: Any) -> dict[str, Any]:
         "confidence": detection.confidence,
         "method": detection.method,
         "candidate_count": len(detection.candidates),
+        "selected_candidate_features": [
+            summarize_candidate(candidate)
+            for candidate in detection.candidates
+            if candidate["pdf_page"] in selected_pages
+        ],
+        "top_offset_consistency_candidates": [
+            summarize_candidate(candidate)
+            for candidate in sorted(
+                detection.candidates,
+                key=lambda candidate: candidate.get("offset_consistency_score", 0.0),
+                reverse=True,
+            )[:5]
+            if candidate.get("offset_consistency_score", 0.0) > 0
+        ],
+    }
+
+
+def summarize_candidate(candidate: dict[str, Any]) -> dict[str, Any]:
+    """새 TOC feature가 showcase output에 드러나도록 후보 row를 줄인다."""
+
+    return {
+        "pdf_page": candidate["pdf_page"],
+        "bookmark_anchor_score": candidate.get("bookmark_anchor_score", 0.0),
+        "offset_consistency_score": candidate.get("offset_consistency_score", 0.0),
+        "matched_bookmark_count": candidate.get("matched_bookmark_count", 0),
+        "vote_count": candidate.get("vote_count", 0),
+        "voters": candidate.get("voters", []),
     }
 
 
