@@ -42,7 +42,7 @@ from pdfbooktree.utils.text_normalize import normalize_text
 
 
 WINDOW_MAX_LINES = 3
-MATCH_SCORE_THRESHOLD = 88.0
+MATCH_SCORE_THRESHOLD = 80.0
 OFFSET_CONSISTENCY_VOTE_THRESHOLD = 1.5
 
 GENERIC_BOOKMARK_TITLES = {
@@ -97,6 +97,11 @@ def detect_toc_pages_from_bookmarks(
         pages_result = sorted(segment_pages)
     else:
         pages_result = []
+    pages_result = expand_pages_to_cover_bookmark_matches(
+        pages_result,
+        usable_bookmarks,
+        all_matches,
+    )
 
     candidates = build_bookmark_candidate_rows(
         enriched_scores,
@@ -258,6 +263,59 @@ def match_bookmarks_to_pages(
         }
 
     return evidence_by_page, all_matches
+
+
+def expand_pages_to_cover_bookmark_matches(
+    selected_pages: list[int],
+    bookmarks: list[dict[str, Any]],
+    matches: list[dict[str, Any]],
+) -> list[int]:
+    """선택된 TOC page range가 관측된 bookmark match를 모두 포함하게 확장한다."""
+
+    if not selected_pages or not bookmarks:
+        return selected_pages
+
+    selected_page_set = set(selected_pages)
+    expected_orders = {int(bookmark["order"]) for bookmark in bookmarks}
+    covered_orders = {
+        int(match["bookmark_order"])
+        for match in matches
+        if int(match["pdf_page"]) in selected_page_set
+    }
+    missing_orders = expected_orders - covered_orders
+    if not missing_orders:
+        return sorted(selected_page_set)
+
+    matches_by_order: dict[int, list[dict[str, Any]]] = defaultdict(list)
+    for match in matches:
+        matches_by_order[int(match["bookmark_order"])].append(match)
+
+    required_pages = set(selected_page_set)
+    for order in missing_orders:
+        candidates = matches_by_order.get(order, [])
+        if not candidates:
+            continue
+        best_match = min(
+            candidates,
+            key=lambda match: (
+                calculate_page_distance_to_selection(
+                    int(match["pdf_page"]),
+                    selected_page_set,
+                ),
+                -float(match["score"]),
+            ),
+        )
+        required_pages.add(int(best_match["pdf_page"]))
+
+    return list(range(min(required_pages), max(required_pages) + 1))
+
+
+def calculate_page_distance_to_selection(page: int, selected_pages: set[int]) -> int:
+    """선택된 range에서 candidate page까지의 최소 거리를 계산한다."""
+
+    if page in selected_pages:
+        return 0
+    return min(abs(page - selected_page) for selected_page in selected_pages)
 
 
 def score_window_against_title(window_text: str, title: str) -> float:
