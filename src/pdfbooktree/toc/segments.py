@@ -30,6 +30,7 @@ class TocPageScore:
     """단일 page의 TOC 가능성 점수와 근거다."""
 
     pdf_page: int
+    line_final_numbers: list[int]
     printed_page_sequence_score: float
     toc_entry_pattern_score: float
     window_mass_score: float
@@ -80,6 +81,7 @@ def score_toc_page(feature: PageFeature) -> TocPageScore:
 
     return TocPageScore(
         pdf_page=feature.pdf_page,
+        line_final_numbers=feature.line_final_numbers,
         printed_page_sequence_score=printed_score,
         toc_entry_pattern_score=entry_score,
         window_mass_score=window_score,
@@ -230,20 +232,79 @@ def expand_soft_edges(
     segment: TocPageSegment,
     page_by_number: dict[int, TocPageScore],
 ) -> tuple[int, int]:
-    """window mass가 지지하는 약한 경계 page를 segment에 포함한다."""
+    """segment 전체 line-final number 흐름을 깨지 않는 인접 page를 포함한다."""
 
     start = segment.start_page
     end = segment.end_page
-    while is_soft_edge_toc_page(page_by_number.get(start - 1)):
+    while can_expand_segment(start, end, start - 1, "left", page_by_number):
         start -= 1
-    while is_soft_edge_toc_page(page_by_number.get(end + 1)):
+    while can_expand_segment(start, end, end + 1, "right", page_by_number):
         end += 1
     return start, end
 
 
-def is_soft_edge_toc_page(score: TocPageScore | None) -> bool:
-    """강한 vote는 아니지만 TOC 경계로 받아들일 수 있는 page인지 판단한다."""
+def can_expand_segment(
+    start: int,
+    end: int,
+    candidate_page: int,
+    side: str,
+    page_by_number: dict[int, TocPageScore],
+) -> bool:
+    """candidate page를 붙여도 segment 숫자 흐름이 유지되는지 판단한다."""
 
-    if score is None:
+    candidate = page_by_number.get(candidate_page)
+    if candidate is None or candidate.vote_count == 0:
         return False
-    return score.vote_count == 1 and "window_mass" in score.voters
+
+    segment_numbers = collect_segment_numbers(start, end, page_by_number)
+    candidate_numbers = candidate.line_final_numbers
+    if side == "left":
+        combined_numbers = candidate_numbers + segment_numbers
+        if not has_monotone_boundary(candidate_numbers, segment_numbers):
+            return False
+    elif side == "right":
+        combined_numbers = segment_numbers + candidate_numbers
+        if not has_monotone_boundary(segment_numbers, candidate_numbers):
+            return False
+    else:
+        raise ValueError(f"알 수 없는 확장 방향이다: {side}")
+
+    current_monotonicity = sequence_monotonicity(segment_numbers)
+    expanded_monotonicity = sequence_monotonicity(combined_numbers)
+    if current_monotonicity is None or expanded_monotonicity is None:
+        return True
+    return expanded_monotonicity >= current_monotonicity - 0.05
+
+
+def collect_segment_numbers(
+    start: int,
+    end: int,
+    page_by_number: dict[int, TocPageScore],
+) -> list[int]:
+    """segment page 순서대로 line-final number를 이어 붙인다."""
+
+    numbers: list[int] = []
+    for page in range(start, end + 1):
+        score = page_by_number.get(page)
+        if score is not None:
+            numbers.extend(score.line_final_numbers)
+    return numbers
+
+
+def has_monotone_boundary(left_numbers: list[int], right_numbers: list[int]) -> bool:
+    """두 page group 사이의 마지막/첫 line-final number가 역행하지 않는지 본다."""
+
+    if not left_numbers or not right_numbers:
+        return True
+    return left_numbers[-1] <= right_numbers[0]
+
+
+def sequence_monotonicity(numbers: list[int]) -> float | None:
+    """line 순서대로 읽은 숫자열이 거의 증가하는 정도를 계산한다."""
+
+    if len(numbers) < 2:
+        return None
+    non_decreasing_count = sum(
+        1 for left, right in zip(numbers, numbers[1:], strict=False) if right >= left
+    )
+    return non_decreasing_count / (len(numbers) - 1)

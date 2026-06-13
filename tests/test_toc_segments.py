@@ -14,15 +14,17 @@ def make_feature(
     monotonicity: float | None = None,
     toc_entry_count: int = 0,
     keyword: bool = False,
+    final_numbers: list[int] | None = None,
 ) -> PageFeature:
+    numbers = final_numbers or list(range(1, final_count + 1))
     return PageFeature(
         pdf_page=pdf_page,
         line_count=20,
         word_count=100,
         mean_line_length=30.0,
         line_length_std=4.0,
-        line_final_number_count=final_count,
-        line_final_numbers=list(range(1, final_count + 1)),
+        line_final_number_count=len(numbers),
+        line_final_numbers=numbers,
         line_final_number_monotonicity=monotonicity,
         line_final_number_gap_mean=None,
         line_final_number_gap_median=None,
@@ -86,3 +88,31 @@ def test_find_best_window_uses_mass_and_boundary_contrast() -> None:
 
     assert segment is not None
     assert segment.pages == [2, 3, 4, 5]
+
+
+def test_select_toc_segment_rejects_edge_that_breaks_segment_number_flow() -> None:
+    features = [
+        make_feature(
+            2,
+            monotonicity=1.0,
+            toc_entry_count=0,
+            final_numbers=[1996, 1997],
+        ),
+        make_feature(
+            3,
+            monotonicity=1.0,
+            toc_entry_count=3,
+            final_numbers=[1, 11, 16],
+        ),
+        make_feature(
+            4,
+            monotonicity=1.0,
+            toc_entry_count=3,
+            final_numbers=[22, 30, 40],
+        ),
+    ]
+
+    segment = select_toc_segment([score_toc_page(feature) for feature in features])
+
+    assert segment is not None
+    assert segment.pages == [3, 4]

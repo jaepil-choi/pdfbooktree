@@ -349,6 +349,7 @@ def merge_bookmark_votes(
         enriched.append(
             TocPageScore(
                 pdf_page=score.pdf_page,
+                line_final_numbers=score.line_final_numbers,
                 printed_page_sequence_score=score.printed_page_sequence_score,
                 toc_entry_pattern_score=score.toc_entry_pattern_score,
                 window_mass_score=score.window_mass_score,
