@@ -26,6 +26,18 @@ def extract_line_final_number(line: str) -> int | None:
     return int(match.group(1))
 
 
+def extract_page_number_candidates(text: str) -> list[int]:
+    """text 안의 standalone page number 후보를 순서대로 추출한다."""
+
+    candidates: list[int] = []
+    for match in re.finditer(r"(?<![\w.])(\d{1,4})(?![\w.])", text):
+        number = int(match.group(1))
+        if number <= 0 or number > 2000:
+            continue
+        candidates.append(number)
+    return candidates
+
+
 def monotonicity(numbers: list[int]) -> float | None:
     """숫자열이 거의 증가하는 정도를 0.0-1.0으로 계산한다."""
 

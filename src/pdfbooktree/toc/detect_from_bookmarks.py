@@ -26,7 +26,11 @@ from typing import Any
 from rapidfuzz import fuzz
 
 from pdfbooktree.models import PageFeature, PdfPageText, TocDetectionResult
-from pdfbooktree.toc.features import calculate_page_features, extract_line_final_number
+from pdfbooktree.toc.features import (
+    calculate_page_features,
+    extract_line_final_number,
+    extract_page_number_candidates,
+)
 from pdfbooktree.toc.segments import (
     TocPageScore,
     choose_best_voted_segment,
@@ -39,6 +43,7 @@ from pdfbooktree.utils.text_normalize import normalize_text
 
 WINDOW_MAX_LINES = 3
 MATCH_SCORE_THRESHOLD = 88.0
+OFFSET_CONSISTENCY_VOTE_THRESHOLD = 1.5
 
 GENERIC_BOOKMARK_TITLES = {
     "summary",
@@ -189,6 +194,7 @@ def build_page_windows(page_number: int, lines: list[str]) -> list[dict[str, Any
                     "raw_text": raw_text,
                     "normalized_text": normalized_text,
                     "trailing_number": extract_line_final_number(raw_text),
+                    "number_candidates": extract_page_number_candidates(raw_text),
                 }
             )
     return windows
@@ -223,6 +229,7 @@ def match_bookmarks_to_pages(
                     "bookmark_target_pdf_page": bookmark["target_pdf_page"],
                     "score": score,
                     "trailing_number": window["trailing_number"],
+                    "number_candidates": window["number_candidates"],
                     "window": {
                         "start_line": window["start_line"],
                         "end_line": window["end_line"],
@@ -304,29 +311,48 @@ def score_bookmark_anchor_density(
 
 
 def score_offset_consistency(matches: list[dict[str, Any]]) -> dict[int, float]:
-    """TOC line 끝 숫자와 bookmark target page의 offset 일관성을 점수화한다."""
+    """page text 숫자와 bookmark target page의 offset 일관성을 점수화한다."""
 
-    offsets_by_page: dict[int, list[int]] = defaultdict(list)
+    evidence_by_page: dict[int, list[dict[str, int]]] = defaultdict(list)
     for match in matches:
-        trailing_number = match.get("trailing_number")
         target_pdf_page = match.get("bookmark_target_pdf_page")
-        if trailing_number is None or target_pdf_page is None:
+        if target_pdf_page is None:
             continue
-        if int(trailing_number) <= 0 or int(trailing_number) > 2000:
-            continue
-        offsets_by_page[int(match["pdf_page"])].append(
-            int(target_pdf_page) - int(trailing_number)
-        )
+
+        numbers = list(match.get("number_candidates", []))
+        trailing_number = match.get("trailing_number")
+        if trailing_number is not None and int(trailing_number) not in numbers:
+            numbers.append(int(trailing_number))
+
+        for number in numbers:
+            if int(number) <= 0 or int(number) > 2000:
+                continue
+            evidence_by_page[int(match["pdf_page"])].append(
+                {
+                    "bookmark_order": int(match["bookmark_order"]),
+                    "offset": int(target_pdf_page) - int(number),
+                }
+            )
 
     scores: dict[int, float] = {}
-    for page, offsets in offsets_by_page.items():
-        if len(offsets) < 2:
+    for page, evidence in evidence_by_page.items():
+        if len(evidence) < 2:
             scores[page] = 0.0
             continue
-        offset_counts = Counter(offsets)
-        modal_count = offset_counts.most_common(1)[0][1]
-        modal_share = modal_count / len(offsets)
-        scores[page] = modal_count * modal_share
+        offset_counts = Counter(item["offset"] for item in evidence)
+        modal_offset, modal_candidate_count = offset_counts.most_common(1)[0]
+        modal_bookmark_count = len(
+            {
+                item["bookmark_order"]
+                for item in evidence
+                if item["offset"] == modal_offset
+            }
+        )
+        if modal_bookmark_count < 2:
+            scores[page] = 0.0
+            continue
+        modal_share = modal_candidate_count / len(evidence)
+        scores[page] = modal_bookmark_count * (0.75 + 0.25 * modal_share)
     return scores
 
 
@@ -344,7 +370,7 @@ def merge_bookmark_votes(
         offset_score = offset_scores.get(score.pdf_page, 0.0)
         if anchor_score >= 1.5:
             voters.append("bookmark_anchor_density")
-        if offset_score >= 2.0:
+        if offset_score >= OFFSET_CONSISTENCY_VOTE_THRESHOLD:
             voters.append("offset_consistency")
         enriched.append(
             TocPageScore(
