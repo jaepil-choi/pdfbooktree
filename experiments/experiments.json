@@ -48,6 +48,32 @@
       "temperature": 0.0,
       "finding": "john_hull는 LLM binomial search로 [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]를 예측했고, 사용자 검수 accepted range 대비 precision 1.0, recall 1.0, missing [], extra []이다. shreve_binomial는 LLM binomial search로 [3, 4, 5, 6, 7, 8, 9, 10, 11]를 예측했고, 사용자 검수 accepted range 대비 precision 1.0, recall 1.0, missing [], extra []이다. luenberger_investment_science는 LLM binomial search로 [9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]를 예측했고, 사용자 검수 accepted range 대비 precision 1.0, recall 0.7857142857142857, missing [7, 8, 20], extra []이다.",
       "ran_at": "2026-06-08T22:40:11"
+    },
+    {
+      "id": "005_tree_toc_page_classifier",
+      "purpose": "bookmark-guided TOC dataset을 PDF 단위 train/test split으로 나누고, page 위치 feature를 제외한 구조 feature만으로 Random Forest와 LightGBM tree classifier가 page-level TOC 여부를 얼마나 잘 분류하는지 비교한다.",
+      "inputs": [
+        "showcase\\outputs\\300study_toc_dataset.csv"
+      ],
+      "outputs": "experiments\\outputs\\005_tree_toc_page_classifier",
+      "models": [
+        "lightgbm",
+        "random_forest"
+      ],
+      "finding": "4610개 page row와 367개 PDF를 PDF 단위 group holdout으로 train/test split했다. best run은 random_forest_structural_only이며 F1 0.949, precision 0.958, recall 0.940, ROC-AUC 0.988이다. random_forest_structural_only는 F1 0.949이고 상위 feature는 toc_keyword_presence, line_final_number_monotonicity, line_final_number_count이다. lightgbm_structural_only는 F1 0.948이고 상위 feature는 mean_line_length, word_count, line_count이다.",
+      "ran_at": "2026-06-13T17:39:17"
+    },
+    {
+      "id": "006_tree_feature_attribution",
+      "purpose": "005 실험에서 page 위치 feature를 제외하고 학습한 Random Forest와 LightGBM 모델의 구조 feature 효과를 내장 importance, permutation importance, SHAP, PDP/ICE 시각화로 비교한다.",
+      "inputs": [
+        "showcase\\outputs\\300study_toc_dataset.csv",
+        "experiments\\outputs\\005_tree_toc_page_classifier\\summary.json"
+      ],
+      "outputs": "experiments\\outputs\\006_tree_feature_attribution",
+      "source_experiment": "005_tree_toc_page_classifier",
+      "finding": "005_tree_toc_page_classifier의 학습 모델 2개를 로드해 내장 importance, permutation importance, SHAP, PDP/ICE를 생성했다. random_forest_structural_only의 1위 feature는 내장 toc_keyword_presence, permutation toc_keyword_presence, SHAP toc_keyword_presence이다. lightgbm_structural_only의 1위 feature는 내장 mean_line_length, permutation toc_keyword_presence, SHAP toc_keyword_presence이다.",
+      "ran_at": "2026-06-13T17:40:14"
     }
   ]
 }
