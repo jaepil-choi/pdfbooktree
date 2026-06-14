@@ -56,8 +56,27 @@ STRUCTURAL_FEATURES = [
     "toc_keyword_presence",
 ]
 
+PREVIOUS_PAGE_FEATURES = [
+    "prev_page_available",
+    "prev_line_count",
+    "prev_word_count",
+    "prev_mean_line_length",
+    "prev_line_length_std",
+    "prev_line_final_number_count",
+    "prev_line_final_number_monotonicity",
+    "prev_line_final_number_gap_mean",
+    "prev_line_final_number_gap_median",
+    "prev_line_final_number_gap_max",
+    "prev_line_final_number_negative_gap_count",
+    "prev_toc_entry_pattern_count",
+    "prev_toc_entry_pattern_ratio",
+    "prev_chapter_or_part_line_count",
+    "prev_toc_keyword_presence",
+]
+
 FEATURE_SETS = {
     "structural_only": STRUCTURAL_FEATURES,
+    "structural_with_prev_page": STRUCTURAL_FEATURES + PREVIOUS_PAGE_FEATURES,
 }
 
 
@@ -98,6 +117,40 @@ def load_dataset(path: Path) -> tuple[list[dict[str, str]], dict[str, Any]]:
         "negative_count": len(rows) - positives,
     }
     return rows, summary
+
+
+def validate_feature_columns(
+    rows: list[dict[str, str]],
+    feature_sets: dict[str, list[str]],
+) -> None:
+    """실험에 필요한 feature column이 dataset에 모두 있는지 확인한다."""
+
+    available_columns = set(rows[0])
+    missing_by_feature_set = {
+        feature_set: [
+            feature for feature in feature_names if feature not in available_columns
+        ]
+        for feature_set, feature_names in feature_sets.items()
+    }
+    missing_by_feature_set = {
+        feature_set: missing_features
+        for feature_set, missing_features in missing_by_feature_set.items()
+        if missing_features
+    }
+    if not missing_by_feature_set:
+        return
+
+    details = "; ".join(
+        f"{feature_set}: {', '.join(missing_features)}"
+        for feature_set, missing_features in missing_by_feature_set.items()
+    )
+    raise ValueError(
+        "dataset CSV에 실험 feature column이 없습니다. "
+        "t-1 feature 추가 이후 생성된 dataset이 필요합니다. "
+        "먼저 `uv run pdfbooktree detect-bookmark-toc ... --dataset-csv "
+        "showcase/outputs/300study_toc_dataset.csv`를 다시 실행하세요. "
+        f"missing columns: {details}"
+    )
 
 
 def make_matrix(
@@ -150,7 +203,14 @@ def build_models(random_seed: int) -> dict[str, Pipeline]:
     return {
         "random_forest": Pipeline(
             [
-                ("imputer", SimpleImputer(strategy="constant", fill_value=0.0)),
+                (
+                    "imputer",
+                    SimpleImputer(
+                        strategy="constant",
+                        fill_value=0.0,
+                        keep_empty_features=True,
+                    ),
+                ),
                 (
                     "model",
                     RandomForestClassifier(
@@ -165,7 +225,14 @@ def build_models(random_seed: int) -> dict[str, Pipeline]:
         ),
         "lightgbm": Pipeline(
             [
-                ("imputer", SimpleImputer(strategy="constant", fill_value=0.0)),
+                (
+                    "imputer",
+                    SimpleImputer(
+                        strategy="constant",
+                        fill_value=0.0,
+                        keep_empty_features=True,
+                    ),
+                ),
                 (
                     "model",
                     LGBMClassifier(
@@ -365,9 +432,9 @@ def update_experiment_registry(summary: dict[str, Any]) -> None:
             "id": EXPERIMENT_ID,
             "purpose": (
                 "bookmark-guided TOC dataset을 PDF 단위 train/test split으로 나누고, "
-                "page 위치 feature를 제외한 구조 feature만으로 Random Forest와 "
-                "LightGBM tree classifier가 page-level TOC 여부를 얼마나 잘 "
-                "분류하는지 비교한다."
+                "page 위치 feature를 제외한 현재 page 구조 feature와 직전 page "
+                "구조 feature로 Random Forest와 LightGBM tree classifier가 "
+                "page-level TOC 여부를 얼마나 잘 분류하는지 비교한다."
             ),
             "inputs": [summary["dataset"]["dataset_csv"]],
             "outputs": str(OUTPUT_DIR.relative_to(ROOT_DIR)),
@@ -426,6 +493,7 @@ def main() -> None:
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     rows, dataset_summary = load_dataset(dataset_csv)
+    validate_feature_columns(rows, FEATURE_SETS)
     train_index, test_index, split_summary = split_group_holdout(
         rows=rows,
         test_size=args.test_size,

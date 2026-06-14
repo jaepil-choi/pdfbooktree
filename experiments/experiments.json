@@ -50,8 +50,20 @@
       "ran_at": "2026-06-08T22:40:11"
     },
     {
+      "id": "007_boundary_toc_page_review",
+      "purpose": "300study 새 데이터셋에서 bookmark-guided TOC range의 시작/끝 경계 page가 실제 목차 page인지 확인하기 위해 경계 page와 바로 바깥 page의 text, 구조 feature, detector 후보 근거를 비교한다.",
+      "inputs": [
+        "showcase\\outputs\\300study_toc_dataset.csv",
+        "showcase\\outputs\\300study_detection.json"
+      ],
+      "outputs": "experiments\\outputs\\007_boundary_toc_page_review",
+      "source_showcase": "showcase/outputs/300study_detection.json",
+      "finding": "300study detection 결과의 310개 PDF에서 310개 TOC range와 620개 시작/끝 경계 page를 검수했다. 경계 page 판정은 likely_toc 482개, needs_manual_review_guided_only 138개, weak_boundary_evidence 0개이며, 약한 경계 range는 115개다. 상세 page별 근거 line과 feature는 boundary_pages.csv와 summary.json에 남겼다.",
+      "ran_at": "2026-06-14T16:35:55"
+    },
+    {
       "id": "005_tree_toc_page_classifier",
-      "purpose": "bookmark-guided TOC dataset을 PDF 단위 train/test split으로 나누고, page 위치 feature를 제외한 구조 feature만으로 Random Forest와 LightGBM tree classifier가 page-level TOC 여부를 얼마나 잘 분류하는지 비교한다.",
+      "purpose": "bookmark-guided TOC dataset을 PDF 단위 train/test split으로 나누고, page 위치 feature를 제외한 현재 page 구조 feature와 직전 page 구조 feature로 Random Forest와 LightGBM tree classifier가 page-level TOC 여부를 얼마나 잘 분류하는지 비교한다.",
       "inputs": [
         "showcase\\outputs\\300study_toc_dataset.csv"
       ],
@@ -60,20 +72,20 @@
         "lightgbm",
         "random_forest"
       ],
-      "finding": "정답 page가 bookmark를 반드시 포함해야 한다는 조건이 추가된 dataset으로 재실행했다. 15826개 page row와 368개 PDF를 PDF 단위 group holdout으로 train/test split했다. best run은 random_forest_structural_only이며 F1 0.725, precision 0.756, recall 0.697, ROC-AUC 0.833이다. 이전 dataset 대비 성능이 낮아졌고, random_forest_structural_only는 F1 0.725이며 상위 feature는 line_final_number_gap_mean, mean_line_length, line_length_std이다. lightgbm_structural_only는 F1 0.721이고 상위 feature는 line_final_number_gap_mean, line_final_number_gap_max, line_length_std이다.",
-      "ran_at": "2026-06-13T17:50:18"
+      "finding": "5225개 page row와 310개 PDF를 PDF 단위 group holdout으로 train/test split했다. best run은 lightgbm_structural_with_prev_page이며 F1 0.822, precision 0.904, recall 0.753, ROC-AUC 0.918이다. lightgbm_structural_with_prev_page는 F1 0.822이고 상위 feature는 mean_line_length, prev_mean_line_length, prev_word_count이다. random_forest_structural_with_prev_page는 F1 0.818이고 상위 feature는 toc_keyword_presence, mean_line_length, prev_toc_keyword_presence이다. random_forest_structural_only는 F1 0.796이고 상위 feature는 toc_keyword_presence, mean_line_length, word_count이다. lightgbm_structural_only는 F1 0.785이고 상위 feature는 mean_line_length, word_count, line_length_std이다.",
+      "ran_at": "2026-06-14T16:53:07"
     },
     {
       "id": "006_tree_feature_attribution",
-      "purpose": "005 실험에서 page 위치 feature를 제외하고 학습한 Random Forest와 LightGBM 모델의 구조 feature 효과를 내장 importance, permutation importance, SHAP, PDP/ICE 시각화로 비교한다.",
+      "purpose": "005 실험에서 page 위치 feature를 제외하고 학습한 Random Forest와 LightGBM 모델의 현재 page 및 직전 page 구조 feature 효과를 내장 importance, permutation importance, SHAP, PDP/ICE 시각화로 비교한다.",
       "inputs": [
         "showcase\\outputs\\300study_toc_dataset.csv",
         "experiments\\outputs\\005_tree_toc_page_classifier\\summary.json"
       ],
       "outputs": "experiments\\outputs\\006_tree_feature_attribution",
       "source_experiment": "005_tree_toc_page_classifier",
-      "finding": "005_tree_toc_page_classifier의 재학습 모델 2개를 로드해 내장 importance, permutation importance, SHAP, PDP/ICE를 생성했다. bookmark 포함 조건이 추가된 dataset에서는 random_forest_structural_only의 1위 feature가 내장 line_final_number_gap_mean, permutation line_final_number_gap_mean, SHAP line_final_number_gap_mean이다. lightgbm_structural_only도 1위 feature가 내장 line_final_number_gap_mean, permutation line_final_number_gap_mean, SHAP line_final_number_gap_mean이다. 이전 dataset에서 강했던 toc_keyword_presence보다 line-final number gap 계열 구조 feature가 더 강하게 나타났다.",
-      "ran_at": "2026-06-13T17:52:44"
+      "finding": "005_tree_toc_page_classifier의 학습 모델 4개를 로드해 내장 importance, permutation importance, SHAP, PDP/ICE를 생성했다. random_forest_structural_only의 1위 feature는 내장 toc_keyword_presence, permutation toc_keyword_presence, SHAP toc_keyword_presence이다. lightgbm_structural_only의 1위 feature는 내장 mean_line_length, permutation toc_keyword_presence, SHAP toc_keyword_presence이다. random_forest_structural_with_prev_page의 1위 feature는 내장 toc_keyword_presence, permutation toc_keyword_presence, SHAP toc_keyword_presence이다. lightgbm_structural_with_prev_page의 1위 feature는 내장 mean_line_length, permutation toc_keyword_presence, SHAP toc_keyword_presence이다.",
+      "ran_at": "2026-06-14T17:00:22"
     }
   ]
 }

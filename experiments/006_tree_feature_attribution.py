@@ -59,8 +59,27 @@ STRUCTURAL_FEATURES = [
     "toc_keyword_presence",
 ]
 
+PREVIOUS_PAGE_FEATURES = [
+    "prev_page_available",
+    "prev_line_count",
+    "prev_word_count",
+    "prev_mean_line_length",
+    "prev_line_length_std",
+    "prev_line_final_number_count",
+    "prev_line_final_number_monotonicity",
+    "prev_line_final_number_gap_mean",
+    "prev_line_final_number_gap_median",
+    "prev_line_final_number_gap_max",
+    "prev_line_final_number_negative_gap_count",
+    "prev_toc_entry_pattern_count",
+    "prev_toc_entry_pattern_ratio",
+    "prev_chapter_or_part_line_count",
+    "prev_toc_keyword_presence",
+]
+
 FEATURE_SETS = {
     "structural_only": STRUCTURAL_FEATURES,
+    "structural_with_prev_page": STRUCTURAL_FEATURES + PREVIOUS_PAGE_FEATURES,
 }
 
 
@@ -89,6 +108,41 @@ def load_dataset(path: Path) -> list[dict[str, str]]:
     if not rows:
         raise ValueError(f"데이터셋이 비어 있습니다: {path}")
     return rows
+
+
+def validate_feature_columns(
+    rows: list[dict[str, str]],
+    required_feature_sets: set[str],
+) -> None:
+    """시각화 대상 run에 필요한 feature column이 dataset에 있는지 확인한다."""
+
+    available_columns = set(rows[0])
+    missing_by_feature_set = {
+        feature_set: [
+            feature
+            for feature in FEATURE_SETS[feature_set]
+            if feature not in available_columns
+        ]
+        for feature_set in sorted(required_feature_sets)
+    }
+    missing_by_feature_set = {
+        feature_set: missing_features
+        for feature_set, missing_features in missing_by_feature_set.items()
+        if missing_features
+    }
+    if not missing_by_feature_set:
+        return
+
+    details = "; ".join(
+        f"{feature_set}: {', '.join(missing_features)}"
+        for feature_set, missing_features in missing_by_feature_set.items()
+    )
+    raise ValueError(
+        "dataset CSV에 시각화 대상 모델의 feature column이 없습니다. "
+        "t-1 feature 추가 이후 생성된 dataset과 005 summary가 필요합니다. "
+        "먼저 dataset 생성과 005 실험을 다시 실행하세요. "
+        f"missing columns: {details}"
+    )
 
 
 def make_matrix(
@@ -476,6 +530,7 @@ def analyze_run(
         "run_id": run_id,
         "model": run["model"],
         "feature_set": run["feature_set"],
+        "metrics": run["metrics"],
         "source_metrics": run["metrics"],
         "builtin_top_features": builtin_rows[:8],
         "permutation_top_features": permutation_rows[:8],
@@ -542,8 +597,9 @@ def update_experiment_registry(summary: dict[str, Any]) -> None:
             "id": EXPERIMENT_ID,
             "purpose": (
                 "005 실험에서 page 위치 feature를 제외하고 학습한 Random Forest와 "
-                "LightGBM 모델의 구조 feature 효과를 내장 importance, permutation "
-                "importance, SHAP, PDP/ICE 시각화로 비교한다."
+                "LightGBM 모델의 현재 page 및 직전 page 구조 feature 효과를 "
+                "내장 importance, permutation importance, SHAP, PDP/ICE "
+                "시각화로 비교한다."
             ),
             "inputs": [
                 str(DEFAULT_DATASET_CSV.relative_to(ROOT_DIR)),
@@ -641,6 +697,10 @@ def main() -> None:
     ]
     if not source_runs:
         raise ValueError(f"분석할 run_id가 없습니다: {args.run_id}")
+    validate_feature_columns(
+        rows,
+        {str(run["feature_set"]) for run in source_runs},
+    )
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     run_summaries = [
