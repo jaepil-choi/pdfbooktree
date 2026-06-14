@@ -274,7 +274,14 @@ class BookmarkTocBatchDetector:
         missing_positive_pages = [
             pdf_page for pdf_page in positive_pages if pdf_page not in feature_by_page
         ]
-        selected_pages = sorted(set(missing_positive_pages + negative_pages))
+        previous_pages = [
+            pdf_page - 1
+            for pdf_page in positive_pages + negative_pages
+            if pdf_page > 1
+        ]
+        selected_pages = sorted(
+            set(missing_positive_pages + negative_pages + previous_pages)
+        )
         if selected_pages:
             selected_texts = extract_selected_page_texts(pdf_path, selected_pages)
             selected_features = calculate_page_features(selected_texts, total_pages)
@@ -288,6 +295,7 @@ class BookmarkTocBatchDetector:
                 self._build_dataset_row(
                     pdf_path=pdf_path,
                     feature=feature_by_page[pdf_page],
+                    previous_feature=feature_by_page.get(pdf_page - 1),
                     label=1,
                     sample_role="positive",
                     total_pages=total_pages,
@@ -300,6 +308,7 @@ class BookmarkTocBatchDetector:
                 self._build_dataset_row(
                     pdf_path=pdf_path,
                     feature=feature_by_page[pdf_page],
+                    previous_feature=feature_by_page.get(pdf_page - 1),
                     label=0,
                     sample_role="negative",
                     total_pages=total_pages,
@@ -313,6 +322,7 @@ class BookmarkTocBatchDetector:
         self,
         pdf_path: Path,
         feature: PageFeature,
+        previous_feature: PageFeature | None,
         label: int,
         sample_role: Literal["positive", "negative"],
         total_pages: int,
@@ -347,6 +357,59 @@ class BookmarkTocBatchDetector:
             chapter_or_part_line_count=feature.chapter_or_part_line_count,
             page_position=feature.page_position,
             toc_keyword_presence=feature.toc_keyword_presence,
+            prev_page_available=previous_feature is not None,
+            prev_line_count=previous_feature.line_count
+            if previous_feature is not None
+            else None,
+            prev_word_count=previous_feature.word_count
+            if previous_feature is not None
+            else None,
+            prev_mean_line_length=previous_feature.mean_line_length
+            if previous_feature is not None
+            else None,
+            prev_line_length_std=previous_feature.line_length_std
+            if previous_feature is not None
+            else None,
+            prev_line_final_number_count=previous_feature.line_final_number_count
+            if previous_feature is not None
+            else None,
+            prev_line_final_number_monotonicity=(
+                previous_feature.line_final_number_monotonicity
+                if previous_feature is not None
+                else None
+            ),
+            prev_line_final_number_gap_mean=(
+                previous_feature.line_final_number_gap_mean
+                if previous_feature is not None
+                else None
+            ),
+            prev_line_final_number_gap_median=(
+                previous_feature.line_final_number_gap_median
+                if previous_feature is not None
+                else None
+            ),
+            prev_line_final_number_gap_max=previous_feature.line_final_number_gap_max
+            if previous_feature is not None
+            else None,
+            prev_line_final_number_negative_gap_count=(
+                previous_feature.line_final_number_negative_gap_count
+                if previous_feature is not None
+                else None
+            ),
+            prev_toc_entry_pattern_count=previous_feature.toc_entry_pattern_count
+            if previous_feature is not None
+            else None,
+            prev_toc_entry_pattern_ratio=previous_feature.toc_entry_pattern_ratio
+            if previous_feature is not None
+            else None,
+            prev_chapter_or_part_line_count=(
+                previous_feature.chapter_or_part_line_count
+                if previous_feature is not None
+                else None
+            ),
+            prev_toc_keyword_presence=previous_feature.toc_keyword_presence
+            if previous_feature is not None
+            else None,
         )
 
     def _failed_result(
@@ -481,7 +544,12 @@ def _build_dataset_rows(
     missing_positive_pages = [
         pdf_page for pdf_page in positive_pages if pdf_page not in feature_by_page
     ]
-    selected_pages = sorted(set(missing_positive_pages + negative_pages))
+    previous_pages = [
+        pdf_page - 1
+        for pdf_page in positive_pages + negative_pages
+        if pdf_page > 1
+    ]
+    selected_pages = sorted(set(missing_positive_pages + negative_pages + previous_pages))
     if selected_pages:
         selected_texts = extract_selected_page_texts(pdf_path, selected_pages)
         selected_features = calculate_page_features(selected_texts, total_pages)
@@ -496,6 +564,7 @@ def _build_dataset_rows(
                 root_dir=root_dir,
                 pdf_path=pdf_path,
                 feature=feature_by_page[pdf_page],
+                previous_feature=feature_by_page.get(pdf_page - 1),
                 label=1,
                 sample_role="positive",
                 total_pages=total_pages,
@@ -509,6 +578,7 @@ def _build_dataset_rows(
                 root_dir=root_dir,
                 pdf_path=pdf_path,
                 feature=feature_by_page[pdf_page],
+                previous_feature=feature_by_page.get(pdf_page - 1),
                 label=0,
                 sample_role="negative",
                 total_pages=total_pages,
@@ -523,6 +593,7 @@ def _build_dataset_row(
     root_dir: Path,
     pdf_path: Path,
     feature: PageFeature,
+    previous_feature: PageFeature | None,
     label: int,
     sample_role: Literal["positive", "negative"],
     total_pages: int,
@@ -557,6 +628,57 @@ def _build_dataset_row(
         chapter_or_part_line_count=feature.chapter_or_part_line_count,
         page_position=feature.page_position,
         toc_keyword_presence=feature.toc_keyword_presence,
+        prev_page_available=previous_feature is not None,
+        prev_line_count=previous_feature.line_count
+        if previous_feature is not None
+        else None,
+        prev_word_count=previous_feature.word_count
+        if previous_feature is not None
+        else None,
+        prev_mean_line_length=previous_feature.mean_line_length
+        if previous_feature is not None
+        else None,
+        prev_line_length_std=previous_feature.line_length_std
+        if previous_feature is not None
+        else None,
+        prev_line_final_number_count=previous_feature.line_final_number_count
+        if previous_feature is not None
+        else None,
+        prev_line_final_number_monotonicity=(
+            previous_feature.line_final_number_monotonicity
+            if previous_feature is not None
+            else None
+        ),
+        prev_line_final_number_gap_mean=previous_feature.line_final_number_gap_mean
+        if previous_feature is not None
+        else None,
+        prev_line_final_number_gap_median=(
+            previous_feature.line_final_number_gap_median
+            if previous_feature is not None
+            else None
+        ),
+        prev_line_final_number_gap_max=previous_feature.line_final_number_gap_max
+        if previous_feature is not None
+        else None,
+        prev_line_final_number_negative_gap_count=(
+            previous_feature.line_final_number_negative_gap_count
+            if previous_feature is not None
+            else None
+        ),
+        prev_toc_entry_pattern_count=previous_feature.toc_entry_pattern_count
+        if previous_feature is not None
+        else None,
+        prev_toc_entry_pattern_ratio=previous_feature.toc_entry_pattern_ratio
+        if previous_feature is not None
+        else None,
+        prev_chapter_or_part_line_count=(
+            previous_feature.chapter_or_part_line_count
+            if previous_feature is not None
+            else None
+        ),
+        prev_toc_keyword_presence=previous_feature.toc_keyword_presence
+        if previous_feature is not None
+        else None,
     )
 
 

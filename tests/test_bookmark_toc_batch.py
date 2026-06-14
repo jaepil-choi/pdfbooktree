@@ -76,6 +76,11 @@ def test_bookmark_toc_batch_detects_only_bookmarked_pdfs_recursively(
     assert detection.detection.method == "bookmark_guided_feature_vote"
     assert len(detection.dataset_rows) == 4
     assert [row.pdf_page for row in detection.dataset_rows if row.label == 1] == [2, 3]
+    first_positive = next(row for row in detection.dataset_rows if row.pdf_page == 2)
+    assert first_positive.prev_page_available is True
+    assert first_positive.prev_line_count == 1
+    assert first_positive.prev_word_count == 1
+    assert first_positive.prev_toc_keyword_presence is False
     assert len([row for row in detection.dataset_rows if row.label == 0]) == 2
     assert all(
         row.root_relative_pdf == Path("bookmarked.pdf") for row in result.dataset_rows
@@ -144,6 +149,8 @@ def test_write_toc_page_dataset_csv_writes_flat_rows(tmp_path: Path) -> None:
 
     csv_text = csv_path.read_text(encoding="utf-8")
     assert "root_relative_pdf,pdf_page,label,sample_role" in csv_text
+    assert "prev_page_available" in csv_text
+    assert "prev_line_final_number_count" in csv_text
     assert "bookmark_guided_toc_detection" in csv_text
 
 

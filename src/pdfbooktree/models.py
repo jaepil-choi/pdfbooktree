@@ -104,6 +104,21 @@ class TocPageDatasetRow:
     chapter_or_part_line_count: int
     page_position: float
     toc_keyword_presence: bool
+    prev_page_available: bool
+    prev_line_count: int | None
+    prev_word_count: int | None
+    prev_mean_line_length: float | None
+    prev_line_length_std: float | None
+    prev_line_final_number_count: int | None
+    prev_line_final_number_monotonicity: float | None
+    prev_line_final_number_gap_mean: float | None
+    prev_line_final_number_gap_median: float | None
+    prev_line_final_number_gap_max: int | None
+    prev_line_final_number_negative_gap_count: int | None
+    prev_toc_entry_pattern_count: int | None
+    prev_toc_entry_pattern_ratio: float | None
+    prev_chapter_or_part_line_count: int | None
+    prev_toc_keyword_presence: bool | None
 
 
 @dataclass(frozen=True)
