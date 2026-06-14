@@ -29,9 +29,11 @@ OCR 자체는 이 프로젝트의 범위가 아니다. 입력 PDF에는 이미 O
 4. 본문 heading과 fuzzy matching하여 page alignment를 검증 / 보정한다.
 5. 기존 PDF 파일을 기반으로 bookmark가 삽입된 `_bookmarked.pdf` 파일을 생성한다.
 6. chapter / section 단위 Markdown directory를 생성한다.
-7. 기존 bookmark가 있는 PDF는 처리하지 않고 skip한다.
-8. 기존 bookmark가 있는 PDF는 알고리즘 평가용 silver label로만 사용한다.
-9. LLM API는 low-confidence case에 대한 cross-check / repair / fallback으로만 선택적으로 사용한다.
+7. 기존 bookmark가 있는 PDF는 기본 처리 대상에서 skip한다.
+8. 기존 bookmark가 있는 PDF는 검수 전 ground truth가 아니라 weak reference로만 사용한다.
+9. TOC page ground truth는 수동 검수 또는 별도 검증 절차를 통과한 range만 사용한다.
+10. TOC page 탐지가 불안정한 경우를 대비해 word box 좌표 기반 body-first bookmark 생성도 실험한다.
+11. LLM API는 low-confidence case에 대한 cross-check / repair / fallback으로만 선택적으로 사용한다.
 
 ---
 
@@ -82,7 +84,7 @@ OCR 자체는 이 프로젝트의 범위가 아니다. 입력 PDF에는 이미 O
 
 ---
 
-### 3.3 기존 bookmark가 있는 PDF는 skip한다
+### 3.3 기존 bookmark는 skip 대상이지만 ground truth는 아니다
 
 이미 깔끔한 bookmark가 있는 PDF는 처리 대상이 아니다.
 
@@ -90,7 +92,8 @@ OCR 자체는 이 프로젝트의 범위가 아니다. 입력 PDF에는 이미 O
 
 * 기존 bookmark가 없거나 비어 있는 PDF만 bookmark generation 대상이다.
 * 기존 bookmark가 충분히 깔끔한 PDF는 자동 처리에서 skip한다.
-* skip된 PDF는 evaluation dataset의 silver label로 사용할 수 있다.
+* skip된 PDF의 bookmark는 generated bookmark 평가용 weak reference로 사용할 수 있다.
+* 기존 bookmark에서 복원한 TOC page range는 검수 전 ground truth로 사용하지 않는다.
 * 이미 bookmark가 있는 PDF를 강제로 다시 처리하는 기능은 MVP 범위 밖이다.
 
 “깔끔한 bookmark”의 최소 판단 기준:
@@ -100,6 +103,13 @@ OCR 자체는 이 프로젝트의 범위가 아니다. 입력 PDF에는 이미 O
 * page number가 대체로 증가한다.
 * level structure가 존재한다.
 * chapter / section으로 보이는 항목들이 포함되어 있다.
+
+중요한 한계:
+
+* 기존 bookmark는 각 chapter / section이 실제로 시작되는 본문 page를 알려줄 수 있지만, PDF 내부의 TOC page 위치를 직접 알려주지는 않는다.
+* bookmark title을 TOC page text와 matching해 TOC page range를 복원하는 방식은 PDF layout, OCR 품질, 숫자 noise, front matter 구조에 크게 흔들린다.
+* 따라서 bookmark-guided TOC page label은 수동 검수 전에는 학습용 정답 label이 아니라 noisy weak label이다.
+* weak label로 학습한 ML 모델의 점수는 실제 TOC 탐지 성능이 아니라 해당 heuristic을 얼마나 모방했는지를 보여줄 수 있다.
 
 ---
 
@@ -364,20 +374,47 @@ Final:
 
 TOC를 신뢰하지 않고 본문 전체에서 heading 후보를 직접 찾아 synthetic TOC를 만드는 방식이다.
 
+특히 text line만 보지 않고 PyMuPDF의 word / block box 좌표를 함께 사용한다.
+chapter 시작 page에서는 대개 다음 신호가 반복될 수 있다.
+
+```text
+상단 또는 일정한 여백 아래에 있는 짧은 제목 block
+본문보다 큰 font size 또는 다른 bbox 높이
+chapter number와 title이 분리된 반복 layout
+새 chapter 시작 전후의 큰 vertical whitespace
+같은 책 안에서 반복되는 heading 좌표와 text density 패턴
+```
+
+이 방식은 TOC page 자체를 찾지 않고 다음 결과를 직접 만든다.
+
+```text
+chapter title 후보
+chapter start PDF page
+heading bbox
+layout cluster
+confidence
+```
+
 ### 장점
 
 * TOC가 없거나 TOC OCR이 망가진 경우에도 가능성이 있다.
+* TOC page ground truth가 부정확해도 본문 구조에서 직접 bookmark 후보를 만들 수 있다.
+* chapter-level bookmark 생성에는 TOC item parsing보다 더 직접적인 신호가 될 수 있다.
 
 ### 단점
 
 * running header, figure caption, exercise title 등을 heading으로 오인할 수 있다.
 * layout heuristic tuning이 많다.
-* 초기 scope 대비 과하다.
+* section-level까지 확장하면 후보가 급격히 늘어난다.
+* 책마다 heading design이 달라 unsupervised clustering과 confidence 설계가 필요하다.
 
 ### 결정
 
-MVP의 primary algorithm으로 사용하지 않는다.
-다만 hybrid alignment의 body heading candidate extraction 단계에서 부분적으로 활용한다.
+초기 MVP의 단일 primary algorithm으로 고정하지 않는다.
+다만 300study 수동 검수에서 bookmark-guided TOC page label이 크게 틀린 사례가 확인되었으므로, 이 방식은 더 이상 후순위 아이디어가 아니라 별도 실험 축으로 다룬다.
+
+우선 chapter-level top heading discovery를 목표로 실험한다.
+TOC page 탐지와 TOC item parsing이 실패하거나 label이 불확실한 PDF에서는 body-first 결과를 bookmark 생성 후보로 사용할 수 있어야 한다.
 
 ---
 
@@ -406,9 +443,9 @@ low-confidence case의 optional fallback으로만 사용한다.
 
 ---
 
-## 6. 최종 채택 알고리즘
+## 6. 현재 기본 알고리즘과 보완 축
 
-최종 기본 알고리즘은 다음이다.
+현재 기본 알고리즘 가설은 다음이다.
 
 > TOC-first page offset estimation을 먼저 수행하고, hybrid TOC-body alignment를 통해 최종 bookmark page를 확정한다.
 
@@ -440,6 +477,23 @@ TOC parsing confidence 낮음
 offset confidence 낮음
 heading matching confidence 낮음
 ```
+
+다만 이 알고리즘은 TOC page를 안정적으로 찾는다는 전제에 의존한다.
+300study 검수 결과 기존 bookmark를 이용해 복원한 TOC page label이 매우 부정확한 사례가 다수 확인되었다.
+따라서 다음 보완 축을 병렬로 실험한다.
+
+```text
+PDF 입력
+→ page별 word / block box 좌표 추출
+→ 상단 heading 후보 추출
+→ layout similarity와 text pattern으로 chapter 시작 page clustering
+→ chapter title과 start page 후보 생성
+→ 기존 bookmark 또는 수동 검수 label과 비교
+→ bookmark plan 생성 후보로 승격
+```
+
+이 body-first 축은 TOC page를 먼저 찾지 않는다.
+목표는 최소한 top-level chapter bookmark를 unsupervised하게 생성하는 것이다.
 
 ---
 
@@ -627,6 +681,8 @@ TOC page detector 학습에는 일부 PDF에 대한 수동 TOC page range label�
 ```
 
 기존 bookmark는 TOC page 위치를 알려주지 않기 때문에 TOC page detector 학습 label로 직접 사용할 수 없다.
+bookmark-guided heuristic으로 복원한 TOC page range도 수동 검수 전에는 학습용 ground truth로 사용하지 않는다.
+이런 range는 후보 생성, error discovery, manual labeling queue 구성에만 사용한다.
 
 ---
 
@@ -939,7 +995,20 @@ alignment_confidence: 0.91
 
 ## 14. Evaluation 설계
 
-기존 PDF bookmark가 있는 파일은 processing 대상이 아니라 evaluation용 silver label이다.
+기존 PDF bookmark가 있는 파일은 processing 대상이 아니라 generated bookmark 평가용 reference 후보이다.
+다만 기존 bookmark는 gold label도 아니고, TOC page range ground truth도 아니다.
+사용 목적을 다음처럼 분리한다.
+
+```text
+generated bookmark item/page 평가:
+  기존 bookmark를 weak reference로 사용할 수 있다.
+
+TOC page detector 학습/평가:
+  수동 검수된 TOC start/end page만 ground truth로 사용한다.
+
+bookmark-guided TOC page 복원:
+  ground truth 생성이 아니라 manual review 후보 생성으로만 사용한다.
+```
 
 ### 14.1 Item-level evaluation
 
@@ -1037,8 +1106,16 @@ bookmark target offset consistency:
 * offset consistency는 line-final page number만 보지 않는다.
 * TOC line 끝 숫자가 OCR/layout 때문에 깨질 수 있으므로 page text window 안의 standalone 숫자 후보도 함께 본다.
 * chapter/section 번호처럼 noise가 섞일 수 있지만, 여러 bookmark 항목에서 같은 offset이 반복되면 강한 신호로 본다.
-* 이 feature는 bookmark가 있는 PDF의 silver label 생성과 detector 평가 보조용이다.
+* 이 feature는 bookmark가 있는 PDF의 TOC page 후보 생성과 detector error discovery 보조용이다.
 * bookmark가 없는 일반 처리 경로의 TOC detection primary feature로 사용하지 않는다.
+* 수동 검수 없이 생성된 range는 ground truth로 저장하지 않는다.
+* ML 학습에 사용할 경우 label_source에 `manual_reviewed` 같은 검수 상태를 반드시 포함한다.
+
+현재 판단:
+
+* 300study dataset의 bookmark-guided TOC page label을 랜덤 검수한 결과, 시작 page와 끝 page가 크게 틀린 사례가 다수 확인되었다.
+* 특히 `Gilbert Strang - Introduction to Linear Algebra`는 기존 label이 2-80이었지만 실제 TOC는 3-4였고, `주식투자 무작정 따라하기`는 기존 label 7-13 대비 실제 TOC가 15-26이었다.
+* 따라서 300study bookmark-guided dataset으로 학습한 tree classifier 결과는 폐기하거나 weak-label imitation 결과로 재해석해야 한다.
 
 ---
 
@@ -1454,18 +1531,41 @@ batch evaluation report
 목표:
 
 ```text
-fixed weight heuristic 대신 objective feature 기반 ML scorer를 학습한다.
+수동 검수된 TOC page range label만 사용해 objective feature 기반 ML scorer를 학습한다.
 ```
 
 포함:
 
 ```text
 manual TOC page range label format
+manual review status tracking
 page-level soft label regression
 segment-level IoU regression
 GroupKFold by PDF
 model save/load
 feature importance report
+```
+
+---
+
+### v0.3b: Word box 기반 chapter heading discovery
+
+목표:
+
+```text
+TOC page 탐지를 거치지 않고 page word/block 좌표에서 top-level chapter 시작 page와 title 후보를 찾는다.
+```
+
+포함:
+
+```text
+PyMuPDF word/block bbox extraction
+page 상단 heading candidate extraction
+font size, bbox 위치, whitespace, text length feature
+layout pattern clustering
+chapter start page candidate ranking
+기존 bookmark와 수동 label 비교 report
+top-level bookmark plan 생성 PoC
 ```
 
 ---
@@ -1521,7 +1621,9 @@ offset 주변 heading fuzzy search로 bookmark page를 확정한다.
 *_bookmarked.pdf를 생성한다.
 Markdown tree를 생성한다.
 기존 bookmark가 있는 PDF는 skip한다.
-기존 bookmark를 silver label로 사용해 평가한다.
+기존 bookmark를 generated bookmark 평가용 weak reference로 사용한다.
+수동 검수된 TOC page label만 detector ground truth로 사용한다.
+word box 좌표 기반으로 chapter-level bookmark 후보를 생성하는 fallback 경로를 실험한다.
 ```
 
 ---
@@ -1535,7 +1637,8 @@ page ±1 accuracy: 0.9 이상
 hierarchy level accuracy: 0.9 이상
 ```
 
-기존 bookmark는 gold label이 아니라 silver label이므로 strict / relaxed evaluation mode를 구분한다.
+기존 bookmark는 gold label이 아니라 weak reference이므로 strict / relaxed evaluation mode를 구분한다.
+TOC page detector 성능 목표는 수동 검수 label에서만 계산한다.
 
 ---
 
@@ -1560,8 +1663,12 @@ TOC-first page offset estimation
 → Markdown export
 ```
 
-기존 bookmark가 있는 PDF는 처리하지 않고 skip하며, 알고리즘 평가용 silver label로만 사용한다.
+기존 bookmark가 있는 PDF는 처리하지 않고 skip한다.
+다만 기존 bookmark는 generated bookmark 평가용 weak reference일 뿐이며, TOC page ground truth로 직접 사용하지 않는다.
 
-TOC page detection은 지나치게 noisy한 handcrafted score를 쓰지 않는다. 대신 line count, word count, line-final number count, line-final number monotonicity 같은 objective feature를 추출하고, 제한된 수동 label을 이용해 decision tree / random forest 계열 모델로 확장한다.
+TOC page detection은 지나치게 noisy한 handcrafted score를 쓰지 않는다. 대신 line count, word count, line-final number count, line-final number monotonicity 같은 objective feature를 추출하고, 수동 검수된 label을 이용해 decision tree / random forest 계열 모델로 확장한다.
+
+300study 검수 결과 bookmark-guided TOC label이 ground truth로 쓰기에는 매우 부정확하다는 점이 확인되었다.
+따라서 TOC-first 접근만 고집하지 않고, word / block box 좌표를 활용해 본문 chapter heading을 직접 찾는 unsupervised bookmark 생성 접근을 별도 실험 축으로 둔다.
 
 LLM API는 primary engine이 아니라 low-confidence case의 backup으로만 사용한다.

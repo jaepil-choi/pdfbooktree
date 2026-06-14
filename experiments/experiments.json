@@ -86,6 +86,55 @@
       "source_experiment": "005_tree_toc_page_classifier",
       "finding": "005_tree_toc_page_classifier의 학습 모델 4개를 로드해 내장 importance, permutation importance, SHAP, PDP/ICE를 생성했다. random_forest_structural_only의 1위 feature는 내장 toc_keyword_presence, permutation toc_keyword_presence, SHAP toc_keyword_presence이다. lightgbm_structural_only의 1위 feature는 내장 mean_line_length, permutation toc_keyword_presence, SHAP toc_keyword_presence이다. random_forest_structural_with_prev_page의 1위 feature는 내장 toc_keyword_presence, permutation toc_keyword_presence, SHAP toc_keyword_presence이다. lightgbm_structural_with_prev_page의 1위 feature는 내장 mean_line_length, permutation toc_keyword_presence, SHAP toc_keyword_presence이다.",
       "ran_at": "2026-06-14T17:00:22"
+    },
+    {
+      "id": "008_bookmark_guided_gt_manual_audit",
+      "purpose": "300study bookmark-guided TOC page label을 PDF 단위로 랜덤 검수해, 기존 bookmark 기반 label을 ground truth로 사용할 수 있는지 재평가한다.",
+      "inputs": [
+        "showcase\\outputs\\300study_toc_dataset.csv",
+        "docs\\thoughts\\bookmark-gt-not-accurate-at-all.md"
+      ],
+      "outputs": "docs\\thoughts\\bookmark-gt-not-accurate-at-all.md",
+      "manual_review_cases": [
+        {
+          "pdf": "Gilbert Strang - Introduction to Linear Algebra-Wellesley-Cambridge Press (2016).pdf",
+          "bookmark_guided_label": "2-80",
+          "manual_gt": "3-4",
+          "finding": "시작 page도 틀렸고 end page는 완전히 틀렸다."
+        },
+        {
+          "pdf": "Richard Grinold, Ronald Kahn - Advances in Active Portfolio Management_ New Developments in Quantitative Investing-McGraw-Hill Education (2020).pdf",
+          "bookmark_guided_label": "2",
+          "manual_gt": "8-10",
+          "finding": "단일 page label이 실제 TOC range와 맞지 않는다."
+        },
+        {
+          "pdf": "Anand Balachandran Pillai - Software Architecture with Python-Packt Publishing (2017).pdf",
+          "bookmark_guided_label": "6-18",
+          "manual_gt": "11-18",
+          "finding": "end page는 맞지만 start page가 앞쪽으로 크게 당겨졌다."
+        },
+        {
+          "pdf": "당뇨병_완치_설명서_-_차봉수.compressed[health book].pdf",
+          "bookmark_guided_label": "4",
+          "manual_gt": "7-10",
+          "finding": "기존 label이 실제 TOC range보다 앞쪽의 단일 page로 잡혔다."
+        },
+        {
+          "pdf": "오픈소스_오픈소스혁명의목소리1[cs book].pdf",
+          "bookmark_guided_label": "27-34",
+          "manual_gt": "30-34",
+          "finding": "end page는 맞지만 start page가 앞쪽으로 과확장되었다."
+        },
+        {
+          "pdf": "주식투자_무작정_따라하기_-_윤재수[stock finance investment book].pdf",
+          "bookmark_guided_label": "7-13",
+          "manual_gt": "15-26",
+          "finding": "label range가 실제 TOC range와 거의 겹치지 않는다."
+        }
+      ],
+      "finding": "랜덤 검수된 10개 PDF 중 사용자가 확인한 6개 주요 사례에서 bookmark-guided TOC page label이 ground truth로 쓰기 어려울 정도로 부정확했다. 일부는 시작 경계만 틀린 수준이지만, 일부는 실제 TOC range와 거의 겹치지 않는다. 따라서 showcase\\outputs\\300study_toc_dataset.csv를 학습용 ground truth로 사용한 005_tree_toc_page_classifier와 006_tree_feature_attribution은 실제 TOC detector 성능이 아니라 noisy weak-label heuristic imitation 결과로 재해석해야 한다. 이후 TOC page detector 학습에는 수동 검수된 label만 사용하고, bookmark-guided label은 manual review queue 생성과 error discovery에만 사용한다. 동시에 TOC page를 먼저 찾는 접근을 보완하기 위해 word/block box 좌표 기반으로 chapter 시작 page와 heading title을 직접 찾는 unsupervised bookmark generation 실험을 시작해야 한다.",
+      "ran_at": "2026-06-14T18:32:57"
     }
   ]
 }
