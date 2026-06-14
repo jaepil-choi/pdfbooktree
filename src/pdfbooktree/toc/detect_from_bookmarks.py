@@ -97,8 +97,15 @@ def detect_toc_pages_from_bookmarks(
         pages_result = sorted(segment_pages)
     else:
         pages_result = []
+    anchor_pages = list(pages_result)
     pages_result = expand_pages_to_cover_bookmark_matches(
         pages_result,
+        usable_bookmarks,
+        all_matches,
+    )
+    pages_result = enforce_boundary_bookmark_matches(
+        pages_result,
+        anchor_pages,
         usable_bookmarks,
         all_matches,
     )
@@ -308,6 +315,280 @@ def expand_pages_to_cover_bookmark_matches(
         required_pages.add(int(best_match["pdf_page"]))
 
     return list(range(min(required_pages), max(required_pages) + 1))
+
+
+def enforce_boundary_bookmark_matches(
+    selected_pages: list[int],
+    anchor_pages: list[int],
+    bookmarks: list[dict[str, Any]],
+    matches: list[dict[str, Any]],
+) -> list[int]:
+    """첫/마지막 TOC page가 첫/마지막 bookmark match를 담도록 경계를 고정한다."""
+
+    if not selected_pages or not bookmarks:
+        return selected_pages
+
+    boundary_bookmarks = select_top_level_boundary_bookmarks(bookmarks)
+    first_order = int(boundary_bookmarks[0]["order"])
+    last_order = int(boundary_bookmarks[-1]["order"])
+    matches_by_order: dict[int, list[dict[str, Any]]] = defaultdict(list)
+    for match in matches:
+        matches_by_order[int(match["bookmark_order"])].append(match)
+
+    first_boundary_order = choose_boundary_top_level_order(
+        preferred_order=first_order,
+        boundary_bookmarks=boundary_bookmarks,
+        bookmarks=bookmarks,
+        matches_by_order=matches_by_order,
+        fallback=min,
+    )
+    last_boundary_order = choose_boundary_top_level_order(
+        preferred_order=last_order,
+        boundary_bookmarks=boundary_bookmarks,
+        bookmarks=bookmarks,
+        matches_by_order=matches_by_order,
+        fallback=max,
+    )
+    if first_boundary_order is None or last_boundary_order is None:
+        return []
+
+    first_match = choose_boundary_bookmark_match(
+        boundary_matches_for_order(
+            top_level_order=first_boundary_order,
+            bookmarks=bookmarks,
+            matches_by_order=matches_by_order,
+            allowed_pages=set(selected_pages),
+        ),
+        anchor_pages=anchor_pages or selected_pages,
+        side="start",
+    )
+    end_page = choose_relaxed_end_page(
+        top_level_order=last_boundary_order,
+        bookmarks=bookmarks,
+        matches_by_order=matches_by_order,
+        allowed_pages=set(selected_pages),
+    )
+    if first_match is None or end_page is None:
+        return []
+
+    start_page = int(first_match["pdf_page"])
+    if start_page > end_page:
+        return []
+    return list(range(start_page, end_page + 1))
+
+
+def select_top_level_boundary_bookmarks(
+    bookmarks: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """경계 강제에 사용할 최상위 bookmark만 order 순서로 고른다."""
+
+    top_level = min(int(bookmark["level"]) for bookmark in bookmarks)
+    return sorted(
+        [
+            bookmark
+            for bookmark in bookmarks
+            if int(bookmark["level"]) == top_level
+        ],
+        key=lambda bookmark: int(bookmark["order"]),
+    )
+
+
+def choose_relaxed_end_page(
+    top_level_order: int,
+    bookmarks: list[dict[str, Any]],
+    matches_by_order: dict[int, list[dict[str, Any]]],
+    allowed_pages: set[int],
+) -> int | None:
+    """오른쪽에서 마지막 top-level 또는 child match를 찾아 end page를 정한다."""
+
+    top_level_matches = [
+        match
+        for match in matches_by_order.get(top_level_order, [])
+        if int(match["pdf_page"]) in allowed_pages
+    ]
+    if top_level_matches:
+        last_match = choose_end_top_level_match(top_level_matches)
+        if last_match is None:
+            return None
+        last_page = int(last_match["pdf_page"])
+        if has_child_match_on_page(
+            child_orders=select_child_bookmark_orders(
+                bookmarks,
+                parent_order=top_level_order,
+            ),
+            matches_by_order=matches_by_order,
+            pdf_page=last_page + 1,
+        ):
+            return last_page + 1
+        return last_page
+
+    group_matches = boundary_matches_for_order(
+        top_level_order=top_level_order,
+        bookmarks=bookmarks,
+        matches_by_order=matches_by_order,
+        allowed_pages=allowed_pages,
+    )
+    if not group_matches:
+        return None
+    return max(int(match["pdf_page"]) for match in group_matches)
+
+
+def choose_end_top_level_match(
+    candidates: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    """마지막 top-level match는 TOC 숫자 근거가 있는 오른쪽 match를 우선한다."""
+
+    if not candidates:
+        return None
+    signal_candidates = [
+        match for match in candidates if has_toc_boundary_number_signal(match)
+    ]
+    pool = signal_candidates or candidates
+    return max(pool, key=lambda match: (int(match["pdf_page"]), float(match["score"])))
+
+
+def boundary_matches_for_order(
+    top_level_order: int,
+    bookmarks: list[dict[str, Any]],
+    matches_by_order: dict[int, list[dict[str, Any]]],
+    allowed_pages: set[int],
+) -> list[dict[str, Any]]:
+    """top-level bookmark와 그 child들의 match를 page 제한 안에서 모은다."""
+
+    group_orders = {
+        top_level_order,
+        *select_child_bookmark_orders(bookmarks, parent_order=top_level_order),
+    }
+    return [
+        match
+        for order in group_orders
+        for match in matches_by_order.get(order, [])
+        if int(match["pdf_page"]) in allowed_pages
+    ]
+
+
+def select_child_bookmark_orders(
+    bookmarks: list[dict[str, Any]],
+    parent_order: int,
+) -> set[int]:
+    """선택한 top-level bookmark 아래에 속한 child bookmark order를 찾는다."""
+
+    ordered_bookmarks = sorted(bookmarks, key=lambda bookmark: int(bookmark["order"]))
+    parent = next(
+        bookmark
+        for bookmark in ordered_bookmarks
+        if int(bookmark["order"]) == parent_order
+    )
+    parent_level = int(parent["level"])
+    child_orders: set[int] = set()
+    collect = False
+    for bookmark in ordered_bookmarks:
+        order = int(bookmark["order"])
+        level = int(bookmark["level"])
+        if order == parent_order:
+            collect = True
+            continue
+        if not collect:
+            continue
+        if level <= parent_level:
+            break
+        child_orders.add(order)
+    return child_orders
+
+
+def has_child_match_on_page(
+    child_orders: set[int],
+    matches_by_order: dict[int, list[dict[str, Any]]],
+    pdf_page: int,
+) -> bool:
+    """지정 page에 child bookmark match가 하나라도 있는지 확인한다."""
+
+    return any(
+        int(match["pdf_page"]) == pdf_page
+        for order in child_orders
+        for match in matches_by_order.get(order, [])
+    )
+
+
+def choose_boundary_top_level_order(
+    preferred_order: int,
+    boundary_bookmarks: list[dict[str, Any]],
+    bookmarks: list[dict[str, Any]],
+    matches_by_order: dict[int, list[dict[str, Any]]],
+    fallback: Any,
+) -> int | None:
+    """선호 top-level 그룹이 없으면 match 가능한 양끝 top-level 그룹을 사용한다."""
+
+    if boundary_matches_for_order(
+        top_level_order=preferred_order,
+        bookmarks=bookmarks,
+        matches_by_order=matches_by_order,
+        allowed_pages={
+            int(match["pdf_page"])
+            for matches in matches_by_order.values()
+            for match in matches
+        },
+    ):
+        return preferred_order
+    available_orders = [
+        int(bookmark["order"])
+        for bookmark in boundary_bookmarks
+        if boundary_matches_for_order(
+            top_level_order=int(bookmark["order"]),
+            bookmarks=bookmarks,
+            matches_by_order=matches_by_order,
+            allowed_pages={
+                int(match["pdf_page"])
+                for matches in matches_by_order.values()
+                for match in matches
+            },
+        )
+    ]
+    if not available_orders:
+        return None
+    return fallback(available_orders)
+
+
+def choose_boundary_bookmark_match(
+    candidates: list[dict[str, Any]],
+    anchor_pages: list[int],
+    side: str,
+) -> dict[str, Any] | None:
+    """TOC 후보 구간에 가장 가까운 첫/마지막 bookmark match를 고른다."""
+
+    if not candidates:
+        return None
+
+    anchor_page = min(anchor_pages) if side == "start" else max(anchor_pages)
+    if side == "start":
+        return min(
+            candidates,
+            key=lambda match: (
+                int(match["pdf_page"]),
+                0 if has_toc_boundary_number_signal(match) else 1,
+                abs(int(match["pdf_page"]) - anchor_page),
+                -float(match["score"]),
+            ),
+        )
+    if side == "end":
+        return min(
+            candidates,
+            key=lambda match: (
+                -int(match["pdf_page"]),
+                0 if has_toc_boundary_number_signal(match) else 1,
+                abs(int(match["pdf_page"]) - anchor_page),
+                -float(match["score"]),
+            ),
+        )
+    raise ValueError(f"알 수 없는 경계 방향이다: {side}")
+
+
+def has_toc_boundary_number_signal(match: dict[str, Any]) -> bool:
+    """bookmark match line에 TOC 항목 숫자 근거가 있는지 확인한다."""
+
+    if match.get("trailing_number") is not None:
+        return True
+    return len(match.get("number_candidates", [])) >= 2
 
 
 def calculate_page_distance_to_selection(page: int, selected_pages: set[int]) -> int:

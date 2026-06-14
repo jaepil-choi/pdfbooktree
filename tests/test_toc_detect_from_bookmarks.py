@@ -74,6 +74,143 @@ def test_detect_toc_pages_from_bookmarks_expands_to_cover_missing_bookmarks() ->
     assert result.pages == [3, 4, 5, 6, 7]
 
 
+def test_detect_toc_pages_from_bookmarks_clamps_edges_to_boundary_bookmarks() -> None:
+    pages = [
+        PdfPageText(
+            3,
+            "Contents\nFront matter 1\nFront matter 2",
+            ["Contents", "Front matter 1", "Front matter 2"],
+            39,
+        ),
+        PdfPageText(
+            4,
+            "Chapter 1 Introduction 3\n1.1 Motivation 7",
+            ["Chapter 1 Introduction 3", "1.1 Motivation 7"],
+            43,
+        ),
+        PdfPageText(
+            5,
+            "Chapter 2 Probability 25\nChapter 3 Integration 48",
+            ["Chapter 2 Probability 25", "Chapter 3 Integration 48"],
+            49,
+        ),
+        PdfPageText(
+            6,
+            "Chapter 3 Integration\nBody heading repeated without TOC page number",
+            ["Chapter 3 Integration", "Body heading repeated without TOC page number"],
+            66,
+        ),
+    ]
+    bookmarks = [
+        {"order": 1, "level": 1, "title": "Chapter 1 Introduction", "pdf_page": 3},
+        {"order": 2, "level": 2, "title": "1.1 Motivation", "pdf_page": 7},
+        {"order": 3, "level": 1, "title": "Chapter 2 Probability", "pdf_page": 25},
+        {"order": 4, "level": 1, "title": "Chapter 3 Integration", "pdf_page": 48},
+    ]
+    features = [
+        build_page_feature(pdf_page=3, line_final_numbers=[1, 2, 3, 4, 5, 6, 7, 8]),
+        build_page_feature(pdf_page=4, line_final_numbers=[3, 7, 12, 20]),
+        build_page_feature(pdf_page=5, line_final_numbers=[25, 33, 41, 48]),
+        build_page_feature(pdf_page=6, line_final_numbers=[50, 55, 60, 65]),
+    ]
+
+    result = detect_toc_pages_from_bookmarks(pages, bookmarks, features=features)
+
+    assert result.pages == [4, 5]
+    assert result.start_page == 4
+    assert result.end_page == 5
+
+
+def test_detect_toc_pages_from_bookmarks_relaxes_end_to_next_child_page() -> None:
+    pages = [
+        PdfPageText(
+            4,
+            "Chapter 1 Introduction 3\n1.1 Motivation 7",
+            ["Chapter 1 Introduction 3", "1.1 Motivation 7"],
+            43,
+        ),
+        PdfPageText(
+            5,
+            "Chapter 2 Probability 25\n2.1 Random variables 31",
+            ["Chapter 2 Probability 25", "2.1 Random variables 31"],
+            50,
+        ),
+        PdfPageText(
+            6,
+            "2.2 Expectations 37\n2.3 Variance 43",
+            ["2.2 Expectations 37", "2.3 Variance 43"],
+            37,
+        ),
+    ]
+    bookmarks = [
+        {"order": 1, "level": 1, "title": "Chapter 1 Introduction", "pdf_page": 3},
+        {"order": 2, "level": 2, "title": "1.1 Motivation", "pdf_page": 7},
+        {"order": 3, "level": 1, "title": "Chapter 2 Probability", "pdf_page": 25},
+        {"order": 4, "level": 2, "title": "2.1 Random variables", "pdf_page": 31},
+        {"order": 5, "level": 2, "title": "2.2 Expectations", "pdf_page": 37},
+        {"order": 6, "level": 2, "title": "2.3 Variance", "pdf_page": 43},
+    ]
+    features = [
+        build_page_feature(pdf_page=4, line_final_numbers=[3, 7, 12, 20]),
+        build_page_feature(pdf_page=5, line_final_numbers=[25, 31]),
+        build_page_feature(pdf_page=6, line_final_numbers=[37, 43]),
+    ]
+
+    result = detect_toc_pages_from_bookmarks(pages, bookmarks, features=features)
+
+    assert result.pages == [4, 5, 6]
+    assert result.start_page == 4
+    assert result.end_page == 6
+
+
+def test_detect_toc_pages_from_bookmarks_does_not_relax_end_past_next_page() -> None:
+    pages = [
+        PdfPageText(
+            4,
+            "Chapter 1 Introduction 3\n1.1 Motivation 7",
+            ["Chapter 1 Introduction 3", "1.1 Motivation 7"],
+            43,
+        ),
+        PdfPageText(
+            5,
+            "Chapter 2 Probability 25",
+            ["Chapter 2 Probability 25"],
+            24,
+        ),
+        PdfPageText(
+            6,
+            "Appendix note without child title",
+            ["Appendix note without child title"],
+            33,
+        ),
+        PdfPageText(
+            7,
+            "2.1 Random variables 31\n2.2 Expectations 37",
+            ["2.1 Random variables 31", "2.2 Expectations 37"],
+            43,
+        ),
+    ]
+    bookmarks = [
+        {"order": 1, "level": 1, "title": "Chapter 1 Introduction", "pdf_page": 3},
+        {"order": 2, "level": 2, "title": "1.1 Motivation", "pdf_page": 7},
+        {"order": 3, "level": 1, "title": "Chapter 2 Probability", "pdf_page": 25},
+        {"order": 4, "level": 2, "title": "2.1 Random variables", "pdf_page": 31},
+        {"order": 5, "level": 2, "title": "2.2 Expectations", "pdf_page": 37},
+    ]
+    features = [
+        build_page_feature(pdf_page=4, line_final_numbers=[3, 7, 12, 20]),
+        build_page_feature(pdf_page=5, line_final_numbers=[25, 31]),
+        build_page_feature(pdf_page=6, line_final_numbers=[]),
+        build_page_feature(pdf_page=7, line_final_numbers=[31, 37]),
+    ]
+
+    result = detect_toc_pages_from_bookmarks(pages, bookmarks, features=features)
+
+    assert result.pages == [4, 5]
+    assert result.start_page == 4
+    assert result.end_page == 5
+
+
 def build_page_feature(
     pdf_page: int,
     line_final_numbers: list[int],
