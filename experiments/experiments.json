@@ -135,6 +135,20 @@
       ],
       "finding": "랜덤 검수된 10개 PDF 중 사용자가 확인한 6개 주요 사례에서 bookmark-guided TOC page label이 ground truth로 쓰기 어려울 정도로 부정확했다. 일부는 시작 경계만 틀린 수준이지만, 일부는 실제 TOC range와 거의 겹치지 않는다. 따라서 showcase\\outputs\\300study_toc_dataset.csv를 학습용 ground truth로 사용한 005_tree_toc_page_classifier와 006_tree_feature_attribution은 실제 TOC detector 성능이 아니라 noisy weak-label heuristic imitation 결과로 재해석해야 한다. 이후 TOC page detector 학습에는 수동 검수된 label만 사용하고, bookmark-guided label은 manual review queue 생성과 error discovery에만 사용한다. 동시에 TOC page를 먼저 찾는 접근을 보완하기 위해 word/block box 좌표 기반으로 chapter 시작 page와 heading title을 직접 찾는 unsupervised bookmark generation 실험을 시작해야 한다.",
       "ran_at": "2026-06-14T18:32:57"
+    },
+    {
+      "id": "009_unsupervised_page_shape_classification",
+      "purpose": "data/ 아래 PDF를 대상으로 text keyword나 TOC label 없이 page box의 공간 패턴, 크기 분포, page shape cluster, layout transition motif만으로 chapter start page 후보와 bookmark item 후보를 생성하고, 기존 bookmark가 있는 PDF에서는 level 1 bookmark page의 shape 특성을 참고 분석한다.",
+      "inputs": [
+        "data\\native-pdf-indexed\\John Hull - Options, Futures, and Other Derivatives, Global Edition-Pearson (2021).pdf",
+        "data\\scanned-pdf-indexed\\(Springer Finance) Steven E. Shreve - Stochastic Calculus for Finance I The Binomial Asset Pricing Model-Springer (2005)-indexed.pdf",
+        "data\\scanned-pdf-indexed\\David G. Luenberger, Investment Science 2nd - adobeOCR - indexed.pdf",
+        "data\\scanned-pdf-not-indexed\\미래를_바꾼_아홉가지_알고리즘_-_존_맥코믹-compressed[algorithm cs book].pdf",
+        "data\\scanned-pdf-not-indexed\\알고리즘_인생을계산하다_The_computer_science_of_human_decisions_-_BrianChristian.pdf"
+      ],
+      "outputs": "experiments\\outputs\\009_unsupervised_page_shape_classification",
+      "finding": "John Hull - Options, Futures, and Other Derivatives, Global Edition-Pearson (2021).pdf는 page shape 기반 chapter start 후보 상위 page가 [46, 4, 5, 514, 401, 532, 785, 851, 587, 640]이다. 기존 level 1 bookmark 54개 중 54개 page를 feature와 비교했고, level 1 bookmark page의 cluster 분포는 {4: 4, 5: 1, 1: 4, 6: 2, 3: 1, 7: 39, 0: 3}, 후보 rank median은 187.5이다. (Springer Finance) Steven E. Shreve - Stochastic Calculus for Finance I The Binomial Asset Pricing Model-Springer (2005)-indexed.pdf는 page shape 기반 chapter start 후보 상위 page가 [178, 286, 326, 190, 204, 336, 50, 86, 276, 191]이다. 기존 level 1 bookmark 34개 중 34개 page를 feature와 비교했고, level 1 bookmark page의 cluster 분포는 {3: 1, 5: 33}, 후보 rank median은 70.0이다. David G. Luenberger, Investment Science 2nd - adobeOCR - indexed.pdf는 page shape 기반 chapter start 후보 상위 page가 [23, 20, 471, 606, 25, 336, 539, 165, 39, 24]이다. 기존 level 1 bookmark 6개 중 6개 page를 feature와 비교했고, level 1 bookmark page의 cluster 분포는 {1: 6}, 후보 rank median은 34.0이다. 미래를_바꾼_아홉가지_알고리즘_-_존_맥코믹-compressed[algorithm cs book].pdf는 page shape 기반 chapter start 후보 상위 page가 [61, 159, 182, 96, 7, 178, 48, 3, 13, 287]이다. 기존 level 1 bookmark 0개 중 0개 page를 feature와 비교했고, level 1 bookmark page의 cluster 분포는 {}, 후보 rank median은 없음이다. 알고리즘_인생을계산하다_The_computer_science_of_human_decisions_-_BrianChristian.pdf는 page shape 기반 chapter start 후보 상위 page가 [265, 570, 123, 365, 197, 472, 281, 615, 51, 4]이다. 기존 level 1 bookmark 0개 중 0개 page를 feature와 비교했고, level 1 bookmark page의 cluster 분포는 {}, 후보 rank median은 없음이다.",
+      "ran_at": "2026-06-15T01:06:25"
     }
   ]
 }
