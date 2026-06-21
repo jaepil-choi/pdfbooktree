@@ -137,6 +137,7 @@ class BookmarkedPdfTocBatchResult:
     failed_count: int
     min_total_pages: int = 50
     skipped_short_pdf_count: int = 0
+    skipped_no_letter_bookmark_count: int = 0
     dataset_row_count: int = 0
     results: list[BookmarkedPdfTocDetection] = field(default_factory=list)
     dataset_rows: list[TocPageDatasetRow] = field(default_factory=list)

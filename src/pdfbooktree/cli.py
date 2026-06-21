@@ -146,6 +146,9 @@ def detect_bookmark_toc(
                 "bookmarked_pdf_count": result.bookmarked_pdf_count,
                 "skipped_no_bookmark_count": result.skipped_no_bookmark_count,
                 "skipped_short_pdf_count": result.skipped_short_pdf_count,
+                "skipped_no_letter_bookmark_count": (
+                    result.skipped_no_letter_bookmark_count
+                ),
                 "detected_count": result.detected_count,
                 "not_detected_count": result.not_detected_count,
                 "failed_count": result.failed_count,

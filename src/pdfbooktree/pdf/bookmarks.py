@@ -30,6 +30,23 @@ def extract_existing_bookmarks(pdf_path: Path) -> list[dict[str, Any]]:
     return bookmarks
 
 
+def title_has_letter(title: str) -> bool:
+    """제목에 알파벳/한글 등 글자가 하나라도 있으면 True를 반환한다.
+
+    숫자/기호만으로 이루어진 '1', '001', '1110001', '~~0003' 같은 깨진 OCR/스캔
+    bookmark 제목을 걸러내기 위한 판정이다. ``str.isalpha``를 쓰므로 라틴/한글뿐
+    아니라 한자 등 다른 문자 체계의 글자도 글자로 인정한다.
+    """
+
+    return any(char.isalpha() for char in title)
+
+
+def has_letter_bookmark(bookmarks: list[dict[str, Any]]) -> bool:
+    """bookmark 중 제목에 글자가 들어간 항목이 하나라도 있으면 True를 반환한다."""
+
+    return any(title_has_letter(bookmark["title"]) for bookmark in bookmarks)
+
+
 def is_clean_bookmark_set(bookmarks: list[dict[str, Any]]) -> bool:
     """자동 처리를 skip할 만큼 기존 bookmark가 충분히 깔끔한지 판단한다."""
 

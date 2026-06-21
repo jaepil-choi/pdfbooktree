@@ -18,7 +18,10 @@ from pdfbooktree.models import (
     PageFeature,
     TocPageDatasetRow,
 )
-from pdfbooktree.pdf.bookmarks import extract_existing_bookmarks
+from pdfbooktree.pdf.bookmarks import (
+    extract_existing_bookmarks,
+    has_letter_bookmark,
+)
 from pdfbooktree.pdf.text import extract_page_texts, extract_selected_page_texts
 from pdfbooktree.toc.detect_from_bookmarks import detect_toc_pages_from_bookmarks
 from pdfbooktree.toc.features import calculate_page_features
@@ -63,6 +66,7 @@ class BookmarkTocBatchDetector:
         results: list[BookmarkedPdfTocDetection] = []
         skipped_no_bookmark_count = 0
         skipped_short_pdf_count = 0
+        skipped_no_letter_bookmark_count = 0
 
         self._emit(f"PDF 처리 시작: workers={self.workers}")
         completed_count = 0
@@ -79,14 +83,17 @@ class BookmarkTocBatchDetector:
             ]
             for item in processed_items:
                 completed_count += 1
-                skipped_no_bookmark, skipped_short_pdf = self._handle_processed_item(
-                    item,
-                    completed_count,
-                    len(pdf_paths),
-                    results,
+                skipped_no_bookmark, skipped_short_pdf, skipped_no_letter = (
+                    self._handle_processed_item(
+                        item,
+                        completed_count,
+                        len(pdf_paths),
+                        results,
+                    )
                 )
                 skipped_no_bookmark_count += skipped_no_bookmark
                 skipped_short_pdf_count += skipped_short_pdf
+                skipped_no_letter_bookmark_count += skipped_no_letter
         else:
             with ProcessPoolExecutor(max_workers=self.workers) as executor:
                 futures = [
@@ -102,7 +109,7 @@ class BookmarkTocBatchDetector:
                 ]
                 for future in as_completed(futures):
                     completed_count += 1
-                    skipped_no_bookmark, skipped_short_pdf = (
+                    skipped_no_bookmark, skipped_short_pdf, skipped_no_letter = (
                         self._handle_processed_item(
                             future.result(),
                             completed_count,
@@ -112,6 +119,7 @@ class BookmarkTocBatchDetector:
                     )
                     skipped_no_bookmark_count += skipped_no_bookmark
                     skipped_short_pdf_count += skipped_short_pdf
+                    skipped_no_letter_bookmark_count += skipped_no_letter
 
         detected_count = sum(1 for result in results if result.status == "detected")
         not_detected_count = sum(
@@ -134,6 +142,7 @@ class BookmarkTocBatchDetector:
             failed_count=failed_count,
             min_total_pages=self.min_total_pages,
             skipped_short_pdf_count=skipped_short_pdf_count,
+            skipped_no_letter_bookmark_count=skipped_no_letter_bookmark_count,
             dataset_row_count=len(dataset_rows),
             results=results,
             dataset_rows=dataset_rows,
@@ -145,14 +154,16 @@ class BookmarkTocBatchDetector:
         completed_count: int,
         total_count: int,
         results: list[BookmarkedPdfTocDetection],
-    ) -> tuple[int, int]:
+    ) -> tuple[int, int, int]:
         outcome, result = item
         if outcome == "skipped":
-            return (1, 0)
+            return (1, 0, 0)
         if outcome == "skipped_short":
-            return (0, 1)
+            return (0, 1, 0)
+        if outcome == "skipped_no_letter":
+            return (0, 0, 1)
         if result is None:
-            return (0, 0)
+            return (0, 0, 0)
 
         results.append(result)
         display_path = str(result.root_relative_pdf or result.input_pdf)
@@ -161,7 +172,7 @@ class BookmarkTocBatchDetector:
                 f"PDF 처리 실패 ({completed_count}/{total_count}): "
                 f"{display_path} ({result.error})"
             )
-            return (0, 0)
+            return (0, 0, 0)
 
         self._emit(f"bookmark 있음: {display_path} ({result.bookmark_count}개)")
         if result.status == "detected":
@@ -175,7 +186,7 @@ class BookmarkTocBatchDetector:
             self._emit(
                 f"TOC 탐지 결과 없음 ({completed_count}/{total_count}): {display_path}"
             )
-        return (0, 0)
+        return (0, 0, 0)
 
     def _find_pdfs(self) -> list[Path]:
         iterator = (
@@ -477,6 +488,10 @@ def _process_pdf_for_bookmark_toc(
 
     if not bookmarks:
         return ("skipped", None)
+
+    if not has_letter_bookmark(bookmarks):
+        # 제목이 모두 숫자/기호뿐인 깨진 bookmark는 pseudo label 소스에서 제외한다.
+        return ("skipped_no_letter", None)
 
     try:
         pages = extract_page_texts(pdf_path, max_pages=max_text_pages)

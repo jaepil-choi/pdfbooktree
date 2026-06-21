@@ -224,3 +224,44 @@ def test_bookmark_toc_batch_skips_short_pdfs_by_default(tmp_path: Path) -> None:
     assert result.skipped_short_pdf_count == 1
     assert result.bookmarked_pdf_count == 1
     assert [item.input_pdf for item in result.results] == [long_pdf]
+
+
+def test_bookmark_toc_batch_skips_no_letter_bookmark_pdfs(tmp_path: Path) -> None:
+    no_letter_pdf = tmp_path / "no_letter.pdf"
+    normal_pdf = tmp_path / "normal.pdf"
+    # 제목이 숫자/기호뿐인 깨진 bookmark(OCR/스캔 아티팩트)다.
+    write_pdf(
+        no_letter_pdf,
+        ["Cover", "1\n2\n3", "Body"],
+        toc=[
+            [1, "1", 1],
+            [1, "001", 2],
+            [1, "1110001", 3],
+        ],
+    )
+    write_pdf(
+        normal_pdf,
+        [
+            "Preface",
+            "Contents\nChapter 1 Introduction ........ 3\n1.1 Motivation ........ 7",
+            "1.2 Background ........ 12\nChapter 2 Probability ........ 25",
+            "Chapter 1 Introduction\nBody",
+            "1.1 Motivation\nBody",
+            "1.2 Background\nBody",
+            "Chapter 2 Probability\nBody",
+        ],
+        toc=[
+            [1, "Chapter 1 Introduction", 4],
+            [2, "1.1 Motivation", 5],
+            [2, "1.2 Background", 6],
+            [1, "Chapter 2 Probability", 7],
+        ],
+    )
+
+    result = BookmarkTocBatchDetector(tmp_path, min_total_pages=1).run()
+
+    assert result.total_pdf_count == 2
+    assert result.skipped_no_letter_bookmark_count == 1
+    assert result.skipped_no_bookmark_count == 0
+    assert result.bookmarked_pdf_count == 1
+    assert [item.input_pdf for item in result.results] == [normal_pdf]
