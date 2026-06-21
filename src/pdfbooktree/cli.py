@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import cast
 
 import typer
 from rich import print as rich_print
@@ -14,6 +15,7 @@ from pdfbooktree.toc.bookmark_batch import (
     BookmarkTocBatchDetector,
     write_toc_page_dataset_csv,
 )
+from pdfbooktree.toc.training import ModelType, TocDetectorTrainer
 from pdfbooktree.utils.jsonio import to_jsonable
 from pdfbooktree.utils.jsonio import write_json
 
@@ -142,6 +144,54 @@ def detect_bookmark_toc(
             }
         )
     )
+
+
+@app.command()
+def train_toc_detector(
+    labels_json: Path = typer.Argument(..., help="수동 검수 TOC label JSON 파일이다."),
+    output_dir: Path = typer.Option(
+        Path("outputs/toc_detector"),
+        "--output-dir",
+        "-o",
+        help="학습된 모델과 report를 저장할 디렉터리다.",
+    ),
+    model: str = typer.Option(
+        "random-forest",
+        "--model",
+        help="decision-tree, hist-gradient, random-forest 중 하나다.",
+    ),
+    max_text_pages: int = typer.Option(
+        80,
+        "--max-text-pages",
+        help="각 PDF 앞부분에서 학습 feature를 추출할 최대 page 수다.",
+    ),
+    n_splits: int = typer.Option(
+        5,
+        "--n-splits",
+        min=2,
+        help="PDF 단위 GroupKFold fold 수다.",
+    ),
+    random_seed: int = typer.Option(
+        42,
+        "--random-seed",
+        help="모델 학습에 사용할 난수 seed다.",
+    ),
+) -> None:
+    """수동 검수 label만 사용해 TOC detector를 학습한다."""
+
+    if model not in {"decision-tree", "hist-gradient", "random-forest"}:
+        raise typer.BadParameter(
+            "model은 decision-tree, hist-gradient, random-forest 중 하나여야 한다."
+        )
+    result = TocDetectorTrainer(
+        labels_path=labels_json,
+        output_dir=output_dir,
+        model_type=cast(ModelType, model),
+        max_text_pages=max_text_pages,
+        n_splits=n_splits,
+        random_seed=random_seed,
+    ).run()
+    rich_print(to_jsonable(result))
 
 
 def main() -> None:
