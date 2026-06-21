@@ -15,6 +15,10 @@ from pdfbooktree.toc.bookmark_batch import (
     BookmarkTocBatchDetector,
     write_toc_page_dataset_csv,
 )
+from pdfbooktree.toc.dataset_training import (
+    TocPageDatasetModelType,
+    TocPageDatasetTrainer,
+)
 from pdfbooktree.toc.training import ModelType, TocDetectorTrainer
 from pdfbooktree.utils.jsonio import to_jsonable
 from pdfbooktree.utils.jsonio import write_json
@@ -189,6 +193,51 @@ def train_toc_detector(
         model_type=cast(ModelType, model),
         max_text_pages=max_text_pages,
         n_splits=n_splits,
+        random_seed=random_seed,
+    ).run()
+    rich_print(to_jsonable(result))
+
+
+@app.command()
+def train_toc_page_dataset(
+    dataset: Path = typer.Argument(
+        ..., help="detect-bookmark-toc로 생성한 TOC page dataset JSON/CSV 파일이다."
+    ),
+    output_dir: Path = typer.Option(
+        Path("outputs/toc_page_dataset_model"),
+        "--output-dir",
+        "-o",
+        help="학습된 모델과 train/test report를 저장할 디렉터리다.",
+    ),
+    model: str = typer.Option(
+        "random-forest",
+        "--model",
+        help="decision-tree, hist-gradient, random-forest, all 중 하나다.",
+    ),
+    test_size: float = typer.Option(
+        0.2,
+        "--test-size",
+        min=0.05,
+        max=0.8,
+        help="PDF group 기준 test split 비율이다.",
+    ),
+    random_seed: int = typer.Option(
+        42,
+        "--random-seed",
+        help="train/test split과 모델 학습에 사용할 난수 seed다.",
+    ),
+) -> None:
+    """생성된 TOC page dataset row로 classifier를 train/test한다."""
+
+    if model not in {"decision-tree", "hist-gradient", "random-forest", "all"}:
+        raise typer.BadParameter(
+            "model은 decision-tree, hist-gradient, random-forest, all 중 하나여야 한다."
+        )
+    result = TocPageDatasetTrainer(
+        dataset_path=dataset,
+        output_dir=output_dir,
+        model_type=cast(TocPageDatasetModelType, model),
+        test_size=test_size,
         random_seed=random_seed,
     ).run()
     rich_print(to_jsonable(result))
