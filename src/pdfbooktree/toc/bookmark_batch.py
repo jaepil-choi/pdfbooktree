@@ -35,6 +35,7 @@ class BookmarkTocBatchDetector:
         self,
         input_dir: Path | str,
         max_text_pages: int = 80,
+        min_total_pages: int = 50,
         recursive: bool = True,
         random_seed: int = 42,
         workers: int = 1,
@@ -42,6 +43,7 @@ class BookmarkTocBatchDetector:
     ) -> None:
         self.input_dir = Path(input_dir)
         self.max_text_pages = max_text_pages
+        self.min_total_pages = min_total_pages
         self.recursive = recursive
         self.random_seed = random_seed
         self.workers = max(1, workers)
@@ -60,6 +62,7 @@ class BookmarkTocBatchDetector:
         self._emit(f"PDF 검색 완료: {len(pdf_paths)}개 발견")
         results: list[BookmarkedPdfTocDetection] = []
         skipped_no_bookmark_count = 0
+        skipped_short_pdf_count = 0
 
         self._emit(f"PDF 처리 시작: workers={self.workers}")
         completed_count = 0
@@ -69,18 +72,21 @@ class BookmarkTocBatchDetector:
                     root_dir=self.input_dir,
                     pdf_path=pdf_path,
                     max_text_pages=self.max_text_pages,
+                    min_total_pages=self.min_total_pages,
                     random_seed=self.random_seed + index,
                 )
                 for index, pdf_path in enumerate(pdf_paths, start=1)
             ]
             for item in processed_items:
                 completed_count += 1
-                skipped_no_bookmark_count += self._handle_processed_item(
+                skipped_no_bookmark, skipped_short_pdf = self._handle_processed_item(
                     item,
                     completed_count,
                     len(pdf_paths),
                     results,
                 )
+                skipped_no_bookmark_count += skipped_no_bookmark
+                skipped_short_pdf_count += skipped_short_pdf
         else:
             with ProcessPoolExecutor(max_workers=self.workers) as executor:
                 futures = [
@@ -89,18 +95,23 @@ class BookmarkTocBatchDetector:
                         self.input_dir,
                         pdf_path,
                         self.max_text_pages,
+                        self.min_total_pages,
                         self.random_seed + index,
                     )
                     for index, pdf_path in enumerate(pdf_paths, start=1)
                 ]
                 for future in as_completed(futures):
                     completed_count += 1
-                    skipped_no_bookmark_count += self._handle_processed_item(
-                        future.result(),
-                        completed_count,
-                        len(pdf_paths),
-                        results,
+                    skipped_no_bookmark, skipped_short_pdf = (
+                        self._handle_processed_item(
+                            future.result(),
+                            completed_count,
+                            len(pdf_paths),
+                            results,
+                        )
                     )
+                    skipped_no_bookmark_count += skipped_no_bookmark
+                    skipped_short_pdf_count += skipped_short_pdf
 
         detected_count = sum(1 for result in results if result.status == "detected")
         not_detected_count = sum(
@@ -121,6 +132,8 @@ class BookmarkTocBatchDetector:
             detected_count=detected_count,
             not_detected_count=not_detected_count,
             failed_count=failed_count,
+            min_total_pages=self.min_total_pages,
+            skipped_short_pdf_count=skipped_short_pdf_count,
             dataset_row_count=len(dataset_rows),
             results=results,
             dataset_rows=dataset_rows,
@@ -132,12 +145,14 @@ class BookmarkTocBatchDetector:
         completed_count: int,
         total_count: int,
         results: list[BookmarkedPdfTocDetection],
-    ) -> int:
+    ) -> tuple[int, int]:
         outcome, result = item
         if outcome == "skipped":
-            return 1
+            return (1, 0)
+        if outcome == "skipped_short":
+            return (0, 1)
         if result is None:
-            return 0
+            return (0, 0)
 
         results.append(result)
         display_path = str(result.root_relative_pdf or result.input_pdf)
@@ -146,7 +161,7 @@ class BookmarkTocBatchDetector:
                 f"PDF 처리 실패 ({completed_count}/{total_count}): "
                 f"{display_path} ({result.error})"
             )
-            return 0
+            return (0, 0)
 
         self._emit(f"bookmark 있음: {display_path} ({result.bookmark_count}개)")
         if result.status == "detected":
@@ -160,7 +175,7 @@ class BookmarkTocBatchDetector:
             self._emit(
                 f"TOC 탐지 결과 없음 ({completed_count}/{total_count}): {display_path}"
             )
-        return 0
+        return (0, 0)
 
     def _find_pdfs(self) -> list[Path]:
         iterator = (
@@ -275,9 +290,7 @@ class BookmarkTocBatchDetector:
             pdf_page for pdf_page in positive_pages if pdf_page not in feature_by_page
         ]
         previous_pages = [
-            pdf_page - 1
-            for pdf_page in positive_pages + negative_pages
-            if pdf_page > 1
+            pdf_page - 1 for pdf_page in positive_pages + negative_pages if pdf_page > 1
         ]
         selected_pages = sorted(
             set(missing_positive_pages + negative_pages + previous_pages)
@@ -445,8 +458,18 @@ def _process_pdf_for_bookmark_toc(
     root_dir: Path,
     pdf_path: Path,
     max_text_pages: int,
+    min_total_pages: int,
     random_seed: int,
 ) -> tuple[str, BookmarkedPdfTocDetection | None]:
+    try:
+        with fitz.open(pdf_path) as document:
+            total_pages = document.page_count
+    except Exception as error:  # noqa: BLE001
+        return ("failed", _failed_result(root_dir, pdf_path, error))
+
+    if total_pages < min_total_pages:
+        return ("skipped_short", None)
+
     try:
         bookmarks = extract_existing_bookmarks(pdf_path)
     except Exception as error:  # noqa: BLE001
@@ -456,9 +479,6 @@ def _process_pdf_for_bookmark_toc(
         return ("skipped", None)
 
     try:
-        with fitz.open(pdf_path) as document:
-            total_pages = document.page_count
-
         pages = extract_page_texts(pdf_path, max_pages=max_text_pages)
         features = calculate_page_features(pages, total_pages=total_pages)
         detection = detect_toc_pages_from_bookmarks(
@@ -545,11 +565,11 @@ def _build_dataset_rows(
         pdf_page for pdf_page in positive_pages if pdf_page not in feature_by_page
     ]
     previous_pages = [
-        pdf_page - 1
-        for pdf_page in positive_pages + negative_pages
-        if pdf_page > 1
+        pdf_page - 1 for pdf_page in positive_pages + negative_pages if pdf_page > 1
     ]
-    selected_pages = sorted(set(missing_positive_pages + negative_pages + previous_pages))
+    selected_pages = sorted(
+        set(missing_positive_pages + negative_pages + previous_pages)
+    )
     if selected_pages:
         selected_texts = extract_selected_page_texts(pdf_path, selected_pages)
         selected_features = calculate_page_features(selected_texts, total_pages)

@@ -92,6 +92,12 @@ def detect_bookmark_toc(
         "--max-text-pages",
         help="각 PDF 앞부분에서 TOC 탐지에 사용할 최대 page 수다.",
     ),
+    min_total_pages: int = typer.Option(
+        50,
+        "--min-total-pages",
+        min=1,
+        help="이 page 수보다 짧은 PDF는 TOC 탐지와 dataset 생성을 건너뛴다.",
+    ),
     random_seed: int = typer.Option(
         42,
         "--random-seed",
@@ -119,6 +125,7 @@ def detect_bookmark_toc(
     result = BookmarkTocBatchDetector(
         input_dir,
         max_text_pages=max_text_pages,
+        min_total_pages=min_total_pages,
         recursive=recursive,
         random_seed=random_seed,
         workers=workers,
@@ -138,6 +145,7 @@ def detect_bookmark_toc(
                 "total_pdf_count": result.total_pdf_count,
                 "bookmarked_pdf_count": result.bookmarked_pdf_count,
                 "skipped_no_bookmark_count": result.skipped_no_bookmark_count,
+                "skipped_short_pdf_count": result.skipped_short_pdf_count,
                 "detected_count": result.detected_count,
                 "not_detected_count": result.not_detected_count,
                 "failed_count": result.failed_count,

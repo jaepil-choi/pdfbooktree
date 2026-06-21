@@ -57,6 +57,7 @@ def test_bookmark_toc_batch_detects_only_bookmarked_pdfs_recursively(
     result = BookmarkTocBatchDetector(
         tmp_path,
         max_text_pages=5,
+        min_total_pages=1,
         diagnostics=diagnostics.append,
     ).run()
 
@@ -115,7 +116,11 @@ def test_bookmark_toc_batch_can_scan_non_recursive(tmp_path: Path) -> None:
         toc=[[1, "Chapter 1 Introduction", 2]],
     )
 
-    result = BookmarkTocBatchDetector(tmp_path, recursive=False).run()
+    result = BookmarkTocBatchDetector(
+        tmp_path,
+        min_total_pages=1,
+        recursive=False,
+    ).run()
 
     assert result.total_pdf_count == 1
     assert result.skipped_no_bookmark_count == 1
@@ -142,7 +147,11 @@ def test_write_toc_page_dataset_csv_writes_flat_rows(tmp_path: Path) -> None:
             [1, "Chapter 2 Probability", 7],
         ],
     )
-    result = BookmarkTocBatchDetector(tmp_path, random_seed=1).run()
+    result = BookmarkTocBatchDetector(
+        tmp_path,
+        min_total_pages=1,
+        random_seed=1,
+    ).run()
     csv_path = tmp_path / "dataset.csv"
 
     write_toc_page_dataset_csv(csv_path, result.dataset_rows)
@@ -175,8 +184,43 @@ def test_bookmark_toc_batch_supports_process_workers(tmp_path: Path) -> None:
         ],
     )
 
-    result = BookmarkTocBatchDetector(tmp_path, workers=2).run()
+    result = BookmarkTocBatchDetector(
+        tmp_path,
+        min_total_pages=1,
+        workers=2,
+    ).run()
 
     assert result.workers == 2
     assert result.detected_count == 1
     assert result.dataset_row_count == 4
+
+
+def test_bookmark_toc_batch_skips_short_pdfs_by_default(tmp_path: Path) -> None:
+    short_pdf = tmp_path / "short.pdf"
+    long_pdf = tmp_path / "long.pdf"
+    toc = [[1, "Chapter 1 Introduction", 4]]
+    write_pdf(
+        short_pdf,
+        ["Contents\nChapter 1 Introduction ........ 4", "Body"],
+        toc=toc,
+    )
+    write_pdf(
+        long_pdf,
+        [
+            "Preface",
+            "Contents\nChapter 1 Introduction ........ 4\nChapter 2 End ........ 25",
+            *["Body"] * 58,
+        ],
+        toc=[
+            [1, "Chapter 1 Introduction", 4],
+            [1, "Chapter 2 End", 25],
+        ],
+    )
+
+    result = BookmarkTocBatchDetector(tmp_path).run()
+
+    assert result.min_total_pages == 50
+    assert result.total_pdf_count == 2
+    assert result.skipped_short_pdf_count == 1
+    assert result.bookmarked_pdf_count == 1
+    assert [item.input_pdf for item in result.results] == [long_pdf]
