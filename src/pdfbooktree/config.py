@@ -31,7 +31,12 @@ DEFAULT_TOC_EXTRACTION_SYSTEM_PROMPT = (
     "- source_pdf_page: 그 항목이 나타난 목차 PDF page. 입력의 '--- PDF page N ---' "
     "마커 기준 N을 그대로 쓴다.\n"
     "- 목차 항목이 아닌 머리말/그림/표지 텍스트, running header, 페이지 번호만 있는 줄은 제외한다.\n"
-    "- OCR로 깨진 제목은 합리적으로 복원하되 없는 항목을 지어내지 않는다.\n"
+    "- title은 OCR 노이즈를 정리해 깨끗한 제목으로 복원한다. 잘못 인식된 기호/문자를 "
+    "바로잡되(예: 'FIXEl:l·INCOME SE(UR!TIES' → 'FIXED-INCOME SECURITIES', "
+    "'PRICll'JG' → 'PRICING', 'fVIoney' → 'Money', 'J .2' → '1.2'), 의미는 바꾸지 말고 "
+    "없는 항목이나 단어를 지어내지 않는다.\n"
+    "- 번호(장/절 번호)가 OCR로 깨졌으면 앞뒤 항목의 연속된 번호 문맥으로 올바른 번호를 "
+    "복원한다(예: 'Char:.ter O' 가 Chapter 9와 11 사이면 'Chapter 10').\n"
     "- 항목은 목차에 나온 순서대로 반환한다."
 )
 
