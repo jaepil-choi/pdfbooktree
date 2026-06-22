@@ -18,7 +18,9 @@ def align_toc_items(
     aligned: list[AlignedTocItem] = []
     for index, item in enumerate(items):
         estimated_pdf_page = (
-            item.printed_page + offset.offset if offset.offset is not None else None
+            item.printed_page + offset.offset
+            if offset.offset is not None and item.printed_page is not None
+            else None
         )
         best = _best_heading_match(item, candidates_by_item.get(index, []))
         aligned.append(

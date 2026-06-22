@@ -149,7 +149,7 @@ class TocItem:
 
     title: str
     level: int
-    printed_page: int
+    printed_page: int | None
     raw_text: str
     source_pdf_page: int
     confidence: float
@@ -180,7 +180,7 @@ class AlignedTocItem:
 
     title: str
     level: int
-    printed_page: int
+    printed_page: int | None
     estimated_pdf_page: int | None
     matched_pdf_page: int | None
     confidence: float
