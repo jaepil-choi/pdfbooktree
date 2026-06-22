@@ -22,9 +22,9 @@
         "data\\scanned-pdf-indexed\\David G. Luenberger, Investment Science 2nd - adobeOCR - indexed.pdf"
       ],
       "outputs": "showcase/outputs/002_llm_toc_item_extraction/result.json",
-      "finding": "john_hull(TOC 5-15): 462개 항목, weak ref precision 1.0 recall 0.983 f1 0.9914, printed_page 단조성 1.0. shreve_binomial(TOC 3-11): 238개 항목, weak ref precision 1.0 recall 1.0 f1 1.0, printed_page 단조성 1.0. luenberger_investment_science(TOC 7-20): 149개 항목, weak ref precision 0.2617 recall 0.8966 f1 0.4052, printed_page 단조성 0.9859.",
+      "finding": "john_hull(TOC 5-15): 462개 항목, weak ref precision 1.0 recall 0.983 f1 0.9914, printed_page 단조성 1.0. shreve_binomial(TOC 3-11): 238개 항목, weak ref precision 1.0 recall 1.0 f1 1.0, printed_page 단조성 1.0. luenberger_investment_science(TOC 7-20): 145개 항목, weak ref precision 0.2483 recall 0.931 f1 0.392, printed_page 단조성 0.9856. 중요: luenberger의 낮은 precision(0.25)은 과추출이 아니라 weak reference 한계다. bookmark 29개는 Part/Chapter만 담고 section/subsection이 전혀 없는데, LLM은 목차 전체 계층(L3 절, L4 소절)까지 정상 추출했다. 의미 있는 지표는 chapter를 거의 다 찾은 recall 0.93이고, precision은 bookmark coverage 비율(29/145)을 반영할 뿐이다. 남은 실제 과제는 (1) Luenberger 목차의 간략/상세 contents가 모두 잡혀 chapter가 중복되는 점과 (2) 일부 OCR 제목 노이즈 잔존이다. system_prompt에 OCR 노이즈 교정 지시를 추가해 'FIXEl:l·INCOME SE(UR!TIES'→'FIXED-INCOME SECURITIES', 'Char:.ter O'→'Chapter 10' 등은 복원되나, 'Chapter '1', 'fVIoney', 'Wi0il' 같은 일부는 여전히 남는다.",
       "command": "uv run python showcase/002_llm_toc_item_extraction.py",
-      "ran_at": "2026-06-22T18:18:37+09:00"
+      "ran_at": "2026-06-22T18:31:00+09:00"
     }
   ]
 }
