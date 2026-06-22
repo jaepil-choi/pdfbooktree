@@ -196,6 +196,25 @@
       "outputs": "experiments\\outputs\\013_clean_title_bookmark_eda",
       "finding": "깨진 제목 PDF를 제외한 글자 포함 bookmark PDF 402개로 다시 EDA했다. bookmark_count median 110, p99 859, max 1143이다. tree_depth 분포는 {0: 91, 1: 108, 2: 95, 3: 71, 4: 35, 5: 2}로, OCR 덤프 제거 후 depth 0 그룹이 줄었다. median title 글자수는 p10 13, median 24이다. 새 지표 bookmarks_per_page는 median 0.355, p99 1.394, max 9.4로 상위는 페이지당 bookmark가 과도한 문제집/용어집 후보다.",
       "ran_at": "2026-06-21T15:59:30"
+    },
+    {
+      "id": "014_upstage_toc_item_extraction",
+      "purpose": "탐지된 TOC page range를 입력으로 Upstage LLM(solar-pro2 텍스트 경로와 information-extract 이미지 경로)을 호출해 목차 항목(title/level/printed_page)을 구조화 추출하고, bookmark가 있는 영어 3권은 bookmark title weak label로 item precision/recall을, bookmark 없는 한국어 2권은 항목 수와 printed_page 단조성으로 두 경로를 비교한다.",
+      "inputs": [
+        "data\\native-pdf-indexed\\John Hull - Options, Futures, and Other Derivatives, Global Edition-Pearson (2021).pdf",
+        "data\\scanned-pdf-indexed\\(Springer Finance) Steven E. Shreve - Stochastic Calculus for Finance I The Binomial Asset Pricing Model-Springer (2005)-indexed.pdf",
+        "data\\scanned-pdf-indexed\\David G. Luenberger, Investment Science 2nd - adobeOCR - indexed.pdf",
+        "data\\scanned-pdf-not-indexed\\미래를_바꾼_아홉가지_알고리즘_-_존_맥코믹-compressed[algorithm cs book].pdf",
+        "data\\scanned-pdf-not-indexed\\알고리즘_인생을계산하다_The_computer_science_of_human_decisions_-_BrianChristian.pdf"
+      ],
+      "outputs": "experiments\\outputs\\014_upstage_toc_item_extraction",
+      "models": [
+        "solar-pro2",
+        "information-extract"
+      ],
+      "temperature": 0.0,
+      "finding": "john_hull(TOC 5-15): text precision 1.0 recall 0.983 f1 0.9914 (items 462), image precision 1.0 recall 0.983 f1 0.9914 (items 508). shreve_binomial(TOC 3-11): text precision 1.0 recall 1.0 f1 1.0 (items 238), image precision 1.0 recall 1.0 f1 1.0 (items 238). luenberger_investment_science(TOC 7-20): text precision 0.9286 recall 0.8966 f1 0.9123 (items 28), image precision 0.146 recall 1.0 f1 0.2548 (items 459). algorithm_nine(TOC 12-12, heuristic_detect(conf=0.67)): text items 15 mono 1.0, image items 19 mono 1.0. algorithms_to_live_by(TOC 16-19, heuristic_detect(conf=0.67)): text items 111 mono 0.9908256880733946, image items 116 mono 1.0.",
+      "ran_at": "2026-06-21T17:03:52"
     }
   ]
 }
