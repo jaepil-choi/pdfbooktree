@@ -232,6 +232,23 @@
       "outputs": "experiments\\outputs\\015_header_footer_page_offset",
       "finding": "zvi_bodie_investments_2021는 best band all에서 추정 offset 29(modal share 0.327, 최장 연속 run 964), 일치 page 965개(coverage 0.927), printed page 1 ≈ PDF page 30이다. korea_econometrics_note_1는 best band all에서 추정 offset 1(modal share 0.711, 최장 연속 run 140), 일치 page 140개(coverage 0.993), printed page 1 ≈ PDF page 2이다. korea_econometrics_note_2는 best band all에서 추정 offset -1(modal share 0.434, 최장 연속 run 9), 일치 page 76개(coverage 0.23), printed page 1 ≈ PDF page 0이다. quant_world_hong_changsu는 best band all에서 추정 offset 1(modal share 0.4, 최장 연속 run 266), 일치 page 360개(coverage 0.952), printed page 1 ≈ PDF page 2이다. hankyung_reading_method는 best band all에서 추정 offset 1(modal share 0.544, 최장 연속 run 67), 일치 page 241개(coverage 0.846), printed page 1 ≈ PDF page 2이다.",
       "ran_at": "2026-06-26T15:37:58"
+    },
+    {
+      "id": "016_llm_toc_range_3stage_fallback",
+      "purpose": "PRD 7.8~7.11(15.1) 3단계 LLM fallback(start accept / backtrack_start / sequential recovery)을 결정적 detector 위에 얹어, 현재 로컬 5권의 TOC page range를 GT 대비 100% 복구할 수 있는지 검증한다. LLM은 Upstage Solar chat(solar-pro3) 텍스트 경로만 사용하고, anchor에서 양방향 contiguous 확장으로 brief contents를 merge한다.",
+      "inputs": [
+        "data\\native-pdf-indexed\\John Hull - Options, Futures, and Other Derivatives, Global Edition-Pearson (2021).pdf",
+        "data\\scanned-pdf-indexed\\(Springer Finance) Steven E. Shreve - Stochastic Calculus for Finance I The Binomial Asset Pricing Model-Springer (2005)-indexed.pdf",
+        "data\\scanned-pdf-indexed\\David G. Luenberger, Investment Science 2nd - adobeOCR - indexed.pdf",
+        "data\\scanned-pdf-not-indexed\\미래를_바꾼_아홉가지_알고리즘_-_존_맥코믹-compressed[algorithm cs book].pdf",
+        "data\\scanned-pdf-not-indexed\\알고리즘_인생을계산하다_The_computer_science_of_human_decisions_-_BrianChristian.pdf"
+      ],
+      "outputs": "experiments\\\\outputs\\\\016_llm_toc_range_3stage_fallback",
+      "labels": "experiments\\\\labels\\\\answer_toc_ranges_manual.json",
+      "model": "solar-pro3",
+      "temperature": 0.0,
+      "finding": "5권 중 4권이 precision 1.0 recall 1.0으로 완벽했다. shreve_binomial(3-11, stage1_accept), luenberger_investment_science(7-20, stage2_backtrack — exp 004 binomial이 [7,8,20]을 놓쳤던 케이스를 완벽 복구), algorithm_nine(12, stage2_backtrack), algorithms_to_live_by(16-19, stage2_backtrack)가 P1.0 R1.0이다. john_hull은 recall 1.0이나 precision 0.923으로, extra page 17(TECHNICAL NOTES, 책 페이지 번호 없이 웹사이트 note 목록만 나열)을 forward expansion이 TOC로 포함했다. page 5 brief contents는 backward merge로 정확히 포착했다(recall 1.0). 결정적 detector baseline은 recall이 john_hull 0.5, shreve 0.889, luenberger 0.857로 낮았고 3단계 fallback이 모두 끌어올렸다. LLM 호출은 권당 3~16회다. 남은 100% 미달 원인은 brief/detailed contents 뒤에 이어지는 front-matter 목록(business snapshots는 페이지 번호 있어 GT 포함, technical notes는 페이지 번호 없어 GT 제외)의 미세 경계 한 page뿐이다.",
+      "ran_at": "2026-06-26T18:49:14"
     }
   ]
 }

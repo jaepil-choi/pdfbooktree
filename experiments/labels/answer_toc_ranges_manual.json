@@ -1,123 +1,95 @@
 {
   "schema_version": 1,
   "purpose": "현재 sample PDF에 대해 사용자가 제공한 TOC page answer를 보관한다.",
-  "usage": "sample 검증, feature 연구, pseudo label 품질 audit용이다. 300STUDY model train corpus가 아니다.",
+  "usage": "sample 검증, feature 연구, pseudo label 품질 audit, 3단계 LLM fallback 평가용이다. 300STUDY model train corpus가 아니다.",
   "page_numbering": "1-based PDF page",
   "answer_source": "user_provided_in_codex_thread",
-  "created_at": "2026-06-26T13:30:00+09:00",
+  "created_at": "2026-06-26T19:30:00+09:00",
   "labels": [
     {
-      "id": "zvi_bodie_investments_2021",
-      "input_pdf": "data/native-pdf-indexed/Zvi Bodie, Alex Kane, Alan Marcus - Investments-McGraw Hill (2021)[finance].pdf",
-      "toc_start_page": 7,
+      "id": "john_hull",
+      "input_pdf": "data/native-pdf-indexed/John Hull - Options, Futures, and Other Derivatives, Global Edition-Pearson (2021).pdf",
+      "toc_start_page": 5,
       "toc_end_page": 16,
-      "toc_pages": [
-        7,
-        8,
-        9,
-        10,
-        11,
-        12,
-        13,
-        14,
-        15,
-        16
-      ],
+      "toc_pages": [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
       "toc_segments": [
         {
-          "kind": "brief_contents",
+          "kind": "contents_in_brief",
+          "start_page": 5,
+          "end_page": 5
+        },
+        {
+          "kind": "contents",
+          "start_page": 6,
+          "end_page": 16
+        }
+      ],
+      "notes": "page 5는 contents in brief(간략 목차)이고 진짜 상세 목차는 6에서 시작한다. 기존 rule대로 page 5를 start로 잡고 나중에 두 TOC segment를 merge한다."
+    },
+    {
+      "id": "shreve_binomial",
+      "input_pdf": "data/scanned-pdf-indexed/(Springer Finance) Steven E. Shreve - Stochastic Calculus for Finance I The Binomial Asset Pricing Model-Springer (2005)-indexed.pdf",
+      "toc_start_page": 3,
+      "toc_end_page": 11,
+      "toc_pages": [3, 4, 5, 6, 7, 8, 9, 10, 11],
+      "toc_segments": [
+        {
+          "kind": "contents",
+          "start_page": 3,
+          "end_page": 11
+        }
+      ],
+      "notes": "shreve 목차 3-11."
+    },
+    {
+      "id": "luenberger_investment_science",
+      "input_pdf": "data/scanned-pdf-indexed/David G. Luenberger, Investment Science 2nd - adobeOCR - indexed.pdf",
+      "toc_start_page": 7,
+      "toc_end_page": 20,
+      "toc_pages": [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
+      "toc_segments": [
+        {
+          "kind": "contents_in_brief",
           "start_page": 7,
           "end_page": 8
         },
         {
           "kind": "contents",
           "start_page": 9,
-          "end_page": 16
-        }
-      ],
-      "notes": "brief contents 7-8, contents 9-16."
-    },
-    {
-      "id": "korea_econometrics_note_1",
-      "input_pdf": "data/scanned-pdf-indexed/고려대_계량경제학노트1_김창진-compressed-indexed[econ stats book].pdf",
-      "toc_start_page": 3,
-      "toc_end_page": 3,
-      "toc_pages": [
-        3
-      ],
-      "toc_segments": [
-        {
-          "kind": "contents",
-          "start_page": 3,
-          "end_page": 3
-        }
-      ],
-      "notes": "1권은 3페이지만 목차."
-    },
-    {
-      "id": "korea_econometrics_note_2",
-      "input_pdf": "data/scanned-pdf-indexed/고려대_계량경제학노트2_김창진-compressed-indexed[econ stats book].pdf",
-      "toc_start_page": 3,
-      "toc_end_page": 10,
-      "toc_pages": [
-        3,
-        4,
-        5,
-        6,
-        7,
-        8,
-        9,
-        10
-      ],
-      "toc_segments": [
-        {
-          "kind": "contents",
-          "start_page": 3,
-          "end_page": 10
-        }
-      ],
-      "notes": "2권 목차 3-10."
-    },
-    {
-      "id": "quant_world_hong_changsu",
-      "input_pdf": "data/scanned-pdf-not-indexed/퀀트의 세계 - 홍창수.pdf",
-      "toc_start_page": 17,
-      "toc_end_page": 20,
-      "toc_pages": [
-        17,
-        18,
-        19,
-        20
-      ],
-      "toc_segments": [
-        {
-          "kind": "contents",
-          "start_page": 17,
           "end_page": 20
         }
       ],
-      "notes": "퀀트의 세계 목차 17-20."
+      "notes": "page 7-8은 brief contents, 진짜 상세 목차는 9-20이다. binomial search(exp 004)가 [7, 8, 20]을 놓쳤던 핵심 케이스다."
     },
     {
-      "id": "hankyung_reading_method",
-      "input_pdf": "data/scanned-pdf-not-indexed/한경_읽는법_-_한국경제신문-compressed[econ macro book].pdf",
-      "toc_start_page": 6,
-      "toc_end_page": 10,
-      "toc_pages": [
-        6,
-        7,
-        8,
-        9,
-        10
-      ],
+      "id": "algorithm_nine",
+      "input_pdf": "data/scanned-pdf-not-indexed/미래를_바꾼_아홉가지_알고리즘_-_존_맥코믹-compressed[algorithm cs book].pdf",
+      "toc_start_page": 12,
+      "toc_end_page": 12,
+      "toc_pages": [12],
       "toc_segments": [
         {
           "kind": "contents",
-          "start_page": 6,
-          "end_page": 10
+          "start_page": 12,
+          "end_page": 12
         }
       ],
-      "notes": "한경 읽는법 목차 6-10."
+      "notes": "bookmark 없는 runtime 타깃. 목차는 page 12 단일 page다."
+    },
+    {
+      "id": "algorithms_to_live_by",
+      "input_pdf": "data/scanned-pdf-not-indexed/알고리즘_인생을계산하다_The_computer_science_of_human_decisions_-_BrianChristian.pdf",
+      "toc_start_page": 16,
+      "toc_end_page": 19,
+      "toc_pages": [16, 17, 18, 19],
+      "toc_segments": [
+        {
+          "kind": "contents",
+          "start_page": 16,
+          "end_page": 19
+        }
+      ],
+      "notes": "bookmark 없는 runtime 타깃. 목차 16-19."
     }
   ]
 }
