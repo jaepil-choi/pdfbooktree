@@ -1,19 +1,6 @@
 {
   "showcases": [
     {
-      "id": "001_toc_detection_interfaces",
-      "purpose": "TOC page detection public interface가 실제 PDF text layer와 기존 bookmark를 읽는 live call에서 동작함을 보여준다.",
-      "inputs": [
-        "data\\native-pdf-indexed\\John Hull - Options, Futures, and Other Derivatives, Global Edition-Pearson (2021).pdf",
-        "data\\scanned-pdf-indexed\\(Springer Finance) Steven E. Shreve - Stochastic Calculus for Finance I The Binomial Asset Pricing Model-Springer (2005)-indexed.pdf",
-        "data\\scanned-pdf-indexed\\David G. Luenberger, Investment Science 2nd - adobeOCR - indexed.pdf"
-      ],
-      "outputs": "showcase/outputs/001_toc_detection_interfaces/result.json",
-      "finding": "실제 PDF 3권에서 text layer와 기존 bookmark를 live로 읽어 detector를 호출했다. runtime detector는 3권 모두 precision 1.0이며 john_hull recall 0.545, shreve recall 0.889, luenberger recall 0.857이다. bookmark-guided detector는 3/3 exact match로 precision/recall 1.0이다. 새 숫자 후보 기반 offset consistency feature는 result.json의 selected_candidate_features와 top_offset_consistency_candidates에 기록되며, shreve는 TOC page 3-10 전부 offset_consistency voter가 켜졌고 luenberger는 page 7의 시작 경계 복원에 offset score 1.529가 기여했다.",
-      "command": "uv run python showcase/001_toc_detection_interfaces.py",
-      "ran_at": "2026-06-13T16:16:14+09:00"
-    },
-    {
       "id": "002_llm_toc_item_extraction",
       "purpose": "LlmTocExtractor public interface가 실제 PDF의 탐지된 TOC page range에서 Upstage(solar-pro2) live call로 목차 항목을 구조화 추출함을 보여주고, bookmark title weak reference로 item precision/recall을 확인한다.",
       "inputs": [
@@ -25,6 +12,21 @@
       "finding": "john_hull(TOC 5-15): 462개 항목, weak ref precision 1.0 recall 0.983 f1 0.9914, printed_page 단조성 1.0. shreve_binomial(TOC 3-11): 238개 항목, weak ref precision 1.0 recall 1.0 f1 1.0, printed_page 단조성 1.0. luenberger_investment_science(TOC 7-20): 145개 항목, weak ref precision 0.2483 recall 0.931 f1 0.392, printed_page 단조성 0.9856. 중요: luenberger의 낮은 precision(0.25)은 과추출이 아니라 weak reference 한계다. bookmark 29개는 Part/Chapter만 담고 section/subsection이 전혀 없는데, LLM은 목차 전체 계층(L3 절, L4 소절)까지 정상 추출했다. 의미 있는 지표는 chapter를 거의 다 찾은 recall 0.93이고, precision은 bookmark coverage 비율(29/145)을 반영할 뿐이다. 남은 실제 과제는 (1) Luenberger 목차의 간략/상세 contents가 모두 잡혀 chapter가 중복되는 점과 (2) 일부 OCR 제목 노이즈 잔존이다. system_prompt에 OCR 노이즈 교정 지시를 추가해 'FIXEl:l·INCOME SE(UR!TIES'→'FIXED-INCOME SECURITIES', 'Char:.ter O'→'Chapter 10' 등은 복원되나, 'Chapter '1', 'fVIoney', 'Wi0il' 같은 일부는 여전히 남는다.",
       "command": "uv run python showcase/002_llm_toc_item_extraction.py",
       "ran_at": "2026-06-22T18:31:00+09:00"
+    },
+    {
+      "id": "001_toc_detection_interfaces",
+      "purpose": "TOC page detection public interface가 현재 data/ 아래 실제 PDF text layer와 기존 bookmark를 읽는 live call에서 동작함을 보여준다.",
+      "inputs": [
+        "data\\native-pdf-indexed\\Zvi Bodie, Alex Kane, Alan Marcus - Investments-McGraw Hill (2021)[finance].pdf",
+        "data\\scanned-pdf-indexed\\고려대_계량경제학노트1_김창진-compressed-indexed[econ stats book].pdf",
+        "data\\scanned-pdf-indexed\\고려대_계량경제학노트2_김창진-compressed-indexed[econ stats book].pdf",
+        "data\\scanned-pdf-not-indexed\\퀀트의 세계 - 홍창수.pdf",
+        "data\\scanned-pdf-not-indexed\\한경_읽는법_-_한국경제신문-compressed[econ macro book].pdf"
+      ],
+      "outputs": "showcase/outputs/001_toc_detection_interfaces/result.json",
+      "finding": "Zvi_Bodie_Alex_Kane_Alan_Marcus_Investments_McGraw_Hill_2021_finance는 bookmark 793개, runtime [7, 8, 9, 10, 11, 12, 13, 14, 15, 16], bookmark-guided [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]. 고려대_계량경제학노트1_김창진_compressed_indexed_econ_stats_book는 bookmark 57개, runtime [3], bookmark-guided [2, 3]. 고려대_계량경제학노트2_김창진_compressed_indexed_econ_stats_book는 bookmark 215개, runtime [21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40], bookmark-guided [2, 3]. 퀀트의_세계_홍창수는 bookmark 43개, runtime [17, 18, 19, 20], bookmark-guided [17, 18, 19, 20]. 한경_읽는법_한국경제신문_compressed_econ_macro_book는 bookmark 16개, runtime [7], bookmark-guided 후보 없음. warning=['bookmark-guided detector가 TOC page 후보를 찾지 못했다.']",
+      "command": "uv run python showcase/001_toc_detection_interfaces.py",
+      "ran_at": "2026-06-26T09:29:00+09:00"
     }
   ]
 }

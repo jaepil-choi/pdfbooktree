@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import json
+import re
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 import fitz
 
-from pdfbooktree.metrics.toc_pages import compare_toc_pages
 from pdfbooktree.pdf.bookmarks import extract_existing_bookmarks
 from pdfbooktree.pdf.text import extract_page_texts
 from pdfbooktree.toc.detect import detect_toc_pages
@@ -16,36 +17,24 @@ from pdfbooktree.utils.jsonio import to_jsonable
 
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
+DATA_DIR = ROOT_DIR / "data"
 OUTPUT_DIR = ROOT_DIR / "showcase" / "outputs" / "001_toc_detection_interfaces"
 OUTPUT_PATH = OUTPUT_DIR / "result.json"
-MAX_TEXT_PAGES = 30
+SHOWCASE_JSON = ROOT_DIR / "showcase" / "showcase.json"
+SHOWCASE_ID = "001_toc_detection_interfaces"
+MAX_TEXT_PAGES = 40
 
-PDF_CASES = [
-    {
-        "id": "john_hull",
-        "path": ROOT_DIR
-        / "data"
-        / "native-pdf-indexed"
-        / "John Hull - Options, Futures, and Other Derivatives, Global Edition-Pearson (2021).pdf",
-        "expected_pages": list(range(5, 16)),
-    },
-    {
-        "id": "shreve_binomial",
-        "path": ROOT_DIR
-        / "data"
-        / "scanned-pdf-indexed"
-        / "(Springer Finance) Steven E. Shreve - Stochastic Calculus for Finance I The Binomial Asset Pricing Model-Springer (2005)-indexed.pdf",
-        "expected_pages": list(range(3, 12)),
-    },
-    {
-        "id": "luenberger_investment_science",
-        "path": ROOT_DIR
-        / "data"
-        / "scanned-pdf-indexed"
-        / "David G. Luenberger, Investment Science 2nd - adobeOCR - indexed.pdf",
-        "expected_pages": list(range(7, 21)),
-    },
-]
+
+def discover_pdf_cases() -> list[dict[str, Any]]:
+    """현재 data/ 아래 sample PDF를 showcase 입력으로 사용한다."""
+
+    return [
+        {
+            "id": re.sub(r"[^0-9A-Za-z가-힣]+", "_", path.stem).strip("_")[:80],
+            "path": path,
+        }
+        for path in sorted(DATA_DIR.rglob("*.pdf"))
+    ]
 
 
 def analyze_case(case: dict[str, Any]) -> dict[str, Any]:
@@ -67,28 +56,15 @@ def analyze_case(case: dict[str, Any]) -> dict[str, Any]:
         bookmarks,
         features=features,
     )
-    expected_pages = list(case["expected_pages"])
-    runtime_comparison = compare_toc_pages(
-        runtime_detection.pages,
-        expected_pages,
-    )
-    bookmark_comparison = compare_toc_pages(
-        bookmark_detection.pages,
-        expected_pages,
-    )
 
     assert pages, "실제 PDF text layer에서 page text를 읽어야 한다."
     assert bookmarks, "기존 bookmark를 실제 PDF에서 읽어야 한다."
-    assert runtime_detection.pages, (
-        "runtime detector가 실제 PDF에서 후보를 찾아야 한다."
-    )
-    assert bookmark_detection.pages, (
-        "bookmark-guided detector가 실제 PDF에서 후보를 찾아야 한다."
-    )
-    assert runtime_comparison.precision is not None
-    assert runtime_comparison.recall is not None
-    assert bookmark_comparison.precision is not None
-    assert bookmark_comparison.recall is not None
+
+    warnings: list[str] = []
+    if not runtime_detection.pages:
+        warnings.append("runtime detector가 TOC page 후보를 찾지 못했다.")
+    if not bookmark_detection.pages:
+        warnings.append("bookmark-guided detector가 TOC page 후보를 찾지 못했다.")
 
     return {
         "id": case["id"],
@@ -96,11 +72,9 @@ def analyze_case(case: dict[str, Any]) -> dict[str, Any]:
         "total_pages": total_pages,
         "observed_text_pages": len(pages),
         "bookmark_count": len(bookmarks),
-        "expected_pages_from_experiment_003": expected_pages,
         "runtime_detection": summarize_detection(runtime_detection),
         "bookmark_detection": summarize_detection(bookmark_detection),
-        "runtime_comparison": runtime_comparison,
-        "bookmark_comparison": bookmark_comparison,
+        "warnings": warnings,
     }
 
 
@@ -145,32 +119,74 @@ def summarize_candidate(candidate: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def main() -> None:
-    """experiments.json의 실제 PDF들로 TOC 탐지 interface 동작을 보여준다."""
+def build_finding(results: list[dict[str, Any]]) -> str:
+    """새 sample data에 대한 detector 실행 요약을 만든다."""
 
-    results = [analyze_case(case) for case in PDF_CASES]
-    runtime_exact_count = sum(
-        1
-        for result in results
-        if result["runtime_detection"]["pages"]
-        == result["expected_pages_from_experiment_003"]
+    parts: list[str] = []
+    for result in results:
+        runtime_pages = result["runtime_detection"]["pages"]
+        bookmark_pages = result["bookmark_detection"]["pages"]
+        runtime_text = (
+            f"runtime {runtime_pages}" if runtime_pages else "runtime 후보 없음"
+        )
+        bookmark_text = (
+            f"bookmark-guided {bookmark_pages}"
+            if bookmark_pages
+            else "bookmark-guided 후보 없음"
+        )
+        warning_text = f" warning={result['warnings']}" if result["warnings"] else ""
+        parts.append(
+            f"{result['id']}는 bookmark {result['bookmark_count']}개, "
+            f"{runtime_text}, {bookmark_text}.{warning_text}"
+        )
+    return " ".join(parts)
+
+
+def record_showcase(results: list[dict[str, Any]], finding: str) -> None:
+    """showcase.json에 이번 실행 기록을 추가한다(같은 id는 교체)."""
+
+    data = json.loads(SHOWCASE_JSON.read_text(encoding="utf-8"))
+    entry = {
+        "id": SHOWCASE_ID,
+        "purpose": (
+            "TOC page detection public interface가 현재 data/ 아래 실제 PDF text layer와 "
+            "기존 bookmark를 읽는 live call에서 동작함을 보여준다."
+        ),
+        "inputs": [result["input_pdf"] for result in results],
+        "outputs": "showcase/outputs/001_toc_detection_interfaces/result.json",
+        "finding": finding,
+        "command": "uv run python showcase/001_toc_detection_interfaces.py",
+        "ran_at": datetime.now().astimezone().isoformat(timespec="seconds"),
+    }
+    data["showcases"] = [s for s in data["showcases"] if s.get("id") != SHOWCASE_ID]
+    data["showcases"].append(entry)
+    SHOWCASE_JSON.write_text(
+        json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
-    bookmark_exact_count = sum(
-        1
-        for result in results
-        if result["bookmark_detection"]["pages"]
-        == result["expected_pages_from_experiment_003"]
-    )
+
+
+def main() -> None:
+    """현재 data/의 실제 PDF들로 TOC 탐지 interface 동작을 보여준다."""
+
+    pdf_cases = discover_pdf_cases()
+    if not pdf_cases:
+        raise FileNotFoundError(DATA_DIR)
+
+    results = [analyze_case(case) for case in pdf_cases]
+    finding = build_finding(results)
     summary = {
         "purpose": (
-            "experiments.json에 기록된 실제 PDF text layer와 기존 bookmark를 읽어 "
-            "TOC page detection interface가 live call로 동작하는지 보여준다."
+            "현재 data/ 아래 실제 PDF text layer와 기존 bookmark를 읽어 TOC page "
+            "detection interface가 live call로 동작하는지 보여준다."
         ),
-        "source_experiment": "003_ensemble_toc_page_labelers",
         "max_text_pages": MAX_TEXT_PAGES,
         "case_count": len(results),
-        "runtime_exact_count": runtime_exact_count,
-        "bookmark_exact_count": bookmark_exact_count,
+        "runtime_detected_count": sum(
+            1 for result in results if result["runtime_detection"]["pages"]
+        ),
+        "bookmark_detected_count": sum(
+            1 for result in results if result["bookmark_detection"]["pages"]
+        ),
         "results": results,
     }
 
@@ -179,7 +195,10 @@ def main() -> None:
         json.dumps(to_jsonable(summary), ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
+    record_showcase(results, finding)
     print(json.dumps(to_jsonable(summary), ensure_ascii=False, indent=2))
+    print("\n=== finding ===")
+    print(finding)
 
 
 if __name__ == "__main__":

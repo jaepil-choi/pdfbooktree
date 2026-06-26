@@ -1,6 +1,6 @@
 """showcase 002: LlmTocExtractor public interface를 real data + live call로 보여준다.
 
-experiments.json의 실제 PDF에서 탐지된 TOC page range를 입력으로
+현재 data/ 아래 실제 PDF에서 TOC page range를 먼저 탐지한 뒤
 `LlmTocExtractor`(기본 config = solar-pro2 text 경로)를 live 호출해 목차 항목을
 구조화 추출한다. bookmark가 있는 책은 bookmark title을 weak reference로 삼아
 title-only(소문자 정규화) item precision/recall을 보여준다.
@@ -14,16 +14,22 @@ synthetic/mock/stub 입력은 쓰지 않는다. Upstage API와 실제 PDF가 필
 from __future__ import annotations
 
 import json
+import re
 import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+import fitz
 from dotenv import load_dotenv
 from rapidfuzz import fuzz
 
 from pdfbooktree import LlmTocExtractionConfig, LlmTocExtractor
 from pdfbooktree.pdf.bookmarks import extract_existing_bookmarks, title_has_letter
+from pdfbooktree.pdf.text import extract_page_texts
+from pdfbooktree.toc.detect import detect_toc_pages
+from pdfbooktree.toc.detect_from_bookmarks import detect_toc_pages_from_bookmarks
+from pdfbooktree.toc.features import calculate_page_features
 from pdfbooktree.utils.jsonio import to_jsonable
 
 try:  # 콘솔에서 한글이 깨지지 않게
@@ -32,38 +38,53 @@ except Exception:
     pass
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
+DATA_DIR = ROOT_DIR / "data"
 OUTPUT_DIR = ROOT_DIR / "showcase" / "outputs" / "002_llm_toc_item_extraction"
 OUTPUT_PATH = OUTPUT_DIR / "result.json"
 SHOWCASE_JSON = ROOT_DIR / "showcase" / "showcase.json"
 SHOWCASE_ID = "002_llm_toc_item_extraction"
 MATCH_THRESHOLD = 80
+MAX_TEXT_PAGES = 40
 
-PDF_CASES = [
-    {
-        "id": "john_hull",
-        "path": ROOT_DIR
-        / "data"
-        / "native-pdf-indexed"
-        / "John Hull - Options, Futures, and Other Derivatives, Global Edition-Pearson (2021).pdf",
-        "toc_pages": list(range(5, 16)),
-    },
-    {
-        "id": "shreve_binomial",
-        "path": ROOT_DIR
-        / "data"
-        / "scanned-pdf-indexed"
-        / "(Springer Finance) Steven E. Shreve - Stochastic Calculus for Finance I The Binomial Asset Pricing Model-Springer (2005)-indexed.pdf",
-        "toc_pages": list(range(3, 12)),
-    },
-    {
-        "id": "luenberger_investment_science",
-        "path": ROOT_DIR
-        / "data"
-        / "scanned-pdf-indexed"
-        / "David G. Luenberger, Investment Science 2nd - adobeOCR - indexed.pdf",
-        "toc_pages": list(range(7, 21)),
-    },
-]
+
+def discover_pdf_cases() -> list[dict[str, Any]]:
+    """현재 data/ 아래 sample PDF를 showcase 입력으로 사용한다."""
+
+    return [
+        {
+            "id": re.sub(r"[^0-9A-Za-z가-힣]+", "_", path.stem).strip("_")[:80],
+            "path": path,
+        }
+        for path in sorted(DATA_DIR.rglob("*.pdf"))
+    ]
+
+
+def resolve_toc_pages(pdf_path: Path) -> tuple[list[int], str, list[str]]:
+    """실제 PDF에서 TOC page 후보를 탐지해 LLM 입력 page를 정한다."""
+
+    warnings: list[str] = []
+    with fitz.open(pdf_path) as document:
+        total_pages = document.page_count
+    pages = extract_page_texts(pdf_path, max_pages=MAX_TEXT_PAGES)
+    features = calculate_page_features(pages, total_pages=total_pages)
+    bookmarks = extract_existing_bookmarks(pdf_path)
+    guided = detect_toc_pages_from_bookmarks(pages, bookmarks, features=features)
+    runtime = detect_toc_pages(features)
+
+    if guided.pages:
+        if runtime.pages and runtime.pages != guided.pages:
+            warnings.append(
+                f"runtime detector 후보 {runtime.pages}와 bookmark-guided 후보 {guided.pages}가 다르다."
+            )
+        return guided.pages, f"bookmark_guided(conf={guided.confidence:.2f})", warnings
+    if runtime.pages:
+        warnings.append(
+            "bookmark-guided detector가 실패해 runtime detector 후보를 사용했다."
+        )
+        return runtime.pages, f"runtime(conf={runtime.confidence:.2f})", warnings
+
+    warnings.append("TOC detector가 실패해 앞 10페이지 fallback을 사용했다.")
+    return list(range(1, min(10, total_pages) + 1)), "fallback_first_10", warnings
 
 
 def evaluate_against_bookmarks(
@@ -123,7 +144,8 @@ def analyze_case(case: dict[str, Any], extractor: LlmTocExtractor) -> dict[str, 
     if not pdf_path.exists():
         raise FileNotFoundError(f"showcase real data가 없다: {pdf_path}")
 
-    items = extractor.extract(pdf_path, case["toc_pages"])
+    toc_pages, toc_source, warnings = resolve_toc_pages(pdf_path)
+    items = extractor.extract(pdf_path, toc_pages)
     assert items, "LlmTocExtractor가 실제 PDF에서 목차 항목을 추출해야 한다."
 
     item_titles = [item.title for item in items]
@@ -143,13 +165,15 @@ def analyze_case(case: dict[str, Any], extractor: LlmTocExtractor) -> dict[str, 
     return {
         "id": case["id"],
         "input_pdf": str(pdf_path.relative_to(ROOT_DIR)),
-        "toc_pages": case["toc_pages"],
+        "toc_pages": toc_pages,
+        "toc_source": toc_source,
         "model": extractor.config.text_model,
         "mode": extractor.config.mode,
         "item_count": len(items),
         "level_distribution": _level_distribution(items),
         "printed_page_monotonic_fraction": monotonic_fraction(printed_pages),
         "bookmark_weak_reference": weak_reference,
+        "warnings": warnings,
         "sample_items": [
             {
                 "title": item.title,
@@ -170,18 +194,18 @@ def _level_distribution(items: list[Any]) -> dict[int, int]:
     return dict(sorted(distribution.items()))
 
 
-def record_showcase(finding: str) -> None:
+def record_showcase(results: list[dict[str, Any]], finding: str) -> None:
     """showcase.json에 이번 실행 기록을 추가한다(같은 id는 교체)."""
 
     data = json.loads(SHOWCASE_JSON.read_text(encoding="utf-8"))
     entry = {
         "id": SHOWCASE_ID,
         "purpose": (
-            "LlmTocExtractor public interface가 실제 PDF의 탐지된 TOC page range에서 "
-            "Upstage(solar-pro2) live call로 목차 항목을 구조화 추출함을 보여주고, "
-            "bookmark title weak reference로 item precision/recall을 확인한다."
+            "LlmTocExtractor public interface가 현재 data/ 아래 실제 PDF의 탐지된 "
+            "TOC page range에서 Upstage(solar-pro2) live call로 목차 항목을 구조화 "
+            "추출함을 보여주고, bookmark title weak reference로 item precision/recall을 확인한다."
         ),
-        "inputs": [str(Path(case["path"]).relative_to(ROOT_DIR)) for case in PDF_CASES],
+        "inputs": [result["input_pdf"] for result in results],
         "outputs": "showcase/outputs/002_llm_toc_item_extraction/result.json",
         "finding": finding,
         "command": "uv run python showcase/002_llm_toc_item_extraction.py",
@@ -204,26 +228,31 @@ def build_finding(results: list[dict[str, Any]]) -> str:
             if weak
             else "weak ref 없음"
         )
+        warning_text = f" warning={result['warnings']}" if result["warnings"] else ""
         parts.append(
-            f"{result['id']}(TOC {result['toc_pages'][0]}-{result['toc_pages'][-1]}): "
-            f"{result['item_count']}개 항목, {weak_text}, "
-            f"printed_page 단조성 {result['printed_page_monotonic_fraction']}."
+            f"{result['id']}(TOC {result['toc_pages'][0]}-{result['toc_pages'][-1]}, "
+            f"{result['toc_source']}): {result['item_count']}개 항목, {weak_text}, "
+            f"printed_page 단조성 {result['printed_page_monotonic_fraction']}.{warning_text}"
         )
     return " ".join(parts)
 
 
 def main() -> None:
     load_dotenv(ROOT_DIR / ".env")
-    # 기본 config: mode=text, text_model=solar-pro2, temperature=0.0
     extractor = LlmTocExtractor(LlmTocExtractionConfig())
 
-    results = [analyze_case(case, extractor) for case in PDF_CASES]
+    pdf_cases = discover_pdf_cases()
+    if not pdf_cases:
+        raise FileNotFoundError(DATA_DIR)
+
+    results = [analyze_case(case, extractor) for case in pdf_cases]
     summary = {
         "purpose": (
-            "LlmTocExtractor public interface를 실제 PDF text layer와 Upstage live "
-            "call로 호출해 목차 항목 추출이 동작함을 보여준다."
+            "LlmTocExtractor public interface를 현재 data/ 아래 실제 PDF text layer와 "
+            "Upstage live call로 호출해 목차 항목 추출이 동작함을 보여준다."
         ),
         "source_experiment": "014_upstage_toc_item_extraction",
+        "max_text_pages": MAX_TEXT_PAGES,
         "model": extractor.config.text_model,
         "case_count": len(results),
         "results": results,
@@ -235,7 +264,7 @@ def main() -> None:
         encoding="utf-8",
     )
     finding = build_finding(results)
-    record_showcase(finding)
+    record_showcase(results, finding)
     print(json.dumps(to_jsonable(summary), ensure_ascii=False, indent=2))
     print("\n=== finding ===")
     print(finding)
