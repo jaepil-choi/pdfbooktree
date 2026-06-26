@@ -1,9 +1,18 @@
 """PDF 책 구조화 패키지의 공개 API다."""
 
+from pdfbooktree.alignment.offset import (
+    OffsetEstimationError,
+    estimate_page_offset,
+)
 from pdfbooktree.batch import BatchProcessor
-from pdfbooktree.config import LlmTocExtractionConfig, ProcessingConfig
+from pdfbooktree.config import (
+    LlmTocExtractionConfig,
+    OffsetEstimationConfig,
+    ProcessingConfig,
+)
 from pdfbooktree.models import (
     BookmarkedPdfTocBatchResult,
+    OffsetEstimate,
     ProcessingResult,
     TocItem,
     TocPageDatasetRow,
@@ -18,9 +27,13 @@ __all__ = [
     "BookmarkTocBatchDetector",
     "LlmTocExtractionConfig",
     "LlmTocExtractor",
+    "OffsetEstimate",
+    "OffsetEstimationConfig",
+    "OffsetEstimationError",
     "ProcessingConfig",
     "ProcessingResult",
     "Processor",
     "TocItem",
     "TocPageDatasetRow",
+    "estimate_page_offset",
 ]

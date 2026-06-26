@@ -156,6 +156,18 @@ class TocItem:
 
 
 @dataclass(frozen=True)
+class BandPageNumber:
+    """page 상/하위 band에서 추출한 인쇄 page number 후보다."""
+
+    pdf_page: int
+    number: int
+    text: str
+    band: Literal["top", "bottom"]
+    x_ratio: float
+    y_ratio: float
+
+
+@dataclass(frozen=True)
 class OffsetEstimate:
     """printed page와 PDF page 사이의 offset 추정 결과다."""
 

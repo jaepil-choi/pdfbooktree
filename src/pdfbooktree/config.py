@@ -18,6 +18,26 @@ class ProcessingConfig:
     write_intermediates: bool = True
 
 
+@dataclass(frozen=True)
+class OffsetEstimationConfig:
+    """header/footer page number 기반 page offset 추정 설정이다.
+
+    experiment 015에서 검증한 추출/병합 파라미터와 clean 게이트 임계값을 모두
+    config로 노출한다. clean하지 않으면 fast-fail하며 fallback은 두지 않는다.
+    """
+
+    # band 추출
+    band_ratio: float = 0.10
+    line_y_tolerance_ratio: float = 0.6
+    merge_gap_ratio: float = 1.0
+    max_number: int = 3000
+    max_scan_pages: int | None = None
+
+    # clean 게이트(최빈 우세 기준). 둘 다 만족해야 offset을 신뢰한다.
+    min_modal_count: int = 5
+    min_dominance_ratio: float = 1.5
+
+
 # LLM 목차 추출기 system prompt 기본값. config로 통째로 교체할 수 있다.
 DEFAULT_TOC_EXTRACTION_SYSTEM_PROMPT = (
     "너는 책 목차(Table of Contents) 페이지에서 목차 항목을 구조화해 추출하는 도구다. "
