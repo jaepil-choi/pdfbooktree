@@ -17,22 +17,7 @@ OUTPUT_DIR = ROOT_DIR / "experiments" / "outputs" / EXPERIMENT_ID
 EXPERIMENTS_JSON = ROOT_DIR / "experiments" / "experiments.json"
 MAX_TEXT_PAGES = 30
 
-INPUT_PDFS = [
-    {
-        "id": "john_hull",
-        "path": ROOT_DIR
-        / "data"
-        / "native-pdf-indexed"
-        / "John Hull - Options, Futures, and Other Derivatives, Global Edition-Pearson (2021).pdf",
-    },
-    {
-        "id": "shreve_binomial",
-        "path": ROOT_DIR
-        / "data"
-        / "scanned-pdf-indexed"
-        / "(Springer Finance) Steven E. Shreve - Stochastic Calculus for Finance I The Binomial Asset Pricing Model-Springer (2005)-indexed.pdf",
-    },
-]
+DATA_DIR = ROOT_DIR / "data"
 
 TOC_KEYWORDS = (
     "contents",
@@ -89,7 +74,9 @@ def has_toc_keyword(text: str) -> bool:
     return any(keyword in lowered for keyword in TOC_KEYWORDS)
 
 
-def calculate_page_feature(page_number: int, total_pages: int, text: str) -> dict[str, Any]:
+def calculate_page_feature(
+    page_number: int, total_pages: int, text: str
+) -> dict[str, Any]:
     lines = extract_lines(text)
     line_lengths = [len(line) for line in lines]
     final_numbers = [
@@ -156,7 +143,9 @@ def summarize_bookmarks(bookmarks: list[dict[str, Any]]) -> dict[str, Any]:
 
     return {
         "bookmark_count": len(bookmarks),
-        "level_counts": dict(sorted(level_counts.items(), key=lambda item: int(item[0]))),
+        "level_counts": dict(
+            sorted(level_counts.items(), key=lambda item: int(item[0]))
+        ),
         "empty_title_count": empty_title_count,
         "page_decrease_count": page_decrease_count,
         "has_level_structure": len(level_counts) >= 2,
@@ -183,6 +172,18 @@ def write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
     path.write_text(text + "\n", encoding="utf-8")
 
 
+def discover_input_pdfs() -> list[dict[str, Any]]:
+    """현재 data/ 아래 sample PDF를 모두 실험 입력으로 사용한다."""
+
+    return [
+        {
+            "id": re.sub(r"[^0-9A-Za-z가-힣]+", "_", path.stem).strip("_")[:80],
+            "path": path,
+        }
+        for path in sorted(DATA_DIR.rglob("*.pdf"))
+    ]
+
+
 def analyze_pdf(pdf_id: str, pdf_path: Path) -> dict[str, Any]:
     output_dir = OUTPUT_DIR / pdf_id
     text_output_dir = output_dir / "page_text_first_30"
@@ -205,7 +206,9 @@ def analyze_pdf(pdf_id: str, pdf_path: Path) -> dict[str, Any]:
             text = document.load_page(page_index).get_text("text")
             feature = calculate_page_feature(page_number, document.page_count, text)
             pages.append(feature | {"text_preview": normalize_text(text)[:500]})
-            (text_output_dir / f"{page_number:03}.txt").write_text(text, encoding="utf-8")
+            (text_output_dir / f"{page_number:03}.txt").write_text(
+                text, encoding="utf-8"
+            )
 
     toc_candidates = sorted(
         pages,
@@ -307,7 +310,9 @@ def build_finding(results: list[dict[str, Any]]) -> str:
     for result in results:
         summary = result["bookmark_summary"]
         candidates = result["top_toc_candidates"]
-        top_pages = ", ".join(str(candidate["pdf_page"]) for candidate in candidates[:3])
+        top_pages = ", ".join(
+            str(candidate["pdf_page"]) for candidate in candidates[:3]
+        )
         candidate_with_keyword = [
             candidate["pdf_page"]
             for candidate in candidates
@@ -347,7 +352,7 @@ def update_experiment_registry(results: list[dict[str, Any]]) -> None:
             ),
             "inputs": [
                 str(item["path"].relative_to(ROOT_DIR))
-                for item in INPUT_PDFS
+                for item in discover_input_pdfs()
             ],
             "outputs": str(OUTPUT_DIR.relative_to(ROOT_DIR)),
             "finding": build_finding(results),
@@ -361,7 +366,10 @@ def update_experiment_registry(results: list[dict[str, Any]]) -> None:
 def main() -> None:
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     results = []
-    for item in INPUT_PDFS:
+    input_pdfs = discover_input_pdfs()
+    if not input_pdfs:
+        raise FileNotFoundError(DATA_DIR)
+    for item in input_pdfs:
         if not item["path"].exists():
             raise FileNotFoundError(item["path"])
         results.append(analyze_pdf(item["id"], item["path"]))
