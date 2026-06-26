@@ -57,6 +57,25 @@ class TocDetectionResult:
 
 
 @dataclass(frozen=True)
+class TocRangeReview:
+    """LLM 3단계 fallback이 보정한 TOC page range와 근거다.
+
+    PRD §7.8~7.11 구조(start accept / backtrack_start / sequential recovery)를
+    거친 결과다. `pages`는 보정된 1-based TOC page 목록이고, `stage`는 시작 page를
+    어느 단계에서 확정했는지, `decisions`는 page별 LLM 판정 trace다.
+    """
+
+    pages: list[int]
+    start_page: int | None
+    end_page: int | None
+    anchor_page: int | None
+    stage: str
+    method: str
+    llm_calls: int = 0
+    decisions: list[dict[str, Any]] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
 class BookmarkedPdfTocDetection:
     """bookmark가 있는 단일 PDF의 TOC page detection 결과다."""
 

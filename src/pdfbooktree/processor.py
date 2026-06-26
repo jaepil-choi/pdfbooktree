@@ -15,7 +15,9 @@ from pdfbooktree.models import (
     ConfidenceSummary,
     HeadingCandidate,
     ProcessingResult,
+    TocDetectionResult,
     TocItem,
+    TocRangeReview,
 )
 from pdfbooktree.output.intermediates import write_intermediate
 from pdfbooktree.output.markdown import plan_markdown_dir_path
@@ -25,6 +27,8 @@ from pdfbooktree.pdf.bookmarks import build_skip_reason, extract_existing_bookma
 from pdfbooktree.pdf.text import extract_page_texts, extract_selected_page_texts
 from pdfbooktree.toc.detect import detect_toc_pages
 from pdfbooktree.toc.features import calculate_page_features
+from pdfbooktree.toc.llm_extract import LlmTocExtractor
+from pdfbooktree.toc.llm_range_review import LlmTocRangeReviewer
 from pdfbooktree.toc.parse import parse_toc_items
 
 
@@ -36,10 +40,16 @@ class Processor:
         input_pdf: Path | str,
         output_dir: Path | str,
         config: ProcessingConfig | None = None,
+        *,
+        range_reviewer: LlmTocRangeReviewer | None = None,
+        item_extractor: LlmTocExtractor | None = None,
     ) -> None:
         self.input_pdf = Path(input_pdf)
         self.output_dir = Path(output_dir)
         self.config = config or ProcessingConfig()
+        # LLM 단계는 테스트/재현을 위해 주입할 수 있고, 없으면 use_llm일 때 lazy 생성한다.
+        self._range_reviewer = range_reviewer
+        self._item_extractor = item_extractor
 
     def run(self) -> ProcessingResult:
         """현재 scaffold가 지원하는 단계까지 실행하고 결과를 반환한다."""
@@ -74,7 +84,27 @@ class Processor:
         )
         features = calculate_page_features(pages, total_pages)
         toc_detection = detect_toc_pages(features)
-        toc_items = parse_toc_items(pages, toc_detection.pages)
+
+        # LLM 3단계 fallback으로 TOC range를 보정한다(use_llm일 때만).
+        range_review = self._review_toc_range(toc_detection, total_pages)
+        toc_pages = (
+            range_review.pages
+            if range_review is not None and range_review.pages
+            else toc_detection.pages
+        )
+        # range review는 offset 추정 전에 끝나므로, offset fast-fail이 나도 근거가
+        # 남도록 여기서 먼저 저장한다.
+        if self.config.write_intermediates:
+            write_intermediate(self.output_dir, "toc_page_candidates", toc_detection)
+            if range_review is not None:
+                write_intermediate(self.output_dir, "toc_range_review", range_review)
+
+        toc_items = parse_toc_items(pages, toc_pages)
+        item_method = "deterministic_regex"
+        # 결정적 파서가 0개면(한국어/OCR 목차) LLM item 추출로 fallback한다.
+        if not toc_items and self.config.use_llm and toc_pages:
+            toc_items = self._extract_items_with_llm(toc_pages)
+            item_method = "llm_item_extraction" if toc_items else "none"
 
         # offset 추정. clean하지 않으면 OffsetEstimationError를 그대로 전파해
         # 중단한다(fallback 없음). 이후 ignore-offset-error 옵션 추가 여지를 둔다.
@@ -89,7 +119,6 @@ class Processor:
         ranges = calculate_content_ranges(aligned, total_pages)
 
         if self.config.write_intermediates:
-            write_intermediate(self.output_dir, "toc_page_candidates", toc_detection)
             write_intermediate(self.output_dir, "toc_raw", toc_items)
             write_intermediate(self.output_dir, "page_offset", offset_estimate)
             write_intermediate(self.output_dir, "toc_aligned", aligned)
@@ -102,10 +131,10 @@ class Processor:
         warnings = [
             "현재 scaffold는 PDF bookmark 삽입과 Markdown export를 아직 지원하지 않는다."
         ]
-        if not toc_detection.pages:
+        if not toc_pages:
             warnings.append("TOC page 후보를 찾지 못했다.")
         if not toc_items:
-            warnings.append("TOC item을 파싱하지 못했다.")
+            warnings.append(f"TOC item을 파싱하지 못했다(method={item_method}).")
         if not ranges:
             warnings.append("content range를 만들지 못했다.")
 
@@ -115,7 +144,7 @@ class Processor:
                 input_pdf=self.input_pdf,
                 output_pdf=output_pdf,
                 output_markdown_dir=output_markdown_dir,
-                toc_pages=toc_detection.pages,
+                toc_pages=toc_pages,
                 bookmark_count=0,
                 confidence_summary=ConfidenceSummary(
                     toc_detection=toc_detection.confidence,
@@ -125,6 +154,24 @@ class Processor:
                 warnings=warnings,
             )
         )
+
+    def _review_toc_range(
+        self, toc_detection: TocDetectionResult, total_pages: int
+    ) -> TocRangeReview | None:
+        """use_llm일 때 3단계 LLM fallback으로 TOC range를 보정한다."""
+
+        if not self.config.use_llm:
+            return None
+        if self._range_reviewer is None:
+            self._range_reviewer = LlmTocRangeReviewer(self.config.llm_range_review)
+        return self._range_reviewer.review(self.input_pdf, toc_detection, total_pages)
+
+    def _extract_items_with_llm(self, toc_pages: list[int]) -> list[TocItem]:
+        """결정적 파서가 0개를 뽑은 TOC range에서 LLM으로 item을 추출한다."""
+
+        if self._item_extractor is None:
+            self._item_extractor = LlmTocExtractor(self.config.llm_extraction)
+        return self._item_extractor.extract(self.input_pdf, toc_pages)
 
     def _build_heading_candidates(
         self,

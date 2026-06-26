@@ -26,6 +26,48 @@ class OffsetEstimationConfig:
     min_dominance_ratio: float = 1.5
 
 
+# LLM TOC range reviewer system prompt 기본값. config로 통째로 교체할 수 있다.
+# experiment 016에서 검증한 프롬프트다.
+DEFAULT_TOC_RANGE_REVIEW_SYSTEM_PROMPT = (
+    "당신은 PDF 책의 페이지가 목차(Table of Contents) 페이지인지 판정하는 분류기다.\n"
+    "규칙:\n"
+    "- 상세 목차(Contents)와 간략 목차(Contents in brief / Brief Contents)는 모두 목차로 본다.\n"
+    "- 목차 항목은 장/절 제목과 함께 '책 본문의 페이지 번호'를 가리킨다.\n"
+    "  제목 옆/끝에 본문 페이지 번호(예: ...... 23)가 줄마다 붙어 있는 형태가 핵심 신호다.\n"
+    "- 페이지 번호 없이 외부 웹사이트 자료나 노트 제목만 나열한 목록은 목차가 아니다.\n"
+    "- 표지, 헌사, 판권지, 서문/머리말, 본문 첫 페이지는 목차가 아니다.\n"
+    "- is_toc_start는 '이 페이지부터 목차가 시작'할 때만 true다.\n"
+    "- 반드시 주어진 JSON schema로만 답한다."
+)
+
+
+@dataclass(frozen=True)
+class LlmRangeReviewConfig:
+    """LLM 3단계 TOC range fallback 설정이다.
+
+    PRD §7.8~7.11(15.1)의 start accept / backtrack_start / sequential recovery
+    구조를 따른다. experiment 016에서 검증한 파라미터를 기본값으로 둔다.
+    LLM은 Upstage Solar chat(solar-pro3) 텍스트 경로만 쓴다(IE는 과금이라 금지).
+    """
+
+    # 모델과 엔드포인트
+    model: str = "solar-pro3"
+    base_url: str = "https://api.upstage.ai/v1"
+    api_key_env: str = "UPSTAGE_API_KEY"
+    request_timeout: float | None = None
+    temperature: float = 0.0
+
+    # fallback 탐색 파라미터
+    scan_pages: int = 40  # 앞부분 몇 page까지 page text를 미리 확보할지
+    max_backtrack: int = 8  # backward merge / 2단계 backtrack 최대 page 수
+    max_sequential: int = 40  # 3단계 sequential recovery 최대 검토 page 수
+    max_end_expand: int = 30  # end expansion 시 anchor 기준 최대 span
+    end_gap_tolerance: int = 0  # 확장 중 허용하는 연속 non-TOC page 수
+    prompt_max_chars: int = 4500
+
+    system_prompt: str = DEFAULT_TOC_RANGE_REVIEW_SYSTEM_PROMPT
+
+
 @dataclass(frozen=True)
 class ProcessingConfig:
     """단일 PDF 처리에 필요한 v0.1 기본 설정이다."""
@@ -38,6 +80,14 @@ class ProcessingConfig:
     write_intermediates: bool = True
     # offset 추정 설정. Processor가 estimate_page_offset에 그대로 넘긴다.
     offset: OffsetEstimationConfig = field(default_factory=OffsetEstimationConfig)
+    # LLM 3단계 TOC range reviewer 설정. use_llm=True일 때만 호출한다.
+    llm_range_review: "LlmRangeReviewConfig" = field(
+        default_factory=lambda: LlmRangeReviewConfig()
+    )
+    # LLM TOC item 추출 설정. 결정적 파서가 0개를 뽑으면 fallback으로 호출한다.
+    llm_extraction: "LlmTocExtractionConfig" = field(
+        default_factory=lambda: LlmTocExtractionConfig()
+    )
 
 
 # LLM 목차 추출기 system prompt 기본값. config로 통째로 교체할 수 있다.
@@ -74,8 +124,9 @@ class LlmTocExtractionConfig:
     # 추출 경로: "text"는 OCR 텍스트->solar-pro2, "image"는 페이지 이미지->information-extract.
     mode: Literal["text", "image"] = "text"
 
-    # 모델 (config로 쉽게 교체)
-    text_model: str = "solar-pro2"
+    # 모델 (config로 쉽게 교체). 정책상 solar-pro3 텍스트 경로만 쓴다.
+    # image_model(information-extract)은 과금이라 runtime에서 호출하지 않는다.
+    text_model: str = "solar-pro3"
     image_model: str = "information-extract"
 
     # 엔드포인트와 인증

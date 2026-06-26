@@ -14,7 +14,8 @@ import fitz
 import pytest
 
 from pdfbooktree.alignment.offset import OffsetEstimationError
-from pdfbooktree.models import TocItem
+from pdfbooktree.config import ProcessingConfig
+from pdfbooktree.models import TocItem, TocRangeReview
 from pdfbooktree.processor import Processor
 
 PAGE_WIDTH = 595.0
@@ -142,6 +143,138 @@ def test_processor_wires_offset_alignment_and_ranges(
     assert [entry["start_pdf_page"] for entry in ranges_payload] == [5, 14]
     assert ranges_payload[0]["end_pdf_page"] == 13
     assert ranges_payload[1]["end_pdf_page"] == 25
+
+
+def _make_offset_pdf(path: Path) -> None:
+    """offset 4(printed 1 ≈ PDF page 5)와 heading을 가진 bookmark 없는 PDF를 만든다."""
+
+    headings = {5: "Chapter 1 Introduction", 14: "Chapter 2 Methods"}
+    specs: list[list[tuple[float, float, str]]] = []
+    for pdf_page in range(1, 26):
+        spec: list[tuple[float, float, str]] = []
+        if pdf_page in headings:
+            spec.append((72.0, HEADING_Y, headings[pdf_page]))
+        printed = pdf_page - 4
+        if printed >= 1:
+            spec.append((300.0, FOOTER_Y, str(printed)))
+        specs.append(spec)
+    _make_pdf(path, specs)
+
+
+class _StubReviewer:
+    def __init__(self, pages: list[int]) -> None:
+        self.pages = pages
+        self.called = False
+
+    def review(self, pdf_path, detection, total_pages) -> TocRangeReview:
+        self.called = True
+        return TocRangeReview(
+            pages=self.pages,
+            start_page=self.pages[0],
+            end_page=self.pages[-1],
+            anchor_page=self.pages[0],
+            stage="stage1_accept",
+            method="llm_3stage_fallback",
+            llm_calls=3,
+        )
+
+
+class _StubExtractor:
+    def __init__(self, items: list[TocItem]) -> None:
+        self.items = items
+        self.called_with: list[int] | None = None
+
+    def extract(self, pdf_path, toc_pages) -> list[TocItem]:
+        self.called_with = list(toc_pages)
+        return self.items
+
+
+def test_processor_uses_llm_range_review_and_item_fallback(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    """use_llm일 때 range reviewer가 toc_pages를 정하고, regex가 0개면 LLM item으로 채운다."""
+
+    pdf_path = tmp_path / "no_bookmark.pdf"
+    _make_offset_pdf(pdf_path)
+
+    # 결정적 파서가 0개를 뽑은 상황을 만든다(한국어/OCR 목차 가정).
+    monkeypatch.setattr(
+        "pdfbooktree.processor.parse_toc_items",
+        lambda _pages, _toc_pages: [],
+    )
+
+    items = [
+        TocItem(
+            title="Chapter 1 Introduction",
+            level=1,
+            printed_page=1,
+            raw_text="Chapter 1 Introduction 1",
+            source_pdf_page=5,
+            confidence=0.8,
+        ),
+        TocItem(
+            title="Chapter 2 Methods",
+            level=1,
+            printed_page=10,
+            raw_text="Chapter 2 Methods 10",
+            source_pdf_page=5,
+            confidence=0.8,
+        ),
+    ]
+    reviewer = _StubReviewer([5, 6])
+    extractor = _StubExtractor(items)
+
+    output_dir = tmp_path / "out"
+    result = Processor(
+        pdf_path,
+        output_dir,
+        ProcessingConfig(use_llm=True),
+        range_reviewer=reviewer,
+        item_extractor=extractor,
+    ).run()
+
+    # reviewer가 정한 toc_pages를 그대로 쓴다.
+    assert reviewer.called is True
+    assert result.toc_pages == [5, 6]
+    assert (output_dir / "toc_range_review.json").exists()
+
+    # 결정적 파서 0개 → LLM item extractor가 같은 toc_pages로 호출된다.
+    assert extractor.called_with == [5, 6]
+
+    # LLM item이 offset/alignment/ranges로 흘러 산출물이 만들어진다.
+    ranges_payload = json.loads((output_dir / "ranges.json").read_text("utf-8"))
+    assert [entry["start_pdf_page"] for entry in ranges_payload] == [5, 14]
+
+
+def test_processor_skips_llm_when_use_llm_false(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    """use_llm=False면 range reviewer를 호출하지 않고 결정적 경로만 쓴다."""
+
+    pdf_path = tmp_path / "no_bookmark.pdf"
+    _make_offset_pdf(pdf_path)
+
+    monkeypatch.setattr(
+        "pdfbooktree.processor.parse_toc_items",
+        lambda _pages, _toc_pages: [],
+    )
+    reviewer = _StubReviewer([5, 6])
+    extractor = _StubExtractor([])
+
+    result = Processor(
+        pdf_path,
+        tmp_path / "out",
+        ProcessingConfig(use_llm=False),
+        range_reviewer=reviewer,
+        item_extractor=extractor,
+    ).run()
+
+    assert reviewer.called is False
+    assert extractor.called_with is None
+    assert not (tmp_path / "out" / "toc_range_review.json").exists()
+    _ = result
 
 
 def test_processor_raises_when_offset_unclean(tmp_path: Path) -> None:
