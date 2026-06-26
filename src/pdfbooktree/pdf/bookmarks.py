@@ -48,7 +48,7 @@ def has_letter_bookmark(bookmarks: list[dict[str, Any]]) -> bool:
 
 
 def is_clean_bookmark_set(bookmarks: list[dict[str, Any]]) -> bool:
-    """자동 처리를 skip할 만큼 기존 bookmark가 충분히 깔끔한지 판단한다."""
+    """학습/평가용 weak reference로 쓸 만큼 bookmark가 깔끔한지 판단한다."""
 
     if len(bookmarks) < 10:
         return False
@@ -78,8 +78,8 @@ def is_clean_bookmark_set(bookmarks: list[dict[str, Any]]) -> bool:
 
 
 def build_skip_reason(bookmarks: list[dict[str, Any]]) -> str | None:
-    """기존 bookmark로 skip할 수 있으면 사용자-facing 사유를 반환한다."""
+    """runtime에서 기존 bookmark 문서를 제외해야 하면 사용자-facing 사유를 반환한다."""
 
-    if not is_clean_bookmark_set(bookmarks):
+    if not bookmarks:
         return None
-    return "기존 bookmark가 충분히 깔끔해서 자동 처리를 건너뛰었다."
+    return f"기존 bookmark {len(bookmarks)}개가 있어서 runtime 자동 처리를 건너뛰었다."

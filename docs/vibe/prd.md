@@ -86,17 +86,17 @@ OCR 자체는 이 프로젝트의 범위가 아니다. 입력 PDF에는 이미 O
 
 ### 3.3 기존 bookmark는 skip 대상이지만 ground truth는 아니다
 
-이미 깔끔한 bookmark가 있는 PDF는 처리 대상이 아니다.
+기존 bookmark가 하나라도 있는 PDF는 runtime 처리 대상이 아니다.
 
 처리 정책:
 
 * 기존 bookmark가 없거나 비어 있는 PDF만 bookmark generation 대상이다.
-* 기존 bookmark가 충분히 깔끔한 PDF는 자동 처리에서 skip한다.
+* 기존 bookmark가 하나라도 있는 PDF는 runtime 자동 처리에서 skip한다.
 * skip된 PDF의 bookmark는 generated bookmark 평가용 weak reference로 사용할 수 있다.
 * 기존 bookmark에서 복원한 TOC page range는 검수 전 ground truth로 사용하지 않는다.
 * 이미 bookmark가 있는 PDF를 강제로 다시 처리하는 기능은 MVP 범위 밖이다.
 
-“깔끔한 bookmark”의 최소 판단 기준:
+학습/평가용 weak reference로 사용할 bookmark 품질 판단 기준:
 
 * bookmark item 수가 충분히 많다.
 * bookmark title이 비어 있지 않다.
@@ -110,6 +110,7 @@ OCR 자체는 이 프로젝트의 범위가 아니다. 입력 PDF에는 이미 O
 * bookmark title을 TOC page text와 matching해 TOC page range를 복원하는 방식은 PDF layout, OCR 품질, 숫자 noise, front matter 구조에 크게 흔들린다.
 * 따라서 bookmark-guided TOC page label은 수동 검수 전에는 학습용 정답 label이 아니라 noisy weak label이다.
 * weak label로 학습한 ML 모델의 점수는 실제 TOC 탐지 성능이 아니라 해당 heuristic을 얼마나 모방했는지를 보여줄 수 있다.
+* 따라서 bookmark 기반 pseudo answer label 생성 흐름은 training/evaluation data preparation에만 사용하고, runtime Processor / BatchProcessor는 bookmark가 있는 문서를 detector 입력에서 제외한다.
 
 ---
 
@@ -454,7 +455,7 @@ low-confidence case의 optional fallback으로만 사용한다.
 ```text
 PDF 입력
 → 기존 bookmark 존재 여부 확인
-→ 이미 깔끔한 bookmark가 있으면 skip
+→ 기존 bookmark가 하나라도 있으면 skip
 → text layer 추출
 → TOC page detection
 → TOC item parsing
@@ -683,6 +684,7 @@ TOC page detector 학습에는 일부 PDF에 대한 수동 TOC page range label�
 기존 bookmark는 TOC page 위치를 알려주지 않기 때문에 TOC page detector 학습 label로 직접 사용할 수 없다.
 bookmark-guided heuristic으로 복원한 TOC page range도 수동 검수 전에는 학습용 ground truth로 사용하지 않는다.
 이런 range는 후보 생성, error discovery, manual labeling queue 구성에만 사용한다.
+다만 bookmark가 있는 문서에서 만든 pseudo answer label은 별도 weak-label dataset으로 보관해 ML detector 실험에 사용할 수 있다. 이 dataset으로 학습한 모델은 수동 검수 label 성능과 분리해서 보고한다.
 
 ---
 
@@ -745,7 +747,146 @@ IoU = overlap / union = 2 / 3 = 0.667
 
 ---
 
-### 7.8 Train / test split
+### 7.8 Runtime detector 이후 3단계 LLM fallback 구조
+
+runtime detector가 선택한 TOC page segment는 바로 TOC item extraction으로 넘기지 않는다.
+LLM 사용이 켜져 있으면 다음 3단계 fallback 구조로 segment 시작점을 검증하고 복구한다.
+
+목표는 LLM을 primary detector로 쓰는 것이 아니라, runtime detector 결과를 작게 검증하고 필요한 경우에만 보정하는 것이다.
+
+```text
+runtime detector 결과: pages S-E
+
+1단계: start page accept
+  S가 실제 TOC 첫 page인지 확인한다.
+  맞으면 S-E를 TOC item extraction으로 넘긴다.
+
+2단계: backtrack_start
+  S가 TOC page는 맞지만 TOC 첫 page가 아니라 목차 중간 page이면,
+  S-1, S-2 ... 를 1 page씩 앞으로 확인해 실제 TOC 시작 page를 찾는다.
+
+3단계: sequential recovery
+  S가 TOC page가 아니면 바로 완전 오탐으로 단정하지 않는다.
+  S부터 최대 MAX_REVIEW_PAGES page를 검토한다.
+  review window도 TOC가 아니면 runtime segment를 버리고 page 1부터 순차적으로 TOC start를 다시 찾는다.
+```
+
+---
+
+### 7.9 1단계: start page accept
+
+runtime detector의 후보 시작 page `S`가 실제 TOC 첫 page인지 먼저 확인한다.
+
+입력:
+
+```text
+candidate_start_page = S
+candidate_end_page = E
+S page text/image
+optional: S+1 page preview
+runtime detector evidence summary
+```
+
+LLM 판정:
+
+```text
+S가 TOC page인가?
+S가 TOC 첫 page인가?
+S 다음 page가 같은 TOC 흐름으로 이어지는가?
+```
+
+accept 조건:
+
+* `S`가 TOC page다.
+* `S`가 TOC 첫 page다.
+* `S-E` 또는 `S`에서 시작하는 주변 range가 기존 heuristic validation을 통과한다.
+
+accept되면 바로 다음 단계로 넘어간다.
+
+```text
+accepted_toc_pages = S-E
+→ TOC item extraction
+```
+
+---
+
+### 7.10 2단계: TOC 중간 page로 시작한 segment의 backtrack_start
+
+runtime detector가 실제 TOC range 안에 들어왔지만 시작 page를 늦게 잡을 수 있다.
+예를 들어 실제 TOC가 6-10인데 runtime detector가 7만 잡은 경우, page 7은 TOC page이지만 TOC 첫 page는 아니다.
+이 경우는 완전 오탐이 아니므로 sequential recovery로 바로 가지 않는다.
+
+backtrack 조건:
+
+* `S`가 TOC page다.
+* 하지만 `S`가 TOC 첫 page는 아니다.
+* `S`가 앞선 목차 page에서 이어지는 중간 page로 보인다.
+
+흐름:
+
+```text
+current_start = S
+while current_start > 1 and backtrack budget remains:
+  previous_page = current_start - 1
+  previous_page text/image를 LLM에 전달
+  previous_page가 같은 TOC의 앞 page인지 판단
+  true이면 current_start = previous_page
+  false이면 stop
+
+accepted_toc_pages = current_start-E
+→ validation
+→ TOC item extraction
+```
+
+제한:
+
+* backtracking은 항상 1 page씩만 이동한다.
+* 기본 최대 이동 폭은 `MAX_BACKTRACK_PAGES`로 제한한다.
+* 기본 `MAX_BACKTRACK_PAGES`는 10 또는 `MAX_REVIEW_PAGES * 2` 중 작은 값으로 둔다.
+* backtracking 중 발견한 page도 line-final number sequence, TOC item-like line density, page continuity validation을 통과해야 한다.
+* 이 흐름은 TOC 중간에서 시작한 range를 보정하는 용도이며, 완전 오탐 복구용 sequential recovery와 구분한다.
+
+---
+
+### 7.11 3단계: 완전 오탐 segment의 sequential recovery
+
+runtime detector가 `계량경제학노트2` 사례처럼 실제 TOC와 전혀 다른 range를 잡을 수 있다.
+이 경우도 단일 첫 page만 보고 완전 오탐으로 단정하지 않는다.
+먼저 후보 segment 앞쪽 review window를 확인한 뒤 sequential recovery 여부를 결정한다.
+
+sequential recovery 조건:
+
+* `S`가 TOC page가 아니다.
+* `S`부터 최대 `MAX_REVIEW_PAGES` page를 검토해도 TOC 시작 또는 연속 TOC page로 보기 어렵다.
+* 작은 boundary adjust나 backtrack_start로 설명되지 않는다.
+
+복구 흐름:
+
+```text
+runtime detector 결과 S-E
+→ S부터 min(S + MAX_REVIEW_PAGES - 1, E)까지 최대 5 page review
+→ review window 전체가 TOC로 보기 어렵다고 판단
+→ runtime segment를 wrong_segment로 기록
+→ PDF page 1부터 max_toc_search_pages까지 순차 scan 시작
+→ 각 page text/image를 작게 전달해 TOC start 여부 판단
+→ 첫 TOC start 후보를 찾으면 주변 page를 확장해 TOC end 확인
+→ 복구된 range를 heuristic validation으로 재검증
+→ 성공하면 recovered_by_llm_sequential_scan으로 기록
+→ 실패하면 TOC detection failed / manual review required로 기록
+```
+
+순차 scan은 비용 제어가 필요하므로 다음 제한을 둔다.
+
+* 기본 scan 범위는 앞부분 `max_toc_search_pages` 안으로 제한한다.
+* page별 입력은 전체 PDF가 아니라 해당 page text, 필요하면 축소 image 1장만 사용한다.
+* 연속된 non-TOC 판정이 충분히 쌓이거나 budget을 초과하면 중단한다.
+* TOC start 후보가 발견되면 바로 모든 남은 page를 보지 않고 end expansion 단계로 전환한다.
+* 모든 LLM 판정과 비용, 사용 page, 최종 range 변경 이유를 intermediate artifact에 기록한다.
+
+---
+
+### 7.12 Train / test split
+
 
 page 단위 random split은 사용하지 않는다.
 
@@ -954,7 +1095,7 @@ level 2 | 1.2 Background         | PDF page 31
 level 1 | Chapter 2 Probability  | PDF page 42
 ```
 
-이미 깔끔한 bookmark가 있는 PDF는 bookmark insertion 대상에서 제외한다.
+기존 bookmark가 하나라도 있는 PDF는 bookmark insertion 대상에서 제외한다.
 
 ---
 
@@ -1130,6 +1271,8 @@ TOC detection confidence < threshold
 TOC parsing confidence < threshold
 offset confidence < threshold
 heading match confidence < threshold
+runtime detector range의 첫 page가 TOC start인지 불확실함
+runtime detector range가 완전 오탐일 가능성이 있음
 ```
 
 LLM에 보내는 입력은 항상 작게 제한한다.
@@ -1139,12 +1282,132 @@ LLM에 보내는 입력은 항상 작게 제한한다.
 ```text
 TOC page OCR text
 TOC page image
+runtime detector가 고른 첫 page의 OCR text 또는 image
+runtime detector range 주변 page의 OCR text 또는 image
+sequential recovery 중 현재 검사 page의 OCR text 또는 image
 특정 TOC item
 estimated page 주변 3-5 page의 text
 estimated page 주변 3-5 page의 image crop
 ```
 
-LLM 출력은 반드시 validation을 거친다.
+### 15.1 Runtime TOC range 3단계 reviewer
+
+runtime detector가 TOC 후보 range를 반환하면 LLM은 다음 3단계 decision 중 하나를 선택한다.
+
+```text
+accept:
+  후보 첫 page가 실제 TOC 첫 page다. 바로 TOC item extraction으로 넘어간다.
+
+backtrack_start:
+  후보 첫 page가 TOC page는 맞지만 TOC 첫 page는 아니다. 1 page씩 앞으로 이동한다.
+
+wrong_segment:
+  후보 첫 page가 TOC가 아니고, 앞쪽 review window도 TOC로 보기 어렵다. page 1부터 sequential recovery를 시작한다.
+
+manual_review:
+  LLM과 heuristic evidence가 충돌하거나 confidence가 낮아 자동 진행하지 않는다.
+```
+
+출력 schema:
+
+```json
+{
+  "decision": "accept" | "backtrack_start" | "wrong_segment" | "manual_review",
+  "candidate_start_page": 7,
+  "candidate_end_page": 7,
+  "reviewed_pages": [7, 8, 9, 10, 11],
+  "start_page_is_toc": true,
+  "start_page_is_toc_start": false,
+  "start_page_looks_like_toc_middle": true,
+  "review_window_contains_toc": true,
+  "suggested_start_page": null,
+  "suggested_end_page": null,
+  "confidence": 0.91,
+  "reason": "후보 첫 page가 목차 항목과 page number sequence를 포함하지만 앞 page에서 이어지는 목차 중간 page로 보인다."
+}
+```
+
+판정 순서:
+
+```text
+1. start_page_is_toc && start_page_is_toc_start
+   → accept
+
+2. start_page_is_toc && !start_page_is_toc_start && start_page_looks_like_toc_middle
+   → backtrack_start
+
+3. !start_page_is_toc
+   → 후보 앞쪽 MAX_REVIEW_PAGES page를 추가 검토
+   → review_window_contains_toc=false이면 wrong_segment
+   → review_window_contains_toc=true이면 adjust 또는 manual_review
+```
+
+`wrong_segment`는 단일 첫 page만으로 결정하지 않는다.
+후보 첫 page가 TOC가 아닌 경우에도 `MAX_REVIEW_PAGES` review window를 본 뒤 결정한다.
+
+### 15.2 Backward TOC start search
+
+`backtrack_start` 판정이면 sequential recovery로 가지 않고 시작 page를 뒤로 찾는다.
+
+흐름:
+
+```text
+current_start = candidate_start_page
+for step in 1..MAX_BACKTRACK_PAGES:
+  previous_page = current_start - 1
+  previous_page text/image를 LLM에 전달
+  previous_page가 같은 TOC의 앞 page인지 판단
+  true이면 current_start = previous_page
+  false이면 stop
+최종 current_start를 suggested_start_page로 사용
+```
+
+LLM 이전 page 판정 schema:
+
+```json
+{
+  "pdf_page": 6,
+  "is_toc_page": true,
+  "is_same_toc_sequence": true,
+  "is_toc_start_page": true,
+  "confidence": 0.91,
+  "reason": "이전 page가 목차 제목과 첫 항목을 포함하고, 다음 page와 page number 흐름이 이어진다."
+}
+```
+
+이 흐름은 runtime detector가 TOC를 찾기는 했지만 시작 page를 늦게 잡은 경우를 위한 보정이다.
+완전 오탐 복구용 sequential scan보다 먼저 실행한다.
+
+### 15.3 Sequential TOC start recovery
+
+
+후보 segment 앞쪽 review window를 본 뒤 `wrong_segment` 판정이 나오면 앞부분 page를 1페이지부터 순차적으로 검사한다.
+`backtrack_start`로 설명 가능한 경우에는 이 단계로 오지 않는다.
+
+흐름:
+
+```text
+for page in 1..max_toc_search_pages:
+  page text/image를 LLM에 전달
+  TOC start 여부 판단
+  start 후보를 찾으면 주변 page로 end expansion
+  range validation 통과 시 recovered range 반환
+```
+
+LLM page 판정 schema:
+
+```json
+{
+  "pdf_page": 3,
+  "is_toc_page": true,
+  "is_toc_start_page": true,
+  "toc_kind": "brief_contents" | "contents" | "list_of_figures" | "not_toc" | "unknown",
+  "confidence": 0.88,
+  "reason": "항목 제목과 오른쪽 page number가 반복되고 page number가 증가한다."
+}
+```
+
+복구된 range는 바로 accept하지 않고 다음 validation을 거친다.
 
 검증 절차:
 
@@ -1153,9 +1416,19 @@ LLM output
 → JSON parse
 → schema validation
 → page range validation
-→ monotonicity validation
-→ heuristic result와 비교
-→ accept / reject
+→ line-final number monotonicity validation
+→ TOC item-like line density validation
+→ 기존 runtime detector 후보와 비교
+→ accept / reject / manual_review
+```
+
+모든 LLM fallback 결과는 다음 중간 산출물로 저장한다.
+
+```text
+llm_toc_boundary_review.json
+llm_toc_backward_start_search.json
+llm_toc_sequential_scan.json
+llm_toc_recovered_range.json
 ```
 
 ---
@@ -1183,7 +1456,7 @@ Processor 설정:
 
 Processor 실행:
   - PDF를 분석한다.
-  - 기존 bookmark가 깔끔하면 skip result를 반환한다.
+  - 기존 bookmark가 하나라도 있으면 skip result를 반환한다.
   - bookmark가 없으면 TOC detection을 수행한다.
   - TOC item parsing을 수행한다.
   - page offset을 추정한다.
@@ -1243,7 +1516,7 @@ BatchProcessor 설정:
 BatchProcessor 실행:
   - directory를 순회한다.
   - PDF별로 기존 bookmark 여부를 검사한다.
-  - bookmark가 깔끔한 PDF는 skip하고 silver label 후보로 기록한다.
+  - bookmark가 있는 PDF는 skip하고 weak reference 후보로 기록한다.
   - bookmark가 없는 PDF만 processing한다.
   - 전체 processing summary를 반환한다.
 ```
@@ -1427,8 +1700,8 @@ pdfbooktree batch ./pdfs
 
 ```text
 bookmark가 없는 PDF만 처리
-bookmark가 깔끔한 PDF는 skip
-skip된 PDF는 silver label 후보로 기록
+bookmark가 있는 PDF는 skip
+skip된 PDF는 weak reference 후보로 기록
 ```
 
 ---
@@ -1492,7 +1765,7 @@ OCR text layer가 있는 PDF에서 TOC를 찾고, offset과 heading fuzzy search
 ```text
 PDF text extraction
 existing bookmark detection
-skip clean bookmarked PDF
+skip any bookmarked PDF
 objective TOC page feature extraction
 heuristic TOC page detection
 TOC item parsing

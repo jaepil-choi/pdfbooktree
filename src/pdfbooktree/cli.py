@@ -37,7 +37,7 @@ def process(
     skip_existing_bookmarks: bool = typer.Option(
         True,
         "--skip-existing-bookmarks/--no-skip-existing-bookmarks",
-        help="기존 bookmark가 깔끔하면 처리하지 않는다.",
+        help="기존 bookmark가 있으면 runtime 처리를 건너뛴다.",
     ),
 ) -> None:
     """단일 PDF를 처리한다."""
