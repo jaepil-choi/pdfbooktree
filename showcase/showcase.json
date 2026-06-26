@@ -42,6 +42,18 @@
       "finding": "Zvi_Bodie_Alex_Kane_Alan_Marcus_Investments_McGraw_Hill_2021_finance는 offset 29 (band all, modal_count 967, dominance 34.535714285714285, run 964, printed page 1 ≈ PDF page 30)이다. 고려대_계량경제학노트1_김창진_compressed_indexed_econ_stats_book는 offset 1 (band all, modal_count 273, dominance 54.6, run 140, printed page 1 ≈ PDF page 2)이다. 고려대_계량경제학노트2_김창진_compressed_indexed_econ_stats_book는 offset -1 (band all, modal_count 76, dominance 10.857142857142858, run 9, printed page 1 ≈ PDF page 0)이다. 퀀트의_세계_홍창수는 offset 1 (band all, modal_count 360, dominance 72.0, run 266, printed page 1 ≈ PDF page 2)이다. 한경_읽는법_한국경제신문_compressed_econ_macro_book는 offset 1 (band all, modal_count 241, dominance 120.5, run 67, printed page 1 ≈ PDF page 2)이다.",
       "command": "uv run python showcase/003_page_offset_estimation.py",
       "ran_at": "2026-06-26T16:05:36+09:00"
+    },
+    {
+      "id": "004_wire_offset_pipeline",
+      "purpose": "runtime Processor가 bookmark 없는 실제 PDF에서 estimate_page_offset → heading alignment → content range까지 연결되어 동작함을 보여준다. offset이 clean하지 않으면 OffsetEstimationError를 전파한다(fallback 없음).",
+      "inputs": [
+        "data\\scanned-pdf-not-indexed\\미래를_바꾼_아홉가지_알고리즘_-_존_맥코믹-compressed[algorithm cs book].pdf",
+        "data\\scanned-pdf-not-indexed\\알고리즘_인생을계산하다_The_computer_science_of_human_decisions_-_BrianChristian.pdf"
+      ],
+      "outputs": "showcase/outputs/004_wire_offset_pipeline/result.json",
+      "finding": "미래를_바꾼_아홉가지_알고리즘_존_맥코믹_compressed_algorithm_cs_book는 offset fast-fail(offset 결과가 clean하지 않다: band=all, offset=-6, modal_count=54(min 5), dominance_ratio=1.3170731707317074(min 1.5), run=28, candidates=424). 알고리즘_인생을계산하다_The_computer_science_of_human_decisions_BrianChristian는 status=failed, offset=0, toc_pages=[16, 17, 18, 19], aligned=0(matched 0), content_range=0, conf(offset=0.942, alignment=0.0)이다.",
+      "command": "uv run python showcase/004_wire_offset_pipeline.py",
+      "ran_at": "2026-06-26T17:31:12+09:00"
     }
   ]
 }
