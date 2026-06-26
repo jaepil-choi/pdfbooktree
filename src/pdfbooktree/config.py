@@ -2,20 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
-
-
-@dataclass(frozen=True)
-class ProcessingConfig:
-    """단일 PDF 처리에 필요한 v0.1 기본 설정이다."""
-
-    max_toc_search_pages: int = 80
-    heading_search_window: int = 3
-    skip_existing_bookmarks: bool = True
-    use_llm: bool = False
-    low_confidence_threshold: float = 0.7
-    write_intermediates: bool = True
 
 
 @dataclass(frozen=True)
@@ -36,6 +24,20 @@ class OffsetEstimationConfig:
     # clean 게이트(최빈 우세 기준). 둘 다 만족해야 offset을 신뢰한다.
     min_modal_count: int = 5
     min_dominance_ratio: float = 1.5
+
+
+@dataclass(frozen=True)
+class ProcessingConfig:
+    """단일 PDF 처리에 필요한 v0.1 기본 설정이다."""
+
+    max_toc_search_pages: int = 80
+    heading_search_window: int = 3
+    skip_existing_bookmarks: bool = True
+    use_llm: bool = False
+    low_confidence_threshold: float = 0.7
+    write_intermediates: bool = True
+    # offset 추정 설정. Processor가 estimate_page_offset에 그대로 넘긴다.
+    offset: OffsetEstimationConfig = field(default_factory=OffsetEstimationConfig)
 
 
 # LLM 목차 추출기 system prompt 기본값. config로 통째로 교체할 수 있다.
