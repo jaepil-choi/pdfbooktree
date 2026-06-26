@@ -102,6 +102,8 @@ def test_toc_page_dataset_trainer_writes_model_and_report(tmp_path: Path) -> Non
     assert report["split_policy"] == "GroupShuffleSplit by input_pdf"
     assert report["label_sources"] == ["bookmark_guided_toc_detection"]
     assert report["feature_names"] == TOC_PAGE_DATASET_FEATURE_NAMES
+    assert "bookmark_count" not in report["feature_names"]
+    assert "detection_confidence" not in report["feature_names"]
     assert report["model_reports"][0]["f1"] >= 0.0
 
 

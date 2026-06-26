@@ -669,7 +669,7 @@ HistGradientBoostingRegressor
 
 ### 7.5 Label과 loss
 
-TOC page detector 학습에는 일부 PDF에 대한 수동 TOC page range label이 필요하다.
+TOC page detector의 sample 검증과 feature 연구에는 일부 PDF에 대한 수동 TOC page range answer가 필요하다.
 
 예:
 
@@ -681,10 +681,10 @@ TOC page detector 학습에는 일부 PDF에 대한 수동 TOC page range label�
 }
 ```
 
-기존 bookmark는 TOC page 위치를 알려주지 않기 때문에 TOC page detector 학습 label로 직접 사용할 수 없다.
-bookmark-guided heuristic으로 복원한 TOC page range도 수동 검수 전에는 학습용 ground truth로 사용하지 않는다.
-이런 range는 후보 생성, error discovery, manual labeling queue 구성에만 사용한다.
-다만 bookmark가 있는 문서에서 만든 pseudo answer label은 별도 weak-label dataset으로 보관해 ML detector 실험에 사용할 수 있다. 이 dataset으로 학습한 모델은 수동 검수 label 성능과 분리해서 보고한다.
+기존 bookmark target은 TOC page 위치를 직접 알려주지 않으므로 그대로 학습 label로 쓰지 않는다.
+bookmark-guided deterministic detector로 TOC page 후보 range를 복원하고, label source와 confidence를 포함한 pseudo label dataset으로 보관한다.
+수동 answer는 sample 검증, feature 연구, error discovery, pseudo label 품질 audit에 사용한다.
+300STUDY 같은 큰 데이터에서 model train은 bookmark-guided pseudo label dataset을 기반으로 진행한다.
 
 ---
 
@@ -1250,7 +1250,7 @@ bookmark target offset consistency:
 * 이 feature는 bookmark가 있는 PDF의 TOC page 후보 생성과 detector error discovery 보조용이다.
 * bookmark가 없는 일반 처리 경로의 TOC detection primary feature로 사용하지 않는다.
 * 수동 검수 없이 생성된 range는 ground truth로 저장하지 않는다.
-* ML 학습에 사용할 경우 label_source에 `manual_reviewed` 같은 검수 상태를 반드시 포함한다.
+* ML 학습에 사용할 경우 label_source, detector version, confidence, pseudo label filter 통과 여부를 반드시 포함한다.
 
 현재 판단:
 
@@ -1709,22 +1709,21 @@ skip된 PDF는 weak reference 후보로 기록
 ### TOC detector training
 
 ```text
-pdfbooktree train-toc-detector labels.json
+pdfbooktree train-toc-page-dataset toc_page_dataset.json
 ```
 
 입력:
 
 ```text
-PDF path
-TOC start page
-TOC end page
+detect-bookmark-toc로 생성한 page-level pseudo label dataset
+label_source / confidence / runtime-compatible feature row
 ```
 
 출력:
 
 ```text
 trained model artifact
-training report
+train/test report
 ```
 
 ---
@@ -1804,17 +1803,17 @@ batch evaluation report
 목표:
 
 ```text
-수동 검수된 TOC page range label만 사용해 objective feature 기반 ML scorer를 학습한다.
+bookmark-guided pseudo label dataset을 사용해 objective feature 기반 ML scorer를 학습한다.
 ```
 
 포함:
 
 ```text
-manual TOC page range label format
-manual review status tracking
-page-level soft label regression
-segment-level IoU regression
-GroupKFold by PDF
+bookmark-guided pseudo label dataset 생성
+label_source / confidence / detector version tracking
+page-level classifier training
+PDF group 기준 train/test split
+runtime-compatible feature set
 model save/load
 feature importance report
 ```

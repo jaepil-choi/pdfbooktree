@@ -68,8 +68,6 @@ TOC_PAGE_DATASET_FEATURE_NAMES = [
     "prev_chapter_or_part_line_count",
     "prev_toc_keyword_presence",
     "total_pages",
-    "bookmark_count",
-    "detection_confidence",
 ]
 
 
@@ -403,8 +401,9 @@ def build_report_dict(
         "dataset_path": result.dataset_path,
         "label_sources": sorted({str(row.get("label_source")) for row in rows}),
         "interpretation_warning": (
-            "이 평가는 dataset의 label 재현 성능이다. "
-            "bookmark_guided_toc_detection label은 독립 수동 검수 ground truth가 아니다."
+            "이 평가는 dataset의 pseudo label 재현 성능이다. "
+            "bookmark_guided_toc_detection label은 독립 수동 검수 ground truth가 아니다. "
+            "학습 feature에는 runtime에서 bookmark 없이 계산 가능한 값만 포함한다."
         ),
         "split_policy": "GroupShuffleSplit by input_pdf",
         "row_count": result.row_count,

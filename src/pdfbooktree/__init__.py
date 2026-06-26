@@ -11,11 +11,6 @@ from pdfbooktree.models import (
 from pdfbooktree.processor import Processor
 from pdfbooktree.toc.bookmark_batch import BookmarkTocBatchDetector
 from pdfbooktree.toc.llm_extract import LlmTocExtractor
-from pdfbooktree.toc.training import (
-    TocDetectorModel,
-    TocDetectorTrainer,
-    TocDetectorTrainingResult,
-)
 
 __all__ = [
     "BatchProcessor",
@@ -26,9 +21,6 @@ __all__ = [
     "ProcessingConfig",
     "ProcessingResult",
     "Processor",
-    "TocDetectorModel",
-    "TocDetectorTrainer",
-    "TocDetectorTrainingResult",
     "TocItem",
     "TocPageDatasetRow",
 ]
