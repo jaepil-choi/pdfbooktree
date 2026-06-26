@@ -54,6 +54,19 @@
       "finding": "미래를_바꾼_아홉가지_알고리즘_존_맥코믹_compressed_algorithm_cs_book는 offset fast-fail(offset 결과가 clean하지 않다: band=all, offset=-6, modal_count=54(min 5), dominance_ratio=1.3170731707317074(min 1.5), run=28, candidates=424). 알고리즘_인생을계산하다_The_computer_science_of_human_decisions_BrianChristian는 status=failed, offset=0, toc_pages=[16, 17, 18, 19], aligned=0(matched 0), content_range=0, conf(offset=0.942, alignment=0.0)이다.",
       "command": "uv run python showcase/004_wire_offset_pipeline.py",
       "ran_at": "2026-06-26T17:31:12+09:00"
+    },
+    {
+      "id": "005_wire_llm_toc_fallback",
+      "purpose": "use_llm=True인 runtime Processor가 bookmark 없는 실제 PDF에서 LlmTocRangeReviewer로 TOC range를 3단계 fallback 보정하고, 결정적 regex 파서가 0개면 LlmTocExtractor로 목차 item을 채움을 보여준다. LLM은 solar-pro3 텍스트 경로만 쓴다.",
+      "inputs": [
+        "data\\scanned-pdf-not-indexed\\미래를_바꾼_아홉가지_알고리즘_-_존_맥코믹-compressed[algorithm cs book].pdf",
+        "data\\scanned-pdf-not-indexed\\알고리즘_인생을계산하다_The_computer_science_of_human_decisions_-_BrianChristian.pdf"
+      ],
+      "outputs": "showcase/outputs/005_wire_llm_toc_fallback/result.json",
+      "model": "solar-pro3",
+      "finding": "미래를_바꾼_아홉가지_알고리즘_존_맥코믹_compressed_algorithm_cs_book는 offset fast-fail이지만 LLM range review는 stage=stage2_backtrack pages=[12] (calls=3)로 동작했다. 알고리즘_인생을계산하다_The_computer_science_of_human_decisions_BrianChristian는 status=failed, range review stage=stage2_backtrack pages=[16, 17, 18, 19] (calls=6), toc_pages=[16, 17, 18, 19], toc_item=109, offset=0, content_range=109이다.",
+      "command": "uv run python showcase/005_wire_llm_toc_fallback.py",
+      "ran_at": "2026-06-26T19:59:10+09:00"
     }
   ]
 }
