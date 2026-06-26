@@ -218,6 +218,20 @@
       "min_tree_depth": 1,
       "finding": "data/ 아래 PDF 5개 중 bookmark 보유 5개, 최소 1 depth tree 기준 통과 4개, 탈락(평평하거나 bookmark 없음) 1개다. Zvi Bodie, Alex Kane, Alan Marcus - Investments-McGraw Hill (2021)[finance].pdf는 bookmark 793개, level 분포 {'1': 20, '2': 28, '3': 195, '4': 439, '5': 111}, tree_depth 4, 부모-자식쌍 773, 최대 자식수 11로 판정 True이다. 고려대_계량경제학노트1_김창진-compressed-indexed[econ stats book].pdf는 bookmark 57개, level 분포 {'1': 5, '2': 14, '3': 38}, tree_depth 2, 부모-자식쌍 52, 최대 자식수 8로 판정 True이다. 고려대_계량경제학노트2_김창진-compressed-indexed[econ stats book].pdf는 bookmark 215개, level 분포 {'1': 2, '2': 12, '3': 65, '4': 136}, tree_depth 3, 부모-자식쌍 213, 최대 자식수 9로 판정 True이다. 퀀트의 세계 - 홍창수.pdf는 bookmark 43개, level 분포 {'1': 8, '2': 17, '3': 18}, tree_depth 2, 부모-자식쌍 35, 최대 자식수 10로 판정 True이다. 한경_읽는법_-_한국경제신문-compressed[econ macro book].pdf는 bookmark 16개, level 분포 {'1': 16}, tree_depth 0, 부모-자식쌍 0, 최대 자식수 0로 판정 False이다. 평평한 bookmark로 제외된 PDF: 한경_읽는법_-_한국경제신문-compressed[econ macro book].pdf.",
       "ran_at": "2026-06-26T09:28:28"
+    },
+    {
+      "id": "015_header_footer_page_offset",
+      "purpose": "본문 page 상/하위 10% band에서 word box 좌표로 인쇄된 책 page number를 뽑고, offset = pdf_page - book_page의 최빈값을 실제 page offset으로 추정한다. bookmark target에 의존하지 않아 bookmark 없는 runtime PDF에서도 동작한다.",
+      "inputs": [
+        "data\\native-pdf-indexed\\Zvi Bodie, Alex Kane, Alan Marcus - Investments-McGraw Hill (2021)[finance].pdf",
+        "data\\scanned-pdf-indexed\\고려대_계량경제학노트1_김창진-compressed-indexed[econ stats book].pdf",
+        "data\\scanned-pdf-indexed\\고려대_계량경제학노트2_김창진-compressed-indexed[econ stats book].pdf",
+        "data\\scanned-pdf-not-indexed\\퀀트의 세계 - 홍창수.pdf",
+        "data\\scanned-pdf-not-indexed\\한경_읽는법_-_한국경제신문-compressed[econ macro book].pdf"
+      ],
+      "outputs": "experiments\\outputs\\015_header_footer_page_offset",
+      "finding": "zvi_bodie_investments_2021는 best band all에서 추정 offset 29(modal share 0.327, 최장 연속 run 964), 일치 page 965개(coverage 0.927), printed page 1 ≈ PDF page 30이다. korea_econometrics_note_1는 best band all에서 추정 offset 1(modal share 0.711, 최장 연속 run 140), 일치 page 140개(coverage 0.993), printed page 1 ≈ PDF page 2이다. korea_econometrics_note_2는 best band all에서 추정 offset -1(modal share 0.434, 최장 연속 run 9), 일치 page 76개(coverage 0.23), printed page 1 ≈ PDF page 0이다. quant_world_hong_changsu는 best band all에서 추정 offset 1(modal share 0.4, 최장 연속 run 266), 일치 page 360개(coverage 0.952), printed page 1 ≈ PDF page 2이다. hankyung_reading_method는 best band all에서 추정 offset 1(modal share 0.544, 최장 연속 run 67), 일치 page 241개(coverage 0.846), printed page 1 ≈ PDF page 2이다.",
+      "ran_at": "2026-06-26T15:37:58"
     }
   ]
 }
