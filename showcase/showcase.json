@@ -67,6 +67,31 @@
       "finding": "미래를_바꾼_아홉가지_알고리즘_존_맥코믹_compressed_algorithm_cs_book는 offset fast-fail이지만 LLM range review는 stage=stage2_backtrack pages=[12] (calls=3)로 동작했다. 알고리즘_인생을계산하다_The_computer_science_of_human_decisions_BrianChristian는 status=failed, range review stage=stage2_backtrack pages=[16, 17, 18, 19] (calls=6), toc_pages=[16, 17, 18, 19], toc_item=109, offset=0, content_range=109이다.",
       "command": "uv run python showcase/005_wire_llm_toc_fallback.py",
       "ran_at": "2026-06-26T19:59:10+09:00"
+    },
+    {
+      "id": "006_verify_toc_tree_and_content",
+      "purpose": "bookmark 없는 scanned OCR 책에서 추출한 목차가 정확한 tree hierarchy(level 중첩, printed_page 순서)와 content(제목이 실제 목차/본문 page에 실재)를 갖는지 real data + live call로 검증한다. LLM은 solar-pro3 텍스트 경로만 쓴다.",
+      "inputs": [
+        "data\\scanned-pdf-not-indexed\\미래를_바꾼_아홉가지_알고리즘_-_존_맥코믹-compressed[algorithm cs book].pdf",
+        "data\\scanned-pdf-not-indexed\\알고리즘_인생을계산하다_The_computer_science_of_human_decisions_-_BrianChristian.pdf"
+      ],
+      "outputs": "showcase/outputs/006_verify_toc_tree_and_content/result.json",
+      "model": "solar-pro3",
+      "finding": "미래를_바꾼_아홉가지_알고리즘_존_맥코믹_compressed_algorithm_cs_book: item 18개, level 분포 {1: 18}, level 점프 0회, printed_page 단조성 1.0, source grounding 18/18 (1.0), 본문 spot-check blocked_offset_fast_fail이다. 알고리즘_인생을계산하다_The_computer_science_of_human_decisions_BrianChristian: item 109개, level 분포 {1: 11, 2: 98}, level 점프 0회, printed_page 단조성 0.9815, source grounding 108/109 (0.9908), 본문 spot-check 1/8 (offset=0)이다.",
+      "command": "uv run python showcase/006_verify_toc_tree_and_content.py",
+      "ran_at": "2026-06-28T11:29:20+09:00"
+    },
+    {
+      "id": "007_bookmark_markdown_export",
+      "purpose": "bookmark가 있는 indexed PDF를 공개 인터페이스 Processor로 처리하면 skip이 아니라 bookmark 트리를 markdown 디렉터리 트리로 export하는지 real data로 검증한다(native 1권 + scanned+OCR 1권).",
+      "inputs": [
+        "data\\native-pdf-indexed\\John Hull - Options, Futures, and Other Derivatives, Global Edition-Pearson (2021).pdf",
+        "data\\scanned-pdf-indexed\\(Springer Finance) Steven E. Shreve - Stochastic Calculus for Finance I The Binomial Asset Pricing Model-Springer (2005)-indexed.pdf"
+      ],
+      "outputs": "showcase/outputs/007_bookmark_markdown_export/result.json",
+      "finding": "John Hull - Options, Futures, and Other Derivatives, Global Edition-Pearson (2021).pdf: bookmark 470개 → markdown 디렉터리 470개, md 470개(본문 있는 것 388개) export(processed). (Springer Finance) Steven E. Shreve - Stochastic Calculus for Finance I The Binomial Asset Pricing Model-Springer (2005)-indexed.pdf: bookmark 238개 → markdown 디렉터리 238개, md 238개(본문 있는 것 180개) export(processed).",
+      "command": "uv run python showcase/007_bookmark_markdown_export.py",
+      "ran_at": "2026-06-28T12:35:58+09:00"
     }
   ]
 }
