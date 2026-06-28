@@ -240,6 +240,23 @@ class BookmarkPlanItem:
 
 
 @dataclass(frozen=True)
+class BookmarkTreeNode:
+    """bookmark 트리의 단일 노드다.
+
+    flat bookmark 목록을 level 기반으로 중첩한 결과이며, ``own_span``은 이 노드가
+    자기 본문으로 갖는 1-based PDF page 구간(start, end, inclusive)이다. 다음
+    bookmark가 같은 page에서 시작하는 등 본문이 없으면 ``None``이다.
+    """
+
+    title: str
+    level: int
+    start_pdf_page: int | None
+    own_span: tuple[int, int] | None
+    order: int
+    children: tuple["BookmarkTreeNode", ...] = ()
+
+
+@dataclass(frozen=True)
 class ConfidenceSummary:
     """주요 단계의 신뢰도를 요약한다."""
 

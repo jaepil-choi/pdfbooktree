@@ -38,38 +38,78 @@ def _make_pdf(path: Path, page_specs: list[list[tuple[float, float, str]]]) -> N
         document.close()
 
 
-def test_processor_skips_any_pdf_with_existing_bookmark(
+def test_processor_exports_markdown_for_pdf_with_existing_bookmark(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
-    """runtime Processor는 bookmark가 있으면 PDF 본문을 열기 전에 제외한다."""
+    """기본 config에서 bookmark가 있으면 skip 대신 markdown tree를 export한다."""
 
-    def fake_extract_existing_bookmarks(_: Path) -> list[dict[str, object]]:
-        return [
-            {
-                "order": 1,
-                "level": 1,
-                "title": "1",
-                "pdf_page": 1,
-            }
-        ]
+    bookmarks = [
+        {"order": 1, "level": 1, "title": "Chapter 1", "pdf_page": 1},
+        {"order": 2, "level": 2, "title": "1.1", "pdf_page": 2},
+    ]
 
     monkeypatch.setattr(
         "pdfbooktree.processor.extract_existing_bookmarks",
-        fake_extract_existing_bookmarks,
+        lambda _: bookmarks,
+    )
+
+    captured: dict[str, object] = {}
+    fake_dir = tmp_path / "out" / "bookmarked_markdown"
+
+    def fake_export(input_pdf, output_dir, passed_bookmarks):
+        captured["bookmarks"] = passed_bookmarks
+        return (len(passed_bookmarks), fake_dir)
+
+    monkeypatch.setattr(
+        "pdfbooktree.processor.export_bookmark_markdown_tree",
+        fake_export,
     )
 
     result = Processor(tmp_path / "bookmarked.pdf", tmp_path / "out").run()
 
-    assert result.status == "skipped"
+    assert result.status == "processed"
     assert result.output_pdf is None
-    assert result.output_markdown_dir is None
-    assert result.toc_pages == []
-    assert result.warnings == [
-        "기존 bookmark 1개가 있어서 runtime 자동 처리를 건너뛰었다."
-    ]
+    assert result.output_markdown_dir == fake_dir
+    assert result.bookmark_count == 2
+    assert captured["bookmarks"] == bookmarks
+    # embedding을 건너뛰었고 markdown을 export했다는 사실이 경고에 남는다.
+    assert len(result.warnings) == 1
+    assert "embedding" in result.warnings[0]
+    assert "markdown" in result.warnings[0]
     assert result.report_path is not None
     assert result.report_path.exists()
+
+
+def test_processor_forced_reprocess_skips_bookmark_export(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    """--no-skip(강제 재처리)면 bookmark export를 건너뛰고 TOC 파이프라인으로 내려간다."""
+
+    monkeypatch.setattr(
+        "pdfbooktree.processor.extract_existing_bookmarks",
+        lambda _: [{"order": 1, "level": 1, "title": "Chapter 1", "pdf_page": 1}],
+    )
+
+    def fail_export(*_args, **_kwargs):
+        raise AssertionError("강제 재처리에서는 bookmark export를 호출하면 안 된다.")
+
+    monkeypatch.setattr(
+        "pdfbooktree.processor.export_bookmark_markdown_tree",
+        fail_export,
+    )
+
+    pdf_path = tmp_path / "no_page_numbers.pdf"
+    _make_pdf(pdf_path, [[(72.0, 400.0, "본문 텍스트 줄입니다")] for _ in range(6)])
+
+    # bookmark export를 안 타고 기존 파이프라인으로 내려가다 offset에서 fast-fail한다.
+    with pytest.raises(OffsetEstimationError):
+        Processor(
+            pdf_path,
+            tmp_path / "out",
+            ProcessingConfig(skip_existing_bookmarks=False),
+        ).run()
 
 
 def test_processor_wires_offset_alignment_and_ranges(

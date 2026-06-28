@@ -36,7 +36,12 @@ def process(
     skip_existing_bookmarks: bool = typer.Option(
         True,
         "--skip-existing-bookmarks/--no-skip-existing-bookmarks",
-        help="기존 bookmark가 있으면 runtime 처리를 건너뛴다.",
+        help=(
+            "기존 bookmark가 있으면 그 트리에서 markdown을 export하고 "
+            "bookmark embedding(PDF outline overwrite)만 건너뛴다. "
+            "--no-skip-existing-bookmarks를 주면 기존 bookmark를 무시하고 "
+            "TOC 탐지부터 강제 재처리한다."
+        ),
     ),
 ) -> None:
     """단일 PDF를 처리한다."""

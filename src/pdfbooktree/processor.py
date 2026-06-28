@@ -19,11 +19,12 @@ from pdfbooktree.models import (
     TocItem,
     TocRangeReview,
 )
+from pdfbooktree.output.bookmark_markdown import export_bookmark_markdown_tree
 from pdfbooktree.output.intermediates import write_intermediate
 from pdfbooktree.output.markdown import plan_markdown_dir_path
 from pdfbooktree.output.pdf_writer import plan_output_pdf_path
 from pdfbooktree.output.report import write_processing_report
-from pdfbooktree.pdf.bookmarks import build_skip_reason, extract_existing_bookmarks
+from pdfbooktree.pdf.bookmarks import extract_existing_bookmarks
 from pdfbooktree.pdf.text import extract_page_texts, extract_selected_page_texts
 from pdfbooktree.toc.detect import detect_toc_pages
 from pdfbooktree.toc.features import calculate_page_features
@@ -59,19 +60,24 @@ class Processor:
         output_markdown_dir = plan_markdown_dir_path(self.input_pdf, self.output_dir)
 
         bookmarks = extract_existing_bookmarks(self.input_pdf)
-        skip_reason = (
-            build_skip_reason(bookmarks)
-            if self.config.skip_existing_bookmarks
-            else None
-        )
-        if skip_reason:
+        # bookmark가 있으면 그 트리에서 곧장 markdown을 export한다(TOC 탐지/LLM 불필요).
+        # bookmark를 PDF에 embed(outline overwrite)하는 작업만 기존 bookmark가 있을 때
+        # 건너뛴다. --no-skip-existing-bookmarks를 주면 강제로 아래 TOC 파이프라인을 탄다.
+        if bookmarks and self.config.skip_existing_bookmarks:
+            node_count, markdown_dir = export_bookmark_markdown_tree(
+                self.input_pdf, self.output_dir, bookmarks
+            )
             return self._finalize(
                 ProcessingResult(
-                    status="skipped",
+                    status="processed",
                     input_pdf=self.input_pdf,
                     output_pdf=None,
-                    output_markdown_dir=None,
-                    warnings=[skip_reason],
+                    output_markdown_dir=markdown_dir,
+                    bookmark_count=len(bookmarks),
+                    warnings=[
+                        f"기존 bookmark {len(bookmarks)}개로 markdown {node_count}개 노드를 "
+                        "export했고, bookmark embedding(PDF outline overwrite)은 건너뛰었다."
+                    ],
                 )
             )
 
