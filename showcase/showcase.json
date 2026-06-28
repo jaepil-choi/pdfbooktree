@@ -70,16 +70,19 @@
     },
     {
       "id": "006_verify_toc_tree_and_content",
-      "purpose": "bookmark 없는 scanned OCR 책에서 추출한 목차가 정확한 tree hierarchy(level 중첩, printed_page 순서)와 content(제목이 실제 목차/본문 page에 실재)를 갖는지 real data + live call로 검증한다. LLM은 solar-pro3 텍스트 경로만 쓴다.",
+      "purpose": "bookmark 없는 scanned OCR 책과 indexed 검증 책(Hull/Luenberger/Shreve)에서 runtime detector + LLM fallback으로 추출한 목차가 정확한 tree hierarchy(level 중첩, printed_page 순서)와 content(제목이 실제 목차/본문 page에 실재)를 갖는지 real data + live call로 검증한다. LLM은 solar-pro3 텍스트 경로만 쓴다.",
       "inputs": [
         "data\\scanned-pdf-not-indexed\\미래를_바꾼_아홉가지_알고리즘_-_존_맥코믹-compressed[algorithm cs book].pdf",
-        "data\\scanned-pdf-not-indexed\\알고리즘_인생을계산하다_The_computer_science_of_human_decisions_-_BrianChristian.pdf"
+        "data\\scanned-pdf-not-indexed\\알고리즘_인생을계산하다_The_computer_science_of_human_decisions_-_BrianChristian.pdf",
+        "data\\native-pdf-indexed\\John Hull - Options, Futures, and Other Derivatives, Global Edition-Pearson (2021).pdf",
+        "data\\scanned-pdf-indexed\\David G. Luenberger, Investment Science 2nd - adobeOCR - indexed.pdf",
+        "data\\scanned-pdf-indexed\\(Springer Finance) Steven E. Shreve - Stochastic Calculus for Finance I The Binomial Asset Pricing Model-Springer (2005)-indexed.pdf"
       ],
       "outputs": "showcase/outputs/006_verify_toc_tree_and_content/result.json",
       "model": "solar-pro3",
-      "finding": "미래를_바꾼_아홉가지_알고리즘_존_맥코믹_compressed_algorithm_cs_book: item 18개, level 분포 {1: 18}, level 점프 0회, printed_page 단조성 1.0, source grounding 18/18 (1.0), 본문 spot-check blocked_offset_fast_fail이다. 알고리즘_인생을계산하다_The_computer_science_of_human_decisions_BrianChristian: item 111개, level 분포 {1: 11, 2: 100}, level 점프 0회, printed_page 단조성 0.9796, source grounding 110/111 (0.991), 본문 spot-check 0/8 (offset=0)이다.",
+      "finding": "미래를_바꾼_아홉가지_알고리즘_존_맥코믹_compressed_algorithm_cs_book(not_indexed): item 18개, level 분포 {1: 18}, level 점프 0회, printed_page 단조성 1.0, source grounding 18/18 (1.0), 본문 spot-check blocked_offset_fast_fail이다. 알고리즘_인생을계산하다_The_computer_science_of_human_decisions_BrianChristian(not_indexed): item 111개, level 분포 {1: 11, 2: 100}, level 점프 0회, printed_page 단조성 0.9794, source grounding 110/111 (0.991), 본문 spot-check 0/8 (offset=0)이다. John_Hull_Options_Futures_and_Other_Derivatives_Global_Edition_Pearson_2021(indexed): item 559개, level 분포 {1: 1, 2: 558}, level 점프 0회, printed_page 단조성 0.9964, source grounding 559/559 (1.0), 본문 spot-check 4/8 (offset=1)이다. David_G_Luenberger_Investment_Science_2nd_adobeOCR_indexed(indexed): item 514개, level 분포 {3: 514}, level 점프 0회, printed_page 단조성 1.0, source grounding 513/514 (0.9981), 본문 spot-check 0/1 (offset=24)이다. Springer_Finance_Steven_E_Shreve_Stochastic_Calculus_for_Finance_I_The_Binomial_(indexed): item 53개, level 분포 {1: 53}, level 점프 0회, printed_page 단조성 1.0, source grounding 53/53 (1.0), 본문 spot-check 0/0 (offset=2)이다.",
       "command": "uv run python showcase/006_verify_toc_tree_and_content.py",
-      "ran_at": "2026-06-28T12:54:36+09:00"
+      "ran_at": "2026-06-28T13:08:49+09:00"
     },
     {
       "id": "007_bookmark_markdown_export",

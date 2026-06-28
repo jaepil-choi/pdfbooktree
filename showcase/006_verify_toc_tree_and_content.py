@@ -1,8 +1,9 @@
 """showcase 006: 추출한 목차의 tree hierarchy와 content가 정확한지 검증한다.
 
-대상은 bookmark가 없는 scanned OCR 책(not-indexed)이다. 이런 책은 기존
-bookmark가 없어 LLM이 목차를 처음부터 만들어 내므로, 다음 두 가지를 눈으로
-확인할 수 있게 보여준다.
+대상은 bookmark가 없는 scanned OCR 책(not-indexed)과, 기존 bookmark가 있는
+indexed 검증 책(Hull/Luenberger/Shreve)이다. 기존 bookmark에 의존하지 않고
+runtime detector와 LLM fallback이 목차를 처음부터 만들어 내므로, 다음 두 가지를
+눈으로 확인할 수 있게 보여준다.
 
 1. tree hierarchy: 추출한 항목의 level이 합리적으로 중첩되는지(1부터 시작,
    level 점프 없음, printed_page 단조 증가).
@@ -51,6 +52,23 @@ except Exception:
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
 DATA_DIR = ROOT_DIR / "data" / "scanned-pdf-not-indexed"
+INDEXED_CASES = [
+    ROOT_DIR
+    / "data"
+    / "native-pdf-indexed"
+    / "John Hull - Options, Futures, and Other Derivatives, Global Edition-Pearson (2021).pdf",
+    ROOT_DIR
+    / "data"
+    / "scanned-pdf-indexed"
+    / "David G. Luenberger, Investment Science 2nd - adobeOCR - indexed.pdf",
+    ROOT_DIR
+    / "data"
+    / "scanned-pdf-indexed"
+    / (
+        "(Springer Finance) Steven E. Shreve - Stochastic Calculus for Finance I "
+        "The Binomial Asset Pricing Model-Springer (2005)-indexed.pdf"
+    ),
+]
 OUTPUT_DIR = ROOT_DIR / "showcase" / "outputs" / "006_verify_toc_tree_and_content"
 OUTPUT_PATH = OUTPUT_DIR / "result.json"
 SHOWCASE_JSON = ROOT_DIR / "showcase" / "showcase.json"
@@ -79,6 +97,23 @@ def discover_not_indexed_cases() -> list[Path]:
             continue
         cases.append(path)
     return cases
+
+
+def discover_showcase_cases() -> list[Path]:
+    """not-indexed 자동 발견 케이스와 명시 indexed 케이스를 합친다."""
+
+    cases = discover_not_indexed_cases()
+    cases.extend(path for path in INDEXED_CASES if path.exists())
+
+    unique: list[Path] = []
+    seen: set[Path] = set()
+    for path in cases:
+        resolved = path.resolve()
+        if resolved in seen:
+            continue
+        seen.add(resolved)
+        unique.append(path)
+    return unique
 
 
 def detect_and_extract(pdf_path: Path) -> dict[str, Any]:
@@ -267,9 +302,12 @@ def verify_body_spotcheck(
 
 def run_case(pdf_path: Path) -> dict[str, Any]:
     case_id = _case_id(pdf_path)
+    bookmark_count = len(extract_existing_bookmarks(pdf_path))
     record: dict[str, Any] = {
         "id": case_id,
         "input_pdf": str(pdf_path.relative_to(ROOT_DIR)),
+        "input_kind": "indexed" if bookmark_count else "not_indexed",
+        "existing_bookmark_count": bookmark_count,
     }
 
     extracted = detect_and_extract(pdf_path)
@@ -319,10 +357,7 @@ def run_case(pdf_path: Path) -> dict[str, Any]:
 
 def build_finding(results: list[dict[str, Any]]) -> str:
     if not results:
-        return (
-            "data/scanned-pdf-not-indexed 아래에 bookmark 없는 PDF가 없어 검증할 "
-            "입력이 없다(blocked)."
-        )
+        return "검증할 PDF 입력이 없어 showcase를 실행할 수 없다(blocked)."
     parts: list[str] = []
     for result in results:
         if result.get("status") == "no_items":
@@ -341,7 +376,7 @@ def build_finding(results: list[dict[str, Any]]) -> str:
             else f"본문 spot-check {body.get('status')}"
         )
         parts.append(
-            f"{result['id']}: item {hier['item_count']}개, "
+            f"{result['id']}({result.get('input_kind')}): item {hier['item_count']}개, "
             f"level 분포 {hier['level_distribution']}, "
             f"level 점프 {hier['level_jump_count']}회, "
             f"printed_page 단조성 {hier['printed_page_monotonicity']}, "
@@ -356,10 +391,10 @@ def record_showcase(results: list[dict[str, Any]], finding: str) -> None:
     entry = {
         "id": SHOWCASE_ID,
         "purpose": (
-            "bookmark 없는 scanned OCR 책에서 추출한 목차가 정확한 tree hierarchy"
-            "(level 중첩, printed_page 순서)와 content(제목이 실제 목차/본문 page에 "
-            "실재)를 갖는지 real data + live call로 검증한다. LLM은 solar-pro3 텍스트 "
-            "경로만 쓴다."
+            "bookmark 없는 scanned OCR 책과 indexed 검증 책(Hull/Luenberger/Shreve)에서 "
+            "runtime detector + LLM fallback으로 추출한 목차가 정확한 tree hierarchy(level "
+            "중첩, printed_page 순서)와 content(제목이 실제 목차/본문 page에 실재)를 갖는지 "
+            "real data + live call로 검증한다. LLM은 solar-pro3 텍스트 경로만 쓴다."
         ),
         "inputs": [result["input_pdf"] for result in results],
         "outputs": "showcase/outputs/006_verify_toc_tree_and_content/result.json",
@@ -388,13 +423,13 @@ def main() -> None:
     load_dotenv(ROOT_DIR / ".env")
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    cases = discover_not_indexed_cases()
+    cases = discover_showcase_cases()
     results = [run_case(path) for path in cases]
 
     summary = {
         "purpose": (
-            "not-indexed scanned OCR 책의 추출 목차에 대해 tree hierarchy와 content "
-            "충실도를 검증한다."
+            "not-indexed scanned OCR 책과 indexed 검증 책의 추출 목차에 대해 tree "
+            "hierarchy와 content 충실도를 검증한다."
         ),
         "source_experiments": [
             "016_llm_toc_range_3stage_fallback",
@@ -411,11 +446,15 @@ def main() -> None:
     finding = build_finding(results)
     record_showcase(results, finding)
 
-    print("=== 추출 목차 hierarchy/content 검증 (not-indexed scanned OCR) ===")
+    print("=== 추출 목차 hierarchy/content 검증 (not-indexed + indexed) ===")
     if not results:
-        print("- 입력 없음: not-indexed 디렉터리에 bookmark 없는 PDF가 없다(blocked).")
+        print("- 입력 없음: 검증할 PDF가 없다(blocked).")
     for result in results:
         print(f"\n- {result['id']}: {result.get('status')}")
+        print(
+            f"    kind={result.get('input_kind')} "
+            f"bookmarks={result.get('existing_bookmark_count')}"
+        )
         print(
             f"    toc_pages={result.get('toc_pages')} "
             f"stage={result.get('review_stage')}"
