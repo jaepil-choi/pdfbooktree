@@ -175,6 +175,15 @@ class TocItem:
 
 
 @dataclass(frozen=True)
+class TocVisualLine:
+    """TOC page의 한 줄과 대표 글씨 높이를 담는다."""
+
+    pdf_page: int
+    height: float
+    text: str
+
+
+@dataclass(frozen=True)
 class BandPageNumber:
     """page 상/하위 band에서 추출한 인쇄 page number 후보다."""
 

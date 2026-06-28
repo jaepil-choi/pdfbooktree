@@ -31,6 +31,7 @@ from pdfbooktree.toc.features import calculate_page_features
 from pdfbooktree.toc.llm_extract import LlmTocExtractor
 from pdfbooktree.toc.llm_range_review import LlmTocRangeReviewer
 from pdfbooktree.toc.parse import parse_toc_items
+from pdfbooktree.toc.staged_llm_extract import SizeAwareStagedTocExtractor
 
 
 class Processor:
@@ -43,7 +44,7 @@ class Processor:
         config: ProcessingConfig | None = None,
         *,
         range_reviewer: LlmTocRangeReviewer | None = None,
-        item_extractor: LlmTocExtractor | None = None,
+        item_extractor: LlmTocExtractor | SizeAwareStagedTocExtractor | None = None,
     ) -> None:
         self.input_pdf = Path(input_pdf)
         self.output_dir = Path(output_dir)
@@ -176,7 +177,12 @@ class Processor:
         """결정적 파서가 0개를 뽑은 TOC range에서 LLM으로 item을 추출한다."""
 
         if self._item_extractor is None:
-            self._item_extractor = LlmTocExtractor(self.config.llm_extraction)
+            if self.config.llm_item_extraction_strategy == "basic":
+                self._item_extractor = LlmTocExtractor(self.config.llm_extraction)
+            else:
+                self._item_extractor = SizeAwareStagedTocExtractor(
+                    self.config.llm_staged_extraction
+                )
         return self._item_extractor.extract(self.input_pdf, toc_pages)
 
     def _build_heading_candidates(

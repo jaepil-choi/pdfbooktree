@@ -287,6 +287,55 @@ def test_processor_uses_llm_range_review_and_item_fallback(
     assert [entry["start_pdf_page"] for entry in ranges_payload] == [5, 14]
 
 
+def test_processor_defaults_to_staged_llm_item_extractor(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    """주입 extractor가 없으면 staged LLM item extractor를 기본으로 lazy 생성한다."""
+
+    pdf_path = tmp_path / "no_bookmark.pdf"
+    _make_offset_pdf(pdf_path)
+
+    monkeypatch.setattr(
+        "pdfbooktree.processor.parse_toc_items",
+        lambda _pages, _toc_pages: [],
+    )
+
+    calls: dict[str, object] = {}
+
+    class FakeStagedExtractor:
+        def __init__(self, config) -> None:
+            calls["config"] = config
+
+        def extract(self, pdf_path_arg, toc_pages):
+            calls["toc_pages"] = list(toc_pages)
+            return [
+                TocItem(
+                    title="Chapter 1 Introduction",
+                    level=1,
+                    printed_page=1,
+                    raw_text="Chapter 1 Introduction",
+                    source_pdf_page=5,
+                    confidence=0.8,
+                )
+            ]
+
+    monkeypatch.setattr(
+        "pdfbooktree.processor.SizeAwareStagedTocExtractor",
+        FakeStagedExtractor,
+    )
+
+    Processor(
+        pdf_path,
+        tmp_path / "out",
+        ProcessingConfig(use_llm=True),
+        range_reviewer=_StubReviewer([5]),
+    ).run()
+
+    assert calls["toc_pages"] == [5]
+    assert calls["config"] is not None
+
+
 def test_processor_skips_llm_when_use_llm_false(
     monkeypatch,
     tmp_path: Path,

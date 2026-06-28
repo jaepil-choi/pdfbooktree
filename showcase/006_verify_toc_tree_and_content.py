@@ -31,11 +31,10 @@ from dotenv import load_dotenv
 
 from pdfbooktree import (
     LlmRangeReviewConfig,
-    LlmTocExtractionConfig,
-    LlmTocExtractor,
     LlmTocRangeReviewer,
     OffsetEstimationConfig,
     OffsetEstimationError,
+    SizeAwareStagedTocExtractor,
     estimate_page_offset,
 )
 from pdfbooktree.models import PdfPageText, TocItem
@@ -96,7 +95,7 @@ def detect_and_extract(pdf_path: Path) -> dict[str, Any]:
     review = reviewer.review(pdf_path, detection, total_pages)
     toc_pages = review.pages if review.pages else detection.pages
 
-    extractor = LlmTocExtractor(LlmTocExtractionConfig())
+    extractor = SizeAwareStagedTocExtractor()
     items = extractor.extract(pdf_path, toc_pages) if toc_pages else []
 
     return {
@@ -122,7 +121,12 @@ def analyze_hierarchy(items: list[TocItem]) -> dict[str, Any]:
     for index, item in enumerate(items):
         if prev_level is not None and item.level - prev_level >= 2:
             level_jumps.append(
-                {"index": index, "title": item.title, "from": prev_level, "to": item.level}
+                {
+                    "index": index,
+                    "title": item.title,
+                    "from": prev_level,
+                    "to": item.level,
+                }
             )
         prev_level = item.level
 
@@ -364,8 +368,14 @@ def record_showcase(results: list[dict[str, Any]], finding: str) -> None:
         "command": "uv run python showcase/006_verify_toc_tree_and_content.py",
         "ran_at": datetime.now().astimezone().isoformat(timespec="seconds"),
     }
-    data["showcases"] = [s for s in data["showcases"] if s.get("id") != SHOWCASE_ID]
-    data["showcases"].append(entry)
+    replaced = False
+    for index, existing in enumerate(data["showcases"]):
+        if existing.get("id") == SHOWCASE_ID:
+            data["showcases"][index] = entry
+            replaced = True
+            break
+    if not replaced:
+        data["showcases"].append(entry)
     SHOWCASE_JSON.write_text(
         json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
@@ -386,7 +396,12 @@ def main() -> None:
             "not-indexed scanned OCR 책의 추출 목차에 대해 tree hierarchy와 content "
             "충실도를 검증한다."
         ),
-        "source_experiment": "016_llm_toc_range_3stage_fallback",
+        "source_experiments": [
+            "016_llm_toc_range_3stage_fallback",
+            "017_toc_font_size_cluster_hierarchy",
+            "021_toc_staged_schema_then_extract",
+        ],
+        "item_extractor": "size_aware_staged_toc_extractor",
         "case_count": len(results),
         "results": results,
     }

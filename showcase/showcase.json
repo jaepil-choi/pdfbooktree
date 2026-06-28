@@ -77,9 +77,9 @@
       ],
       "outputs": "showcase/outputs/006_verify_toc_tree_and_content/result.json",
       "model": "solar-pro3",
-      "finding": "미래를_바꾼_아홉가지_알고리즘_존_맥코믹_compressed_algorithm_cs_book: item 18개, level 분포 {1: 18}, level 점프 0회, printed_page 단조성 1.0, source grounding 18/18 (1.0), 본문 spot-check blocked_offset_fast_fail이다. 알고리즘_인생을계산하다_The_computer_science_of_human_decisions_BrianChristian: item 109개, level 분포 {1: 11, 2: 98}, level 점프 0회, printed_page 단조성 0.9815, source grounding 108/109 (0.9908), 본문 spot-check 1/8 (offset=0)이다.",
+      "finding": "미래를_바꾼_아홉가지_알고리즘_존_맥코믹_compressed_algorithm_cs_book: item 18개, level 분포 {1: 18}, level 점프 0회, printed_page 단조성 1.0, source grounding 18/18 (1.0), 본문 spot-check blocked_offset_fast_fail이다. 알고리즘_인생을계산하다_The_computer_science_of_human_decisions_BrianChristian: item 111개, level 분포 {1: 11, 2: 100}, level 점프 0회, printed_page 단조성 0.9796, source grounding 110/111 (0.991), 본문 spot-check 0/8 (offset=0)이다.",
       "command": "uv run python showcase/006_verify_toc_tree_and_content.py",
-      "ran_at": "2026-06-28T11:29:20+09:00"
+      "ran_at": "2026-06-28T12:54:36+09:00"
     },
     {
       "id": "007_bookmark_markdown_export",
