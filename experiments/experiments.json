@@ -249,6 +249,16 @@
       "temperature": 0.0,
       "finding": "5권 중 4권이 precision 1.0 recall 1.0으로 완벽했다. shreve_binomial(3-11, stage1_accept), luenberger_investment_science(7-20, stage2_backtrack — exp 004 binomial이 [7,8,20]을 놓쳤던 케이스를 완벽 복구), algorithm_nine(12, stage2_backtrack), algorithms_to_live_by(16-19, stage2_backtrack)가 P1.0 R1.0이다. john_hull은 recall 1.0이나 precision 0.923으로, extra page 17(TECHNICAL NOTES, 책 페이지 번호 없이 웹사이트 note 목록만 나열)을 forward expansion이 TOC로 포함했다. page 5 brief contents는 backward merge로 정확히 포착했다(recall 1.0). 결정적 detector baseline은 recall이 john_hull 0.5, shreve 0.889, luenberger 0.857로 낮았고 3단계 fallback이 모두 끌어올렸다. LLM 호출은 권당 3~16회다. 남은 100% 미달 원인은 brief/detailed contents 뒤에 이어지는 front-matter 목록(business snapshots는 페이지 번호 있어 GT 포함, technical notes는 페이지 번호 없어 GT 제외)의 미세 경계 한 page뿐이다.",
       "ran_at": "2026-06-26T18:49:14"
+    },
+    {
+      "id": "019_bookmark_tree_to_markdown_dir",
+      "purpose": "bookmark가 잘 있는 PDF의 bookmark 트리를 파일시스템 디렉터리 트리로 펼치고, 각 노드의 본문 텍스트를 markdown으로 저장하는 핵심 기능을 PoC로 검증한다.",
+      "inputs": [
+        "data\\scanned-pdf-indexed\\(Springer Finance) Steven E. Shreve - Stochastic Calculus for Finance I The Binomial Asset Pricing Model-Springer (2005)-indexed.pdf"
+      ],
+      "outputs": "experiments\\outputs\\019_bookmark_tree_to_markdown_dir",
+      "finding": "(Springer Finance) Steven E. Shreve - Stochastic Calculus for Finance I The Binomial Asset Pricing Model-Springer (2005)-indexed.pdf: bookmark 238개를 34개 root / 총 238개 노드 트리로 복원했다. 디렉터리 238개, markdown 238개(본문 있는 것 180개)를 experiments\\outputs\\019_bookmark_tree_to_markdown_dir\\(Springer Finance) Steven E. Shreve - Stochastic Calculus for Finance I The Bino 아래에 생성했다. page_count=349.",
+      "ran_at": "2026-06-28T12:11:55"
     }
   ]
 }
