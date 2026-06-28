@@ -347,6 +347,105 @@
       "temperature": 0.0,
       "finding": "john_hull: ArmA level={'1': 1, '2': 512}(starts1=True) -> ArmB level={'1': 44, '2': 76, '3': 355, '4': 39}(starts1=True, conflicts=114). weakref level agreement ArmA=0.9004(matched 462/470) -> ArmB=0.0714(matched 462/470) | luenberger_investment_science: ArmA level={'1': 1, '2': 481}(starts1=True) -> ArmB level={'1': 9, '2': 29, '3': 382}(starts1=True, conflicts=10). weakref level agreement ArmA=0.8462(matched 26/29) -> ArmB=0.5185(matched 27/29) | shreve_binomial: ArmA level={'1': 239}(starts1=True) -> ArmB level={'1': 25, '2': 139, '3': 62, '4': 11}(starts1=True, conflicts=71). weakref level agreement ArmA=0.1429(matched 238/238) -> ArmB=0.6597(matched 238/238) | algorithms_to_live_by: ArmA level={'1': 11, '2': 98}(starts1=True) -> ArmB level={'1': 12, '2': 78, '3': 10}(starts1=True, conflicts=1) | algorithm_nine: ArmA level={'1': 15}(starts1=True) -> ArmB level={'1': 15}(starts1=True, conflicts=11). 판단: 가설은 부분 검증. 번호 coverage가 높은 책(shreve: none 73/242)에서는 번호 reconciliation이 계층을 크게 개선했다(weakref 0.14->0.66). 그러나 번호 없는 줄이 다수인 책에서 LLM이 자유롭게 level을 매기자 과심화가 발생했다: john_hull(none 408/527)은 chapter는 L1로 올바르게 갔으나 번호 없는 절(Exchange-traded markets 등)이 LLM에 의해 L3/L4로 밀려 구조가 깨지고 weakref가 0.90->0.07로 붕괴했다. 회귀 가드 algorithms_to_live_by(none 69/70)도 2단 책에 가짜 L3(10개)가 생겨 깨졌다. algorithm_nine은 chapter 강제 덕분에 평탄 유지(reconciliation이 LLM 과심화 11건을 정정). 결정적 weakref 지표는 naive min-정규화라 평탄화(ArmA)가 지배적 bookmark 깊이에 우연히 맞아 높게 나오는 편향이 있으나, ArmB 트리 자체에서 절이 L4로 가는 과심화가 육안 확인된다. 결론: 번호 reconciliation(결정론 부분)은 유효하나 'LLM이 번호 없는 줄의 절대 level을 자유 결정'하는 완화가 약점이다. src 이식하지 않는다(hull/한국어 가드 회귀). 다음(024): 번호 구조를 skeleton으로 고정하고 번호 없는 줄은 직전 번호 부모 기준 상대 깊이로 부착하거나 height/x0 클러스터가 정한 최대 깊이로 bound해 LLM 과심화를 막는다. weakref 지표도 절대 level 일치 대신 parent-child/상대깊이 일치로 교체한다.",
       "ran_at": "2026-06-28T14:34:08"
+    },
+    {
+      "id": "024_toc_geometry_sequence_hierarchy",
+      "purpose": "번호의 값을 안 읽고 거터 geometry(title_x 들여쓰기 컬럼 + 구분자 깊이)로 계층 skeleton을 만들고, 읽히는 번호만 시퀀스 합의로 보정한다. height-only baseline(A), geometry(B1), geometry+sequence(B2)를 비교하고 bookmark weak ref로 상대 깊이 전이/절대 level 일치율을 잰다.",
+      "inputs": [
+        "data/native-pdf-indexed/John Hull - Options, Futures, and Other Derivatives, Global Edition-Pearson (2021).pdf",
+        "data/scanned-pdf-indexed/David G. Luenberger, Investment Science 2nd - adobeOCR - indexed.pdf",
+        "data/scanned-pdf-indexed/(Springer Finance) Steven E. Shreve - Stochastic Calculus for Finance I The Binomial Asset Pricing Model-Springer (2005)-indexed.pdf",
+        "data/scanned-pdf-not-indexed/알고리즘_인생을계산하다_The_computer_science_of_human_decisions_-_BrianChristian.pdf",
+        "data/scanned-pdf-not-indexed/미래를_바꾼_아홉가지_알고리즘_-_존_맥코믹-compressed[algorithm cs book].pdf"
+      ],
+      "outputs": "experiments\\outputs\\024_toc_geometry_sequence_hierarchy",
+      "labels": "experiments\\labels\\answer_toc_ranges_manual.json",
+      "model": "none(deterministic)",
+      "finding": "john_hull(regime=indent,gutter=0.142): A={'1': 1, '2': 516} B1={'1': 18, '2': 19, '3': 212, '4': 60, '5': 190, '6': 15, '7': 3} B2={'1': 18, '2': 19, '3': 212, '4': 60, '5': 190, '6': 15, '7': 3}(changes=0). rel_depth A=0.8395/B1=0.8134/B2=0.8134 (abs A=0.9004/B2=0.0216) | luenberger_investment_science(regime=indent,gutter=0.0): A={'1': 1, '2': 489} B1={'1': 5, '2': 483, '3': 2} B2={'1': 5, '2': 483, '3': 2}(changes=0). rel_depth A=0.6667/B1=0.6667/B2=0.6667 (abs A=0.84/B2=0.84) | shreve_binomial(regime=indent,gutter=0.64): A={'1': 241} B1={'1': 49, '2': 45, '3': 129, '4': 15, '5': 1, '6': 2} B2={'1': 49, '2': 45, '3': 129, '4': 15, '5': 1, '6': 2}(changes=0). rel_depth A=0.6878/B1=0.7637/B2=0.7637 (abs A=0.1429/B2=0.3193) | algorithms_to_live_by(regime=indent,gutter=0.057): A={'1': 11, '2': 57} B1={'1': 61, '2': 3, '3': 2, '4': 2} B2={'1': 61, '2': 3, '3': 2, '4': 2}(changes=0) | algorithm_nine(regime=indent,gutter=0.0): A={'1': 15} B1={'1': 11, '2': 4} B2={'1': 11, '2': 4}(changes=0) || 판단: 가설 실패. (1) title_x 들여쓰기 컬럼을 primary 깊이 신호로 쓰자 OCR x-jitter와 dot leader가 가짜 봉우리를 만들어 john_hull이 7개 level로 과분할되고 abs_level 0.90->0.02로 023보다 더 붕괴했다. rel_depth도 A(height-only)=0.84 vs B2=0.81로 geometry가 오히려 약간 낮다. (2) height fallback 가드가 작동하지 않았다: 한국어 평탄책(algorithm_nine, algorithms_to_live_by)도 x-jitter로 cut point가 생겨 indent regime으로 빠졌고 021의 2단 구조({L1:11,L2:100})를 잘못 평탄화/과분할했다. (3) 시퀀스 보정(idea 1)이 전 책 changes=0으로 무동작: 챕터 번호가 거터(첫 글자 span 이전)가 아니라 제목 span 안('Chapter 1.')에 있어 has_gutter가 안 잡히고, 잡히는 shreve도 단조성 로직이 부모 리셋을 무시해 보수적이었다. 유일 개선은 shreve(gutter=0.64) rel_depth 0.69->0.76, abs 0.14->0.32. 종합 1권 악화·2권 오평탄화·1권 개선으로 src 이식하지 않는다. 결론: 들여쓰기(title_x)는 OCR 스캔본에서 단독 primary 깊이 신호로 부적합하다(노이즈 과다). 다음(025) 방향: (a) 거터 분리를 '첫 글자 span 이전'이 아니라 제목 prefix 토큰('Chapter/제N장/N.M')에서 뽑아 챕터 번호를 실제로 포착하고, (b) 컬럼 클러스터에 max-depth bound(=height tier 수)와 최소 봉우리 간격을 둬 x-jitter 과분할을 막고, (c) height fallback 판정을 cut 존재가 아니라 컬럼 분리도(실효 봉우리 간 간격/비중)로 바꿔 평탄책 가드를 복구한다.",
+      "ran_at": "2026-06-28T16:38:04"
+    },
+    {
+      "id": "025_toc_xbin_three_stage_llm",
+      "purpose": "height tier(유효)는 유지하고 x를 page 폭 기준 10 bin으로 이산화해 신호로 준다. workflow를 3개 LLM call로 분리한다(Call1 schema 결정 / Call2 항목 채우기 / Call3 제목 교정). Call2는 Arm L(코드가 tier->level) vs Arm R(LLM이 schema bound 안에서 level 추론)로 비교하고 bookmark weak ref로 rel_depth/abs level 일치율과 교정 전후 match_rate를 잰다.",
+      "inputs": [
+        "data/native-pdf-indexed/John Hull - Options, Futures, and Other Derivatives, Global Edition-Pearson (2021).pdf",
+        "data/scanned-pdf-indexed/David G. Luenberger, Investment Science 2nd - adobeOCR - indexed.pdf",
+        "data/scanned-pdf-indexed/(Springer Finance) Steven E. Shreve - Stochastic Calculus for Finance I The Binomial Asset Pricing Model-Springer (2005)-indexed.pdf",
+        "data/scanned-pdf-not-indexed/알고리즘_인생을계산하다_The_computer_science_of_human_decisions_-_BrianChristian.pdf",
+        "data/scanned-pdf-not-indexed/미래를_바꾼_아홉가지_알고리즘_-_존_맥코믹-compressed[algorithm cs book].pdf"
+      ],
+      "outputs": "experiments\\outputs\\025_toc_xbin_three_stage_llm",
+      "labels": "experiments\\labels\\answer_toc_ranges_manual.json",
+      "model": "solar-pro3",
+      "temperature": 0.0,
+      "finding": "john_hull(n=2): L={'1': 1, '2': 513} R={'1': 1, '2': 511}. rel_depth L=0.8395/R=0.8475 abs L=0.9004/R=0.9043 match 0.9787->corr 0.9787 | luenberger_investment_science(n=2): L={'1': 1, '2': 482} R={'1': 1, '2': 475}. rel_depth L=0.76/R=0.76 abs L=0.8846/R=0.8846 match 0.8966->corr 0.8966 | shreve_binomial(n=1): L={'1': 239} R={'1': 163}. rel_depth L=0.6864/R=0.6348 abs L=0.1435/R=0.1899 match 0.7521->corr 0.7521 | algorithms_to_live_by(n=2): L={'1': 11, '2': 101} R={'1': 25, '2': 59} | algorithm_nine(n=1): L={'1': 18} R={'1': 11} || 판단: 부분 성공 + 핵심 병목 규명. (수확1) xbin(page폭 10 bin) + tier 조합은 안정적 — 023(hull 0.90->0.07)·024(0.90->0.02)의 catastrophic collapse가 사라졌다. 10-bin 이산화가 024의 raw-x jitter 과분할을 눌렀다. (수확2) Call 3 제목 교정은 명백한 성공: 한국어 OCR 제목이 극적으로 깨끗해졌다('1장l시작하며:컴퓨터를움직이는위대한아이디어들'->'1장 시작하며: 컴퓨터를 움직이는 위대한 아이디어들'). 영어책은 원래 깨끗해 match_rate 무변(0.98->0.98)이나 한국어 교정 품질은 즉시 이식 가능 수준. (수확3) Arm L(코드가 tier->level 소유) > Arm R: 핵심 케이스 algorithms_to_live_by에서 L은 021의 검증된 {L1:11,L2:101}을 재현, R은 {25,59}로 L1 과생성. R은 항목도 빠뜨림(shreve 163 vs 239, nine 11 vs 18). -> R 폐기, L 채택. (미해결) 다단계 영어 계층 미복원, 원인 규명됨: 계층 깊이가 height tier 개수에 묶여 있는데 영어책은 height만으론 chapter/section을 못 가른다. hull/luenberger n_levels=2(거의 평탄, Chapter도 L2), shreve n_levels=1(완전 평탄). xbin을 LLM에 줬지만 레벨 수가 tier로 고정돼 xbin이 깊이를 만들 기회가 없었다(Arm L은 level=tier만, Arm R은 n_levels로 bound). hull abs 0.90은 023이 경고한 평탄화 편향(거의 평탄한 트리가 지배적 bookmark 깊이에 우연히 맞음)이고 rel_depth가 더 정직하다. 결론: Arm L + Call3 교정은 src 이식 후보. 그러나 핵심 과제는 '레벨 수를 height tier에서만 뽑는' 제약. 다음(026): 레벨 키를 tier 단독이 아니라 (tier x xbin)으로 만들어, tier가 퇴화한 영어책(shreve n=1, hull n=2)이 들여쓰기 bin에서 깊이를 얻게 한다. 024는 raw-x KDE로 실패했지만 coarse 10-bin은 robust해 이번엔 통할 가능성. 계층은 여전히 코드가 결정론적으로 소유(Arm L 정신 유지).",
+      "ran_at": "2026-06-28T17:05:03"
+    },
+    {
+      "id": "026_toc_indent_font_levels",
+      "purpose": "영어책은 들여쓰기, 한국어책은 font가 계층을 진다는 관찰에 따라 indentation 컬럼(robust gap 클러스터)과 height tier를 결합하되 어느 쪽도 레벨 수를 cap 하지 않는다. Arm H(tier만)/C(컬럼만)/HC(결합)를 비교하고 bookmark weak ref로 rel_depth/abs level 일치율을 잰다. 결정론(LLM 미사용).",
+      "inputs": [
+        "data/native-pdf-indexed/John Hull - Options, Futures, and Other Derivatives, Global Edition-Pearson (2021).pdf",
+        "data/scanned-pdf-indexed/David G. Luenberger, Investment Science 2nd - adobeOCR - indexed.pdf",
+        "data/scanned-pdf-indexed/(Springer Finance) Steven E. Shreve - Stochastic Calculus for Finance I The Binomial Asset Pricing Model-Springer (2005)-indexed.pdf",
+        "data/scanned-pdf-not-indexed/알고리즘_인생을계산하다_The_computer_science_of_human_decisions_-_BrianChristian.pdf",
+        "data/scanned-pdf-not-indexed/미래를_바꾼_아홉가지_알고리즘_-_존_맥코믹-compressed[algorithm cs book].pdf"
+      ],
+      "outputs": "experiments\\outputs\\026_toc_indent_font_levels",
+      "labels": "experiments\\labels\\answer_toc_ranges_manual.json",
+      "model": "none(deterministic)",
+      "finding": "john_hull(cols=[72.0, 97.1, 148.1, 177.1, 221.8],nH=2,nC=5,nHC=6): H={'1': 1, '2': 516} C={'1': 18, '2': 19, '3': 272, '4': 205, '5': 3} HC={'1': 18, '2': 19, '3': 272, '4': 205, '5': 1, '6': 2}. rel_depth H=0.8395/C=0.8286/HC=0.8286 abs H=0.9004/HC=0.0216 | luenberger_investment_science(cols=[56.5, 302.0, 447.8],nH=2,nC=3,nHC=4): H={'1': 1, '2': 489} C={'1': 8, '2': 456, '3': 26} HC={'1': 8, '2': 1, '3': 455, '4': 26}. rel_depth H=0.68/C=0.64/HC=0.64 abs H=0.8462/HC=0.0 | shreve_binomial(cols=[106.3, 131.6, 166.3, 250.4],nH=1,nC=4,nHC=4): H={'1': 241} C={'1': 49, '2': 174, '3': 15, '4': 3} HC={'1': 49, '2': 174, '3': 15, '4': 3}. rel_depth H=0.6878/C=0.8481/HC=0.8481 abs H=0.1429/HC=0.8403 | algorithms_to_live_by(cols=[103.1, 171.0, 230.2],nH=2,nC=3,nHC=4): H={'1': 11, '2': 57} C={'1': 60, '2': 4, '3': 4} HC={'1': 11, '2': 49, '3': 4, '4': 4} | algorithm_nine(cols=[62.0, 84.4],nH=1,nC=2,nHC=2): H={'1': 15} C={'1': 11, '2': 4} HC={'1': 11, '2': 4} || 판단: 핵심 아이디어 검증 성공(사용자 정정 적중). 'tier로 레벨 수를 cap'하는 021/025 방식이 영어 다단계 책을 평탄화한 근본 오류였다. 결합(HC: 컬럼 primary, tier로 컬럼 내 tie-break, 어느 쪽도 cap 안 함)이 옳았다. (돌파구) shreve: H(tier만) rel 0.69/abs 0.14 -> HC rel 0.85/abs 0.84. 실제 1/1.1/1.5.1 구조 복원(Introduction L1 -> Finite Probability Spaces L2 -> Independence of sets L3). columns=[106/131/166/250], 250은 wrapped 조각 잡음. (한국어 보존) algorithms_to_live_by: 들여쓰기 균일이라 컬럼만(C)은 {1:60} 실패하지만 HC는 font tier가 11개 장을 L1로 잡아 {1:11,2:49,...} 정답(021 재현). algorithm_nine HC {1:11,2:4}로 11장 L1+부속 L2, 025보다 깔끔. -> 결합이 두 계열을 모두 커버. (미흡) hull: rel 0.83으로 모양은 baseline급이나 abs 0.02 — x=97 phantom 컬럼이 장->절을 L2 대신 L3로 한 칸 미는 off-by-one. luenberger: 스캔 OCR title_x 컬럼이 [56/302/447]로 붕괴, rel 0.64. 결론: 결정론 결합 HC를 핵심 계층 엔진으로 채택 방향. 남은 과제는 컬럼 검출 robustness. 다음(027): (a) 컬럼 support 가중/병합으로 hull 중간·front-matter phantom 컬럼 제거(off-by-one 해결), (b) luenberger 같은 노이즈 스캔에서 title_x 이상치(우측 page-number/continuation) 제거 후 컬럼 검출, (c) HC 위에 025 Call3 제목 교정을 얹어 한국어 항목 분리까지 결합. 계층은 계속 코드가 결정론적으로 소유.",
+      "ran_at": "2026-06-28T17:18:24"
+    },
+    {
+      "id": "027_toc_hint_llm_decides",
+      "purpose": "font tier + robust indent 컬럼을 ordinal 힌트(T/C)로만 주고 계층 레벨은 LLM이 결정한다(레벨 수 cap 없음). Stage1 schema 결정 / Stage2 level 부여 / Stage3 제목 교정. 026 HC(결정론)와 비교하고 bookmark weak ref로 rel_depth/abs를 잰다. lexical 채널은 제외. luenberger bookmark는 Part/Chapter까지뿐이라 정답 아님.",
+      "inputs": [
+        "data/native-pdf-indexed/John Hull - Options, Futures, and Other Derivatives, Global Edition-Pearson (2021).pdf",
+        "data/scanned-pdf-indexed/David G. Luenberger, Investment Science 2nd - adobeOCR - indexed.pdf",
+        "data/scanned-pdf-indexed/(Springer Finance) Steven E. Shreve - Stochastic Calculus for Finance I The Binomial Asset Pricing Model-Springer (2005)-indexed.pdf",
+        "data/scanned-pdf-not-indexed/알고리즘_인생을계산하다_The_computer_science_of_human_decisions_-_BrianChristian.pdf",
+        "data/scanned-pdf-not-indexed/미래를_바꾼_아홉가지_알고리즘_-_존_맥코믹-compressed[algorithm cs book].pdf"
+      ],
+      "outputs": "experiments\\outputs\\027_toc_hint_llm_decides",
+      "labels": "experiments\\labels\\answer_toc_ranges_manual.json",
+      "model": "solar-pro3",
+      "temperature": 0.0,
+      "finding": "john_hull(tiers=2,cols=[72.0, 97.1, 148.1, 177.1, 221.8]): HC={'1': 18, '2': 19, '3': 272, '4': 205, '5': 1, '6': 2} LLM={'1': 1, '2': 106, '3': 162, '4': 245}. rel_depth HC=0.8286/LLM=0.8113 abs HC=0.0216/LLM=0.0628 match 0.983 | luenberger_investment_science(tiers=2,cols=[56.5, 302.0, 447.8]): HC={'1': 8, '2': 1, '3': 455, '4': 26} LLM={'1': 2, '2': 39, '3': 395, '4': 41, '5': 8}. rel_depth HC=0.64/LLM=0.5385 abs HC=0.0/LLM=0.1111 match 0.931 | shreve_binomial(tiers=1,cols=[106.3, 131.6, 166.3, 250.4]): HC={'1': 49, '2': 174, '3': 15, '4': 3} LLM={'1': 89, '2': 136, '3': 11}. rel_depth HC=0.8481/LLM=0.7839 abs HC=0.8403/LLM=0.6962 match 0.9958 | algorithms_to_live_by(tiers=2,cols=[103.1, 171.0, 230.2]): HC={'1': 11, '2': 49, '3': 4, '4': 4} LLM={'1': 63, '2': 36} | algorithm_nine(tiers=1,cols=[62.0, 84.4]): HC={'1': 11, '2': 4} LLM={'1': 8, '2': 11} || 판단: 명확한 negative — '계층은 LLM이 결정'은 데이터에 안 맞는다. 동일한 font+indent ordinal 힌트(T/C)를 줘도 결정론 026 HC가 5권 전부에서 LLM 결정 027을 앞섰다. shreve rel 0.85->0.78/abs 0.84->0.70(돌파구를 LLM이 깎음), hull rel 0.83->0.81(+over-deepen: 장이 L3, 절 L4), luenberger rel 0.64->0.54. 가장 심각: 한국어책 계층 역전 — algorithms는 HC {1:11,2:49} 정답인데 LLM은 {1:63,2:36}로 페이지번호 있는 '항목'을 L1, 큰 글씨 '장'을 L2로 뒤집었다(font=T 힌트 무시). nine도 HC {1:11,2:4} -> LLM {1:8,2:11}로 부속을 L1, 실제 11개 장을 L2로 역전. 023(자유추론 over-deepen)·025(schema bound 왜곡)에 이어 세 번째로 같은 결론: LLM에게 level 결정을 맡기면 불안정하다. 반면 Stage3 제목 교정은 또 성공(비서 문제/1장 시작하며 등 깨끗). 결론: 올바른 분업은 사용자 제안과 반대 — 계층은 코드 결정론(026 HC)이 소유하고 LLM은 제목 교정+항목 분리만 맡는다. 다음(028): 026 HC를 계층 엔진으로 고정하고 그 위에 LLM 항목분리(한 줄 다항목)+제목교정만 얹어 결합. 그리고 026의 남은 robustness(hull phantom 컬럼 corroborated merge, luenberger 노이즈)만 결정론으로 보강.",
+      "ran_at": "2026-06-28T17:47:12"
+    },
+    {
+      "id": "028_toc_multifeature_cluster",
+      "purpose": "height+indent+is_bold+font_type 4 feature를 signature 클러스터로 묶고 prominence(bold>height>왼쪽)로 정렬해 계층 레벨을 결정한다(결정론). indent는 026 robust 컬럼 + 신뢰도 게이트(노이즈 스캔이면 폐기). 026 HC와 비교하고 bookmark weak ref로 rel_depth/abs를 잰다. 목표: luenberger를 글꼴/굵기로 복원하면서 shreve/한국어 회귀 방지.",
+      "inputs": [
+        "data/native-pdf-indexed/John Hull - Options, Futures, and Other Derivatives, Global Edition-Pearson (2021).pdf",
+        "data/scanned-pdf-indexed/David G. Luenberger, Investment Science 2nd - adobeOCR - indexed.pdf",
+        "data/scanned-pdf-indexed/(Springer Finance) Steven E. Shreve - Stochastic Calculus for Finance I The Binomial Asset Pricing Model-Springer (2005)-indexed.pdf",
+        "data/scanned-pdf-not-indexed/알고리즘_인생을계산하다_The_computer_science_of_human_decisions_-_BrianChristian.pdf",
+        "data/scanned-pdf-not-indexed/미래를_바꾼_아홉가지_알고리즘_-_존_맥코믹-compressed[algorithm cs book].pdf"
+      ],
+      "outputs": "experiments\\outputs\\028_toc_multifeature_cluster",
+      "labels": "experiments\\labels\\answer_toc_ranges_manual.json",
+      "model": "none(deterministic)",
+      "finding": "john_hull(reliable_cols=True,n=7): HC={'1': 18, '2': 19, '3': 272, '4': 205, '5': 1, '6': 2} MF={'1': 1, '2': 18, '3': 19, '4': 9, '5': 205, '6': 2, '7': 263}. rel_depth HC=0.8286/MF=0.82 abs HC=0.0216/MF=0.0 | luenberger_investment_science(reliable_cols=False,n=5): HC={'1': 8, '2': 1, '3': 455, '4': 26} MF={'1': 1, '2': 1, '3': 22, '4': 258, '5': 208}. rel_depth HC=0.64/MF=0.28 abs HC=0.0/MF=0.0 | shreve_binomial(reliable_cols=True,n=5): HC={'1': 49, '2': 174, '3': 15, '4': 3} MF={'1': 34, '2': 15, '3': 15, '4': 174, '5': 3}. rel_depth HC=0.8481/MF=0.8354 abs HC=0.8403/MF=0.2227 | algorithms_to_live_by(reliable_cols=False,n=2): HC={'1': 11, '2': 49, '3': 4, '4': 4} MF={'1': 11, '2': 57} | algorithm_nine(reliable_cols=True,n=2): HC={'1': 11, '2': 4} MF={'1': 11, '2': 4} || 판단: 클러스터링은 성공, 클러스터->레벨 순서매기기(ranking)가 새 병목. (성과) 4-feature signature 클러스터가 글꼴로 luenberger의 숨은 3계층을 정확히 분리: helvetica-bold(Chapter,22) / times(Section,258) / helvetica(Subsection,208). HC는 전부 L3로 뭉갰는데 MF 트리는 Chapter->Section->Subsection 중첩이 실제로 나온다 — HC가 못 하던 핵심. algorithms({11,57})·nine({11,4})도 정답 유지(height 담당, col은 신뢰도 게이트로 적절히 폐기). (문제) 고정 prominence(bold>height>col)가 두 책을 망침: shreve abs 0.84->0.22 — 클러스터는 완벽한데 비-bold 그룹을 height로 먼저 정렬해 미세 height 노이즈가 col 순서를 뒤섞음(col1->L2,col2->L4,col3->L3). rel_depth는 0.848->0.835로 거의 유지(모양 OK, 절대레벨만 어긋남). luenberger Part(Times)가 Section 클러스터에 묶여 Chapter보다 아래로 역전(bookmark Part>Chapter와 반대) -- 단 bookmark가 Part/Chapter만이라 이 지표는 MF의 Section/Subsection 분리 성과를 못 봄. hull은 col 드리프트+bold가 겹쳐 여전히 어수선. (결론) feature 클러스터링은 옳다(각 책 판별신호가 다른 클러스터에 정확히 잡힘). 남은 문제는 '클러스터를 어떤 축으로 정렬해 레벨을 줄지'인데 축이 책마다 다름(shreve=col, luenberger=font/height, algorithms=height) -> 고정 우선순위로는 불가. 다음(029): 클러스터 순서를 고정 prominence 대신 (a) reading-order 중첩(어떤 클러스터가 다른 클러스터 아래 일관되게 나오면 child) 또는 (b) 책별로 실제 변하는(분산 큰) feature를 정렬 축으로 자동 선택. 클러스터 형성 로직은 유지.",
+      "ran_at": "2026-06-28T18:32:51"
+    },
+    {
+      "id": "029_toc_cluster_llm_order",
+      "purpose": "결정론 멀티피처 클러스터(028)는 그대로 두고, 클러스터의 순서(레벨)만 LLM이 1콜로 결정한다(같은 level 허용=병합). LLM은 줄이 아니라 소수 클러스터를 글꼴/굵기/높이/컬럼/예시 제목으로 보고 순서만 정한다. 028 MF(고정 prominence)와 비교하고 bookmark weak ref로 rel_depth/abs를 잰다.",
+      "inputs": [
+        "data/native-pdf-indexed/John Hull - Options, Futures, and Other Derivatives, Global Edition-Pearson (2021).pdf",
+        "data/scanned-pdf-indexed/David G. Luenberger, Investment Science 2nd - adobeOCR - indexed.pdf",
+        "data/scanned-pdf-indexed/(Springer Finance) Steven E. Shreve - Stochastic Calculus for Finance I The Binomial Asset Pricing Model-Springer (2005)-indexed.pdf",
+        "data/scanned-pdf-not-indexed/알고리즘_인생을계산하다_The_computer_science_of_human_decisions_-_BrianChristian.pdf",
+        "data/scanned-pdf-not-indexed/미래를_바꾼_아홉가지_알고리즘_-_존_맥코믹-compressed[algorithm cs book].pdf"
+      ],
+      "outputs": "experiments\\outputs\\029_toc_cluster_llm_order",
+      "labels": "experiments\\labels\\answer_toc_ranges_manual.json",
+      "model": "solar-pro3",
+      "temperature": 0.0,
+      "finding": "john_hull(clusters=7,reliable_cols=True): MF={'1': 1, '2': 18, '3': 19, '4': 9, '5': 263, '6': 205, '7': 2} LLM={'1': 38, '2': 479}. rel_depth MF=0.8265/LLM=0.9436 abs MF=0.0/LLM=0.9545 | luenberger_investment_science(clusters=5,reliable_cols=False): MF={'1': 1, '2': 1, '3': 22, '4': 258, '5': 208} LLM={'1': 24, '2': 466}. rel_depth MF=0.28/LLM=0.32 abs MF=0.0/LLM=0.5769 | shreve_binomial(clusters=5,reliable_cols=True): MF={'1': 34, '2': 15, '3': 174, '4': 15, '5': 3} LLM={'1': 34, '2': 189, '3': 15, '4': 3}. rel_depth MF=0.8481/LLM=0.8734 abs MF=0.2143/LLM=0.895 | algorithms_to_live_by(clusters=2,reliable_cols=False): MF={'1': 11, '2': 57} LLM={'1': 11, '2': 57} | algorithm_nine(clusters=2,reliable_cols=True): MF={'1': 11, '2': 4} LLM={'1': 11, '2': 4} || 판단: 결정적 승리 — '결정론 클러스터 + LLM이 클러스터 순서만 결정'이 전 실험 통틀어 최고. 끈질긴 실패였던 hull이 사실상 해결됨. hull abs 0.02->0.955, rel ->0.944: LLM이 드리프트된 장 클러스터(col1/col2)를 examples('Chapter 1'/'Chapter 4')로 읽고 같은 L1로 병합 -> 깨끗한 2단. 결정론으로 불가능했던 'shreve 안 깨고 hull 병합'을 LLM이 함. shreve abs 0.84->0.895(028 MF의 col-뒤섞임 0.22 교정), rel 0.873 — 신기록. algorithms {11,57}/nine {11,4} 정답 유지, 027의 한국어 역전 사라짐(LLM이 클러스터 2개만 순서매기니 큰 글씨를 L1로 올바르게). luenberger abs 0->0.577로 개선(단 Section/Subsection을 한 L2로 병합, Part 잔존; bookmark가 정답 아님). 분업 확정: 027(LLM 줄마다 결정)=역전 실패, 028(코드 고정규칙 순서)=책별 축 달라 실패, 029(코드 클러스터 + LLM 순서/병합)=승리. 비용 1콜/책. 결론: 이 아키텍처를 채택 — (1) 결정론 멀티피처 클러스터(028: height+indent+is_bold+font_type, col 신뢰도 게이트), (2) LLM 1콜로 클러스터 순서·병합, (3) 025 Call3 제목교정+항목분리. src SizeAwareStagedTocExtractor의 tier-cap 계층 로직을 이걸로 교체할 후보. 다음(030 또는 src 이식): luenberger Section/Subsection 분리 개선(예시를 클러스터별 글꼴까지 더 명시) + 항목분리/교정 결합 통합.",
+      "ran_at": "2026-06-28T18:38:51"
     }
   ]
 }
