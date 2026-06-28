@@ -251,6 +251,37 @@
       "ran_at": "2026-06-26T18:49:14"
     },
     {
+      "id": "017_toc_font_size_cluster_hierarchy",
+      "purpose": "scanned OCR 책 목차가 장/절/소절을 번호 없이 글씨 크기로만 구분하는 문제를 풀기 위해, TOC 줄의 textbox height만 입력으로 계층 tier를 클러스터링한다. tier 개수는 KMeans처럼 고정하지 않고 1D KDE 밀도 봉우리 개수로 데이터가 정한다. LLM은 호출하지 않고 클러스터링이 tier를 깨끗이 가르는지부터 결정론적으로 검증한다.",
+      "inputs": [
+        "data/native-pdf-indexed/John Hull - Options, Futures, and Other Derivatives, Global Edition-Pearson (2021).pdf",
+        "data/scanned-pdf-indexed/(Springer Finance) Steven E. Shreve - Stochastic Calculus for Finance I The Binomial Asset Pricing Model-Springer (2005)-indexed.pdf",
+        "data/scanned-pdf-indexed/David G. Luenberger, Investment Science 2nd - adobeOCR - indexed.pdf",
+        "data/scanned-pdf-not-indexed/미래를_바꾼_아홉가지_알고리즘_-_존_맥코믹-compressed[algorithm cs book].pdf",
+        "data/scanned-pdf-not-indexed/알고리즘_인생을계산하다_The_computer_science_of_human_decisions_-_BrianChristian.pdf"
+      ],
+      "outputs": "experiments\\outputs\\017_toc_font_size_cluster_hierarchy",
+      "labels": "experiments\\labels\\answer_toc_ranges_manual.json",
+      "clustering": "1D gaussian_kde(Scott bandwidth) 봉우리/골짜기, k 미고정",
+      "finding": "TOC 줄의 textbox height(span bbox 높이) 1개만 입력으로 1D gaussian_kde(Scott bandwidth) 봉우리/골짜기 클러스터링을 했다(KMeans처럼 k 미고정, 봉우리 개수=tier 개수). algorithms_to_live_by: tiers=2(peak 25.35 vs 8.94, cut 18.13). T1(h24~30) 큰 글씨 장 제목 11줄(살펴보는 일을 멈춰야 할 때 / 가장 최신의 것 vs 가장 좋은 것 / 질서를 찾다-정렬하기 등), T2(h7~11) 항목 59줄(비서문제/37%/연인의 뛰어들기/탐색·이용/기간을 움켜쥐어라). showcase 006에서 평탄화됐던 장-항목 계층을 height 클러스터링이 정확히 복원했다. algorithm_nine: tiers=2, T1(h10.6) '목차' 제목, T2(h7~8.6) 9개 장 전부 한 tier로 평탄한 책을 평탄하게 유지. john_hull: tiers=2, T1(h17.5) 'CONTENTS IN BRIEF' 헤더 3줄, T2(h11.2) 항목 571줄. shreve_binomial: tiers=2, T1(h34.5) 'Contents' 제목, T2(h14.6~15.4) 항목. luenberger_investment_science: tiers=3, T1/T2(h41~43)는 'BRIEF CONTENTS' 제목이 미세 높이차로 과분할, T3(h12~15) 모든 Part/Chapter 동일 tier. 드러난 한계 3가지: (1) 최상위 tier가 흔히 'Contents/목차/BRIEF CONTENTS' page 제목이라 실제 계층 레벨이 아니다(다운스트림에서 제목 tier 구분 필요), (2) 한국어 2단 목차는 OCR이 'A·p I B·p I C·p'처럼 여러 항목을 한 줄에 합쳐 height는 tier만 주고 항목 분리는 LLM/regex 몫이다, (3) 제목이 미세 높이차로 과분할될 수 있어 봉우리 간 상대 간격 기준 tier 병합 후처리 여지가 있다. 결론: height 1D를 k 미고정 밀도 클러스터링하면 사람이 보는 글씨 tier가 복원되어, 다음 단계로 이 tier를 enriched prompt로 LLM에 먹여 항목 분리+레벨 부여를 시도할 근거가 된다. LLM은 이 실험에서 호출하지 않았다.",
+      "ran_at": "2026-06-28T11:40:59+09:00"
+    },
+    {
+      "id": "018_toc_size_aware_llm_extraction",
+      "purpose": "experiment 017의 글씨 height tier를 [Tn] 마커로 prompt에 입혀 solar-pro3가 목차 계층 레벨을 제대로 매기는지, 현재 평탄 baseline(LlmTocExtractor)과 비교 검증한다. LLM은 레벨을 추론하지 않고 [Tn]을 그대로 복사하며, tier->level은 코드에서 정규화한다.",
+      "inputs": [
+        "data/scanned-pdf-not-indexed/알고리즘_인생을계산하다_The_computer_science_of_human_decisions_-_BrianChristian.pdf",
+        "data/scanned-pdf-not-indexed/미래를_바꾼_아홉가지_알고리즘_-_존_맥코믹-compressed[algorithm cs book].pdf"
+      ],
+      "outputs": "experiments\\outputs\\018_toc_size_aware_llm_extraction",
+      "labels": "experiments\\labels\\answer_toc_ranges_manual.json",
+      "model": "solar-pro3",
+      "temperature": 0.0,
+      "source_experiment": "017_toc_font_size_cluster_hierarchy",
+      "finding": "experiment 017의 height tier를 [Tn] 마커로 prompt에 입혀 solar-pro3로 목차를 추출하고, tier 없는 현재 공개 인터페이스(LlmTocExtractor) 평탄 추출과 비교했다. TOC page는 GT 라벨 사용. 결과: (1) 계층 신호는 성공 — prompt에 11개 장이 모두 [T1]로 정확히 표시됐고, enriched는 이를 받아 장(L1) 아래 항목(L2) 중첩을 복원했다(algorithms_to_live_by baseline {L1:11,L2:98}는 장이 평탄화돼 섞였지만 enriched는 {L1:7,L2:102}로 '7많최신의것 vs 가장좋은것'(L1) 아래 '탐색·이용/기간을 움켜쥐어라'(L2) 구조 생성). algorithm_nine은 평탄한 책이라 평탄 유지(L1 18~19, 과중첩 없음). (2) 남은 문제는 계층이 아니라 OCR 잡음 — 11개 장 중 7개만 유지되고 4개 누락(살펴보는 일을 멈춰야 할 때, 잊어라, 중요한것부터하라, 미래여). 전부 OCR이 심하게 깨진 줄(-細龜, -寧거幽, 區-園 O 뜨퍄). '[T1]은 깨졌어도 절대 빼지 말라'고 명시해도 LLM이 깨진 텍스트를 항목이 아니라고 보고 계속 버린다. 핵심 교훈: 계층은 클러스터가 결정론적으로 정하므로 LLM이 T1 줄을 버릴지 판단하게 두면 안 된다. 다음: T1 줄은 코드가 직접 L1로 확정하거나, 추출 결과를 LLM이 재검증(critic)해 누락을 지적하고 재추출하는 루프(experiment 019)로 보완한다.",
+      "ran_at": "2026-06-28T11:59:48+09:00"
+    },
+    {
       "id": "019_bookmark_tree_to_markdown_dir",
       "purpose": "bookmark가 잘 있는 PDF의 bookmark 트리를 파일시스템 디렉터리 트리로 펼치고, 각 노드의 본문 텍스트를 markdown으로 저장하는 핵심 기능을 PoC로 검증한다.",
       "inputs": [
@@ -259,6 +290,36 @@
       "outputs": "experiments\\outputs\\019_bookmark_tree_to_markdown_dir",
       "finding": "(Springer Finance) Steven E. Shreve - Stochastic Calculus for Finance I The Binomial Asset Pricing Model-Springer (2005)-indexed.pdf: bookmark 238개를 34개 root / 총 238개 노드 트리로 복원했다. 디렉터리 238개, markdown 238개(본문 있는 것 180개)를 experiments\\outputs\\019_bookmark_tree_to_markdown_dir\\(Springer Finance) Steven E. Shreve - Stochastic Calculus for Finance I The Bino 아래에 생성했다. page_count=349.",
       "ran_at": "2026-06-28T12:11:55"
+    },
+    {
+      "id": "020_toc_extraction_repair_glyph_hierarchy",
+      "purpose": "재검증 루프를 폐기하고, 추출 한 번에서 LLM이 깨진 OCR 글씨를 복원하고 글씨 tier가 정한 계층대로 모든 장을 빠짐없이 출력하게 한다. 클러스터가 아는 장 목록을 prompt에 명시해 누락 판단을 LLM에 맡기지 않는다.",
+      "inputs": [
+        "data/scanned-pdf-not-indexed/알고리즘_인생을계산하다_The_computer_science_of_human_decisions_-_BrianChristian.pdf",
+        "data/scanned-pdf-not-indexed/미래를_바꾼_아홉가지_알고리즘_-_존_맥코믹-compressed[algorithm cs book].pdf"
+      ],
+      "outputs": "experiments\\outputs\\020_toc_extraction_repair_glyph_hierarchy",
+      "labels": "experiments\\labels\\answer_toc_ranges_manual.json",
+      "model": "solar-pro3",
+      "temperature": 0.0,
+      "source_experiment": "018_toc_size_aware_llm_extraction",
+      "finding": "장 목록을 prompt에 명시하고 '깨졌어도 빼지 말고 고쳐서 L1으로'라고 지시하니 algorithms_to_live_by 11개 장이 모두 유지되고(L1=11/11) 깨진 글씨도 복원됐다(미래여區-園 O 뜨퍄 -> 미래를 내다보라). 그러나 목차 전체를 한 번에 던지자 LLM이 장 11개를 먼저 몰아 출력하고 항목 100여 개를 뒤에 몰아, 항목이 제 장 아래로 안 붙고 트리 순서(부모-자식 결속)가 깨졌다. 누락/글씨 복원은 됐지만 순서 보존이 안 되는 것이 한계. 다음(021): 페이지 단위 단계적 추출로 순서를 보존한다.",
+      "ran_at": "2026-06-28T12:33:32+09:00"
+    },
+    {
+      "id": "021_toc_staged_schema_then_extract",
+      "purpose": "단계적 prompt로 순서를 보존하고 계층을 안정화한다. 1단계는 글씨 height 클러스터가 고정한 content tier 수로 계층 스키마(레벨 이름/cue)를 정하고, 2단계는 그 스키마를 매 prompt에 동봉해 페이지별로 structured output 추출한다. 2단계 LLM은 tier/계층을 건드리지 않고 줄의 [Tn]만 복사하며, level은 코드가 tier->level 매핑으로 부여한다.",
+      "inputs": [
+        "data/scanned-pdf-not-indexed/알고리즘_인생을계산하다_The_computer_science_of_human_decisions_-_BrianChristian.pdf",
+        "data/scanned-pdf-not-indexed/미래를_바꾼_아홉가지_알고리즘_-_존_맥코믹-compressed[algorithm cs book].pdf"
+      ],
+      "outputs": "experiments\\outputs\\021_toc_staged_schema_then_extract",
+      "labels": "experiments\\labels\\answer_toc_ranges_manual.json",
+      "model": "solar-pro3",
+      "temperature": 0.0,
+      "source_experiment": "020_toc_extraction_repair_glyph_hierarchy",
+      "finding": "페이지 단위 단계적 추출로 순서·누락·일관성을 모두 해결했다. algorithms_to_live_by는 tier_to_level {T1:1,T2:2}로 {L1:11, L2:100}, 11개 장이 모두 유지되고 항목이 제 장 아래 읽는 순서대로 붙었다(020의 순서 깨짐 해결). algorithm_nine은 content tier가 1개(T1은 '목차' 제목이라 제외)로 고정되어 {L1:18} 평탄 복귀 — 첫 staged 시도(021 이전 버전)에서 스키마가 문장부호로 3레벨을 과발명하던 회귀가 사라졌다. 핵심: (1) 계층 수를 클러스터의 content tier 수로 못 박아 1단계 LLM의 과적합을 막고, (2) 2단계는 structured output {tier,title,printed_page}로 LLM이 tier만 복사하게 하고 level은 코드가 tier->level 매핑으로 부여해 LLM이 계층을 못 건드리게 했다. 남은 한계는 계층이 아니라 OCR 제목 잡음(7 많최신의것->가장, 주처할->주저할, 기틴스 A i?->기틴스 지수)뿐이다.",
+      "ran_at": "2026-06-28T12:33:32+09:00"
     }
   ]
 }
