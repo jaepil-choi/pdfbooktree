@@ -87,7 +87,7 @@ class LlmTocExtractor:
     """Upstage LLM으로 TOC page에서 `TocItem` 목록을 추출한다.
 
     테스트나 재현을 위해 `chat_client`/`image_client`를 주입할 수 있다.
-    주입하지 않으면 config로 lazy 생성한다(openai는 optional dependency).
+    주입하지 않으면 config로 lazy 생성한다.
     """
 
     def __init__(
@@ -105,7 +105,7 @@ class LlmTocExtractor:
     # client
     # ------------------------------------------------------------------ #
     def _make_client(self, base_url: str) -> "OpenAI":
-        from openai import OpenAI  # optional dependency라 호출 시점에 import
+        from openai import OpenAI
 
         api_key = os.environ.get(self.config.api_key_env)
         if not api_key:

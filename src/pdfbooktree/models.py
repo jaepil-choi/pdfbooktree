@@ -176,11 +176,12 @@ class TocItem:
 
 @dataclass(frozen=True)
 class TocVisualLine:
-    """TOC page의 한 줄과 대표 글씨 높이를 담는다."""
+    """TOC page의 한 줄, 대표 글씨 높이, 줄 시작 x 좌표를 담는다."""
 
     pdf_page: int
     height: float
     text: str
+    x1: float = 0.0
 
 
 @dataclass(frozen=True)

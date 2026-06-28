@@ -82,14 +82,14 @@ def test_height_clustering_finds_boundary_between_large_and_small_text() -> None
 
 def test_annotate_page_adds_tier_markers() -> None:
     lines = [
-        TocVisualLine(pdf_page=7, height=18.0, text="1장 큰 제목"),
-        TocVisualLine(pdf_page=7, height=8.0, text="작은 항목 10"),
+        TocVisualLine(pdf_page=7, height=18.0, text="1장 큰 제목", x1=72.0),
+        TocVisualLine(pdf_page=7, height=8.0, text="작은 <항목> '10'", x1=96.5),
     ]
 
     annotated = annotate_page(lines, 7, [12.0])
 
-    assert "[T1] 1장 큰 제목" in annotated
-    assert "[T2] 작은 항목 10" in annotated
+    assert '<T1 x1="72.0">1장 큰 제목</T1>' in annotated
+    assert '<T2 x1="96.5">작은 &lt;항목&gt; \'10\'</T2>' in annotated
 
 
 def test_staged_extractor_uses_schema_then_page_extraction() -> None:
@@ -142,3 +142,4 @@ def test_staged_extractor_uses_schema_then_page_extraction() -> None:
         "toc_page_extraction"
     )
     assert "T1=level 1" in fake.calls[0]["messages"][1]["content"]
+    assert '<T1 x1="' in fake.calls[0]["messages"][1]["content"]

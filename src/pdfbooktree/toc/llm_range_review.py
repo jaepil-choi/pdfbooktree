@@ -84,7 +84,7 @@ class LlmTocRangeReviewer:
         if self._chat_client is None:
             import os
 
-            from openai import OpenAI  # optional dependency라 호출 시점에 import
+            from openai import OpenAI
 
             api_key = os.environ.get(self.config.api_key_env)
             if not api_key:

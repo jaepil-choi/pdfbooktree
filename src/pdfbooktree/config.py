@@ -75,6 +75,7 @@ class ProcessingConfig:
     max_toc_search_pages: int = 80
     heading_search_window: int = 3
     skip_existing_bookmarks: bool = True
+    # True면 설치 여부와 무관하게 런타임에서 LLM fallback을 실제 호출한다.
     use_llm: bool = False
     low_confidence_threshold: float = 0.7
     write_intermediates: bool = True
@@ -160,7 +161,9 @@ class LlmTocExtractionConfig:
 # staged extractor 1단계 schema prompt. experiment 021에서 검증한 제약이다.
 DEFAULT_STAGED_SCHEMA_SYSTEM_PROMPT = (
     "너는 책 목차의 '첫 페이지'를 보고 이 책 목차의 계층 스키마를 정의하는 도구다. "
-    "각 줄 앞 [Tn]은 글씨 크기 tier다(T1이 가장 큰 글씨).\n"
+    '각 목차 줄은 <Tn x1="...">...</Tn> 형태의 태그로 감싸져 있다. Tn은 글씨 '
+    "크기 tier이고(T1이 가장 큰 글씨), x1은 줄 시작 x 좌표로 들여쓰기 위치를 "
+    "대략 보여준다.\n"
     "중요: 계층 레벨 수는 이미 글씨 크기 클러스터로 정해졌다. 사용자가 알려주는 tier "
     "개수만큼만 레벨을 정의하고, 같은 글씨 크기를 번호·문장부호만으로 더 쪼개거나 합치지 "
     "마라. 큰 글씨 tier가 상위 레벨(1)이다.\n"
@@ -174,10 +177,13 @@ DEFAULT_STAGED_SCHEMA_SYSTEM_PROMPT = (
 # staged extractor 2단계 page extraction prompt. level은 LLM이 아니라 코드가 부여한다.
 DEFAULT_STAGED_EXTRACT_SYSTEM_PROMPT = (
     "너는 책 목차 페이지에서 항목을 추출하는 도구다. 아래 [계층 스키마]는 이 책 전체에 "
-    "일관 적용되는 레벨 정의이고, 각 줄 앞 [Tn]은 그 줄의 글씨 크기 tier다.\n"
+    '일관 적용되는 레벨 정의이고, 각 목차 줄은 <Tn x1="...">...</Tn> 태그로 감싸져 '
+    "있다. Tn은 그 줄의 글씨 크기 tier이고, x1은 줄 시작 x 좌표로 들여쓰기 위치를 "
+    "대략 보여준다.\n"
     "절대 규칙: 계층/레벨/tier는 네가 정하지 않는다. 각 항목의 tier는 그 항목이 나온 줄의 "
-    "[Tn] 숫자(n)를 그대로 복사만 한다. tier를 바꾸거나 새로 만들거나 추론하지 마라. "
-    "한 줄을 여러 항목으로 쪼개면 모든 조각은 그 줄과 같은 tier를 받는다.\n"
+    "<Tn> 태그 숫자(n)를 그대로 복사만 한다. tier를 바꾸거나 새로 만들거나 추론하지 마라. "
+    "x1은 들여쓰기 참고용으로만 보고, 한 줄을 여러 항목으로 쪼개면 모든 조각은 그 줄과 "
+    "같은 tier를 받는다.\n"
     "너가 하는 일은 다음뿐이다.\n"
     "- 깨진 OCR 글씨 복원: 깨진 제목을 깨끗하게 고친다(예: '살펴보는일을멈춈야할때-細龜'→"
     "'살펴보는 일을 멈춰야 할 때', '미래여區-園 O 뜨퍄'→'미래를 내다보라'). 보이는 글자만 "

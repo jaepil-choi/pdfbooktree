@@ -32,7 +32,11 @@ def process(
     output_dir: Path = typer.Option(
         Path("."), "--output-dir", "-o", help="출력 디렉터리다."
     ),
-    use_llm: bool = typer.Option(False, "--use-llm", help="LLM fallback 사용 여부다."),
+    use_llm: bool = typer.Option(
+        False,
+        "--use-llm",
+        help="런타임에서 LLM fallback을 실제 호출할지 여부다.",
+    ),
     skip_existing_bookmarks: bool = typer.Option(
         True,
         "--skip-existing-bookmarks/--no-skip-existing-bookmarks",

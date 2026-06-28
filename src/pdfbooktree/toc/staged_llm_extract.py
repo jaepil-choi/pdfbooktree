@@ -12,6 +12,7 @@ import json
 import math
 import os
 import re
+from html import escape
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -68,6 +69,7 @@ def extract_toc_visual_lines(
             for block in page.get_text("dict")["blocks"]:
                 for line in block.get("lines", []):
                     heights: list[float] = []
+                    x_lefts: list[float] = []
                     parts: list[str] = []
                     for span in line["spans"]:
                         text = span["text"]
@@ -77,6 +79,7 @@ def extract_toc_visual_lines(
                         if is_content_span(text):
                             height = float(span["bbox"][3] - span["bbox"][1])
                             heights.append(round(height, 2))
+                            x_lefts.append(float(span["bbox"][0]))
                     if not heights:
                         continue
                     lines.append(
@@ -84,6 +87,7 @@ def extract_toc_visual_lines(
                             pdf_page=pdf_page,
                             height=max(heights),
                             text=normalize_text(" ".join(parts)),
+                            x1=round(min(x_lefts), 2) if x_lefts else 0.0,
                         )
                     )
     return lines
@@ -163,14 +167,16 @@ def content_tier_to_level(
 def annotate_page(
     lines: list[TocVisualLine], pdf_page: int, cut_points: list[float]
 ) -> str:
-    """한 TOC page를 [Tn] 마커가 붙은 prompt 텍스트로 만든다."""
+    """한 TOC page를 tier 태그가 붙은 prompt 텍스트로 만든다."""
 
     out = [f"--- PDF page {pdf_page} ---"]
     for line in lines:
         if line.pdf_page != pdf_page:
             continue
         tier = assign_tier(line.height, cut_points)
-        out.append(f"[T{tier}] {line.text}")
+        out.append(
+            f'<T{tier} x1="{line.x1:.1f}">{escape(line.text, quote=False)}</T{tier}>'
+        )
     return "\n".join(out)
 
 
@@ -226,7 +232,7 @@ def build_staged_extract_schema() -> dict[str, Any]:
                             "properties": {
                                 "tier": {
                                     "type": "integer",
-                                    "description": "항목이 나온 줄의 [Tn] 숫자.",
+                                    "description": "항목이 나온 줄의 <Tn> 태그 숫자.",
                                 },
                                 "title": {"type": "string"},
                                 "printed_page": {"type": ["integer", "null"]},

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 from pathlib import Path
 
 import fitz
@@ -162,6 +163,12 @@ def test_write_toc_page_dataset_csv_writes_flat_rows(tmp_path: Path) -> None:
     assert "prev_line_final_number_count" in csv_text
     assert "bookmark_guided_toc_detection" in csv_text
 
+    with csv_path.open(encoding="utf-8") as file:
+        rows = list(csv.DictReader(file))
+    assert rows[0]["input_pdf"]
+    assert rows[0]["root_relative_pdf"] == "bookmarked.pdf"
+    assert rows[0]["line_final_numbers"].startswith("[")
+
 
 def test_bookmark_toc_batch_supports_process_workers(tmp_path: Path) -> None:
     pdf_path = tmp_path / "bookmarked.pdf"
@@ -193,6 +200,55 @@ def test_bookmark_toc_batch_supports_process_workers(tmp_path: Path) -> None:
     assert result.workers == 2
     assert result.detected_count == 1
     assert result.dataset_row_count == 4
+
+
+def test_bookmark_toc_batch_worker_modes_keep_same_result_shape(
+    tmp_path: Path,
+) -> None:
+    pdf_path = tmp_path / "bookmarked.pdf"
+    write_pdf(
+        pdf_path,
+        [
+            "Preface",
+            "Contents\nChapter 1 Introduction ........ 3\n1.1 Motivation ........ 7",
+            "1.2 Background ........ 12\nChapter 2 Probability ........ 25",
+            "Chapter 1 Introduction\nBody",
+            "1.1 Motivation\nBody",
+            "1.2 Background\nBody",
+            "Chapter 2 Probability\nBody",
+        ],
+        toc=[
+            [1, "Chapter 1 Introduction", 4],
+            [2, "1.1 Motivation", 5],
+            [2, "1.2 Background", 6],
+            [1, "Chapter 2 Probability", 7],
+        ],
+    )
+
+    single = BookmarkTocBatchDetector(
+        tmp_path,
+        min_total_pages=1,
+        workers=1,
+        random_seed=7,
+    ).run()
+    multi = BookmarkTocBatchDetector(
+        tmp_path,
+        min_total_pages=1,
+        workers=2,
+        random_seed=7,
+    ).run()
+
+    assert single.total_pdf_count == multi.total_pdf_count == 1
+    assert single.detected_count == multi.detected_count == 1
+    assert single.dataset_row_count == multi.dataset_row_count == 4
+    assert single.results[0].toc_pages == multi.results[0].toc_pages == [2, 3]
+    assert [
+        (row.root_relative_pdf, row.pdf_page, row.label, row.sample_role)
+        for row in single.dataset_rows
+    ] == [
+        (row.root_relative_pdf, row.pdf_page, row.label, row.sample_role)
+        for row in multi.dataset_rows
+    ]
 
 
 def test_bookmark_toc_batch_skips_short_pdfs_by_default(tmp_path: Path) -> None:
