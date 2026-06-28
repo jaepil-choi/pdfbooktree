@@ -330,6 +330,23 @@
       "outputs": "experiments\\outputs\\022_roundtrip_pdf_bookmarks",
       "finding": "원본 Hull PDF는 SHA-256 전후가 같아 수정되지 않았다(source_unchanged=True). duplicate에서 bookmark 470개를 추출했고, 삭제 stage에서는 bookmark가 0개로 비었다. simple TOC(level/title/page)를 다시 embed한 결과 bookmark 470개가 복원되었고 round-trip 동일성은 True이다. set_toc([])가 보고한 제거 수는 471, set_toc(extracted_toc)가 보고한 삽입 수는 470이다.",
       "ran_at": "2026-06-28T12:53:10"
+    },
+    {
+      "id": "023_toc_hierarchy_signal_fusion",
+      "purpose": "목차 계층 신호를 글씨 height 단일에서 번호구조+들여쓰기(x0)+height 하이브리드로 확장하고, LLM이 level을 추론하되 번호 깊이로 결정론적 정정(reconciliation)한다. Arm A(height-only baseline)와 Arm B(신호 융합)를 비교하고 bookmark weak ref로 level 깊이 일치율을 잰다.",
+      "inputs": [
+        "data/native-pdf-indexed/John Hull - Options, Futures, and Other Derivatives, Global Edition-Pearson (2021).pdf",
+        "data/scanned-pdf-indexed/David G. Luenberger, Investment Science 2nd - adobeOCR - indexed.pdf",
+        "data/scanned-pdf-indexed/(Springer Finance) Steven E. Shreve - Stochastic Calculus for Finance I The Binomial Asset Pricing Model-Springer (2005)-indexed.pdf",
+        "data/scanned-pdf-not-indexed/알고리즘_인생을계산하다_The_computer_science_of_human_decisions_-_BrianChristian.pdf",
+        "data/scanned-pdf-not-indexed/미래를_바꾼_아홉가지_알고리즘_-_존_맥코믹-compressed[algorithm cs book].pdf"
+      ],
+      "outputs": "experiments\\outputs\\023_toc_hierarchy_signal_fusion",
+      "labels": "experiments\\labels\\answer_toc_ranges_manual.json",
+      "model": "solar-pro3",
+      "temperature": 0.0,
+      "finding": "john_hull: ArmA level={'1': 1, '2': 512}(starts1=True) -> ArmB level={'1': 44, '2': 76, '3': 355, '4': 39}(starts1=True, conflicts=114). weakref level agreement ArmA=0.9004(matched 462/470) -> ArmB=0.0714(matched 462/470) | luenberger_investment_science: ArmA level={'1': 1, '2': 481}(starts1=True) -> ArmB level={'1': 9, '2': 29, '3': 382}(starts1=True, conflicts=10). weakref level agreement ArmA=0.8462(matched 26/29) -> ArmB=0.5185(matched 27/29) | shreve_binomial: ArmA level={'1': 239}(starts1=True) -> ArmB level={'1': 25, '2': 139, '3': 62, '4': 11}(starts1=True, conflicts=71). weakref level agreement ArmA=0.1429(matched 238/238) -> ArmB=0.6597(matched 238/238) | algorithms_to_live_by: ArmA level={'1': 11, '2': 98}(starts1=True) -> ArmB level={'1': 12, '2': 78, '3': 10}(starts1=True, conflicts=1) | algorithm_nine: ArmA level={'1': 15}(starts1=True) -> ArmB level={'1': 15}(starts1=True, conflicts=11). 판단: 가설은 부분 검증. 번호 coverage가 높은 책(shreve: none 73/242)에서는 번호 reconciliation이 계층을 크게 개선했다(weakref 0.14->0.66). 그러나 번호 없는 줄이 다수인 책에서 LLM이 자유롭게 level을 매기자 과심화가 발생했다: john_hull(none 408/527)은 chapter는 L1로 올바르게 갔으나 번호 없는 절(Exchange-traded markets 등)이 LLM에 의해 L3/L4로 밀려 구조가 깨지고 weakref가 0.90->0.07로 붕괴했다. 회귀 가드 algorithms_to_live_by(none 69/70)도 2단 책에 가짜 L3(10개)가 생겨 깨졌다. algorithm_nine은 chapter 강제 덕분에 평탄 유지(reconciliation이 LLM 과심화 11건을 정정). 결정적 weakref 지표는 naive min-정규화라 평탄화(ArmA)가 지배적 bookmark 깊이에 우연히 맞아 높게 나오는 편향이 있으나, ArmB 트리 자체에서 절이 L4로 가는 과심화가 육안 확인된다. 결론: 번호 reconciliation(결정론 부분)은 유효하나 'LLM이 번호 없는 줄의 절대 level을 자유 결정'하는 완화가 약점이다. src 이식하지 않는다(hull/한국어 가드 회귀). 다음(024): 번호 구조를 skeleton으로 고정하고 번호 없는 줄은 직전 번호 부모 기준 상대 깊이로 부착하거나 height/x0 클러스터가 정한 최대 깊이로 bound해 LLM 과심화를 막는다. weakref 지표도 절대 level 일치 대신 parent-child/상대깊이 일치로 교체한다.",
+      "ran_at": "2026-06-28T14:34:08"
     }
   ]
 }
