@@ -320,6 +320,16 @@
       "source_experiment": "020_toc_extraction_repair_glyph_hierarchy",
       "finding": "페이지 단위 단계적 추출로 순서·누락·일관성을 모두 해결했다. algorithms_to_live_by는 tier_to_level {T1:1,T2:2}로 {L1:11, L2:100}, 11개 장이 모두 유지되고 항목이 제 장 아래 읽는 순서대로 붙었다(020의 순서 깨짐 해결). algorithm_nine은 content tier가 1개(T1은 '목차' 제목이라 제외)로 고정되어 {L1:18} 평탄 복귀 — 첫 staged 시도(021 이전 버전)에서 스키마가 문장부호로 3레벨을 과발명하던 회귀가 사라졌다. 핵심: (1) 계층 수를 클러스터의 content tier 수로 못 박아 1단계 LLM의 과적합을 막고, (2) 2단계는 structured output {tier,title,printed_page}로 LLM이 tier만 복사하게 하고 level은 코드가 tier->level 매핑으로 부여해 LLM이 계층을 못 건드리게 했다. 남은 한계는 계층이 아니라 OCR 제목 잡음(7 많최신의것->가장, 주처할->주저할, 기틴스 A i?->기틴스 지수)뿐이다.",
       "ran_at": "2026-06-28T12:33:32+09:00"
+    },
+    {
+      "id": "022_roundtrip_pdf_bookmarks",
+      "purpose": "원본 Hull PDF를 건드리지 않고 duplicate을 만든 뒤 bookmark를 추출하고, 복사본 stage에서 bookmark를 모두 제거한 다음, 추출한 bookmark를 다시 embed해 level/title/page round-trip이 가능한지 검증한다.",
+      "inputs": [
+        "data\\native-pdf-indexed\\John Hull - Options, Futures, and Other Derivatives, Global Edition-Pearson (2021).pdf"
+      ],
+      "outputs": "experiments\\outputs\\022_roundtrip_pdf_bookmarks",
+      "finding": "원본 Hull PDF는 SHA-256 전후가 같아 수정되지 않았다(source_unchanged=True). duplicate에서 bookmark 470개를 추출했고, 삭제 stage에서는 bookmark가 0개로 비었다. simple TOC(level/title/page)를 다시 embed한 결과 bookmark 470개가 복원되었고 round-trip 동일성은 True이다. set_toc([])가 보고한 제거 수는 471, set_toc(extracted_toc)가 보고한 삽입 수는 470이다.",
+      "ran_at": "2026-06-28T12:53:10"
     }
   ]
 }
