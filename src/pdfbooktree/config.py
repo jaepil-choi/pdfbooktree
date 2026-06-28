@@ -3,7 +3,24 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Literal
+
+
+@dataclass(frozen=True)
+class TocMlDetectionConfig:
+    """학습된 TOC page classifier 기반 runtime 탐지 설정이다.
+
+    runtime TOC page range는 반드시 이 모델 artifact를 통과해 결정한다. 모델이
+    없거나 feature metadata가 맞지 않으면 실패하며, 휴리스틱 fallback은 두지 않는다.
+    """
+
+    model_path: Path = Path(
+        "outputs/300study_toc_page_dataset_model/toc_page_dataset_model.joblib"
+    )
+    probability_threshold: float = 0.5
+    max_segment_gap: int = 1
+    max_segment_length: int = 30
 
 
 @dataclass(frozen=True)
@@ -79,6 +96,8 @@ class ProcessingConfig:
     use_llm: bool = False
     low_confidence_threshold: float = 0.7
     write_intermediates: bool = True
+    # TOC page range는 학습된 ML 모델로만 결정한다. 모델이 없으면 처리 실패다.
+    toc_detection: TocMlDetectionConfig = field(default_factory=TocMlDetectionConfig)
     # offset 추정 설정. Processor가 estimate_page_offset에 그대로 넘긴다.
     offset: OffsetEstimationConfig = field(default_factory=OffsetEstimationConfig)
     # LLM 3단계 TOC range reviewer 설정. use_llm=True일 때만 호출한다.
@@ -109,6 +128,9 @@ DEFAULT_TOC_EXTRACTION_SYSTEM_PROMPT = (
     "숫자를 찾는다. 페이지 번호가 없으면 null.\n"
     "- source_pdf_page: 그 항목이 나타난 목차 PDF page. 입력의 '--- PDF page N ---' "
     "마커 기준 N을 그대로 쓴다.\n"
+    "- is_toc_page: 입력 page들이 실제 목차 항목을 담고 있으면 true다. 표지, 서문, "
+    "본문, List of Pages, 광고, 빈 page처럼 목차 항목 page가 아니면 false로 두고 "
+    "items는 빈 배열로 반환한다.\n"
     "- 목차 항목이 아닌 머리말/그림/표지 텍스트, running header, 페이지 번호만 있는 줄은 제외한다.\n"
     "- title은 OCR 노이즈를 정리해 깨끗한 제목으로 복원한다. 잘못 인식된 기호/문자를 "
     "바로잡되(예: 'FIXEl:l·INCOME SE(UR!TIES' → 'FIXED-INCOME SECURITIES', "
@@ -185,6 +207,9 @@ DEFAULT_STAGED_EXTRACT_SYSTEM_PROMPT = (
     "x1은 들여쓰기 참고용으로만 보고, 한 줄을 여러 항목으로 쪼개면 모든 조각은 그 줄과 "
     "같은 tier를 받는다.\n"
     "너가 하는 일은 다음뿐이다.\n"
+    "- page 판정: 입력 page가 실제 목차 항목을 담은 page인지 먼저 판단한다. 표지, 서문, "
+    "본문, List of Pages, 광고, 빈 page처럼 목차 항목 page가 아니면 is_toc_page=false와 "
+    "items=[]만 반환한다.\n"
     "- 깨진 OCR 글씨 복원: 깨진 제목을 깨끗하게 고친다(예: '살펴보는일을멈춈야할때-細龜'→"
     "'살펴보는 일을 멈춰야 할 때', '미래여區-園 O 뜨퍄'→'미래를 내다보라'). 보이는 글자만 "
     "살려 복원하고 없는 내용을 지어내지 않는다.\n"

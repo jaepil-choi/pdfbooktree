@@ -216,7 +216,7 @@ def build_hierarchy_schema_format(n_levels: int) -> dict[str, Any]:
 
 
 def build_staged_extract_schema() -> dict[str, Any]:
-    """2단계 page extraction 응답 형식. LLM은 tier만 반환한다."""
+    """2단계 page extraction 응답 형식. LLM은 TOC 여부와 tier만 반환한다."""
 
     return {
         "type": "json_schema",
@@ -225,6 +225,13 @@ def build_staged_extract_schema() -> dict[str, Any]:
             "schema": {
                 "type": "object",
                 "properties": {
+                    "is_toc_page": {
+                        "type": "boolean",
+                        "description": (
+                            "입력 page가 실제 목차 항목을 담은 page이면 true, 표지/서문/"
+                            "본문/List of Pages/광고/빈 page 등 목차가 아니면 false."
+                        ),
+                    },
                     "items": {
                         "type": "array",
                         "items": {
@@ -241,7 +248,7 @@ def build_staged_extract_schema() -> dict[str, Any]:
                         },
                     }
                 },
-                "required": ["items"],
+                "required": ["is_toc_page", "items"],
             },
         },
     }
@@ -372,9 +379,10 @@ class SizeAwareStagedTocExtractor:
         if self.config.max_completion_tokens is not None:
             kwargs["max_tokens"] = self.config.max_completion_tokens
         response = self.chat_client.chat.completions.create(**kwargs)
-        raw_items = json.loads(response.choices[0].message.content or "{}").get(
-            "items", []
-        )
+        payload = json.loads(response.choices[0].message.content or "{}")
+        if payload.get("is_toc_page") is False:
+            return []
+        raw_items = payload.get("items", [])
         max_level = max(tier_levels.values()) if tier_levels else 1
         items: list[TocItem] = []
         for raw in raw_items:

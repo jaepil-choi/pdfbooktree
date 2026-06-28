@@ -90,7 +90,7 @@ class Processor:
             max_pages=self.config.max_toc_search_pages,
         )
         features = calculate_page_features(pages, total_pages)
-        toc_detection = detect_toc_pages(features)
+        toc_detection = detect_toc_pages(features, self.config.toc_detection)
 
         # LLM 3단계 fallback으로 TOC range를 보정한다(use_llm일 때만).
         range_review = self._review_toc_range(toc_detection, total_pages)

@@ -15,7 +15,7 @@ import pytest
 
 from pdfbooktree.alignment.offset import OffsetEstimationError
 from pdfbooktree.config import ProcessingConfig
-from pdfbooktree.models import TocItem, TocRangeReview
+from pdfbooktree.models import TocDetectionResult, TocItem, TocRangeReview
 from pdfbooktree.processor import Processor
 
 PAGE_WIDTH = 595.0
@@ -36,6 +36,24 @@ def _make_pdf(path: Path, page_specs: list[list[tuple[float, float, str]]]) -> N
         document.save(str(path))
     finally:
         document.close()
+
+
+def _patch_toc_detection(monkeypatch, pages: list[int] | None = None) -> None:
+    """Processor 테스트가 runtime ML artifact에 의존하지 않도록 detector를 주입한다."""
+
+    selected_pages = pages or [2]
+
+    def fake_detect(_features, _config=None):
+        return TocDetectionResult(
+            pages=selected_pages,
+            start_page=selected_pages[0],
+            end_page=selected_pages[-1],
+            confidence=0.9,
+            method="test_ml_toc_page_classifier",
+            candidates=[],
+        )
+
+    monkeypatch.setattr("pdfbooktree.processor.detect_toc_pages", fake_detect)
 
 
 def test_processor_exports_markdown_for_pdf_with_existing_bookmark(
@@ -99,6 +117,7 @@ def test_processor_forced_reprocess_skips_bookmark_export(
         "pdfbooktree.processor.export_bookmark_markdown_tree",
         fail_export,
     )
+    _patch_toc_detection(monkeypatch)
 
     pdf_path = tmp_path / "no_page_numbers.pdf"
     _make_pdf(pdf_path, [[(72.0, 400.0, "본문 텍스트 줄입니다")] for _ in range(6)])
@@ -155,6 +174,7 @@ def test_processor_wires_offset_alignment_and_ranges(
         "pdfbooktree.processor.parse_toc_items",
         fake_parse_toc_items,
     )
+    _patch_toc_detection(monkeypatch, [2])
 
     output_dir = tmp_path / "out"
     result = Processor(pdf_path, output_dir).run()
@@ -243,6 +263,7 @@ def test_processor_uses_llm_range_review_and_item_fallback(
         "pdfbooktree.processor.parse_toc_items",
         lambda _pages, _toc_pages: [],
     )
+    _patch_toc_detection(monkeypatch, [3])
 
     items = [
         TocItem(
@@ -300,6 +321,7 @@ def test_processor_defaults_to_staged_llm_item_extractor(
         "pdfbooktree.processor.parse_toc_items",
         lambda _pages, _toc_pages: [],
     )
+    _patch_toc_detection(monkeypatch, [3])
 
     calls: dict[str, object] = {}
 
@@ -349,6 +371,7 @@ def test_processor_skips_llm_when_use_llm_false(
         "pdfbooktree.processor.parse_toc_items",
         lambda _pages, _toc_pages: [],
     )
+    _patch_toc_detection(monkeypatch, [3])
     reviewer = _StubReviewer([5, 6])
     extractor = _StubExtractor([])
 
@@ -366,9 +389,10 @@ def test_processor_skips_llm_when_use_llm_false(
     _ = result
 
 
-def test_processor_raises_when_offset_unclean(tmp_path: Path) -> None:
+def test_processor_raises_when_offset_unclean(monkeypatch, tmp_path: Path) -> None:
     """offset이 clean하지 않으면 OffsetEstimationError를 그대로 전파한다(기본 정책)."""
 
+    _patch_toc_detection(monkeypatch)
     specs = [[(72.0, 400.0, "본문 텍스트 줄입니다")] for _ in range(6)]
     pdf_path = tmp_path / "no_page_numbers.pdf"
     _make_pdf(pdf_path, specs)

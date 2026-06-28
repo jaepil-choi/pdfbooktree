@@ -105,6 +105,7 @@ def test_staged_extractor_uses_schema_then_page_extraction() -> None:
     )
     page_response = json.dumps(
         {
+            "is_toc_page": True,
             "items": [
                 {"tier": 1, "title": "1장 선택의 기술", "printed_page": 1},
                 {"tier": 2, "title": "비서 문제", "printed_page": 12},
@@ -143,3 +144,31 @@ def test_staged_extractor_uses_schema_then_page_extraction() -> None:
     )
     assert "T1=level 1" in fake.calls[0]["messages"][1]["content"]
     assert '<T1 x1="' in fake.calls[0]["messages"][1]["content"]
+
+
+def test_staged_extractor_skips_non_toc_page() -> None:
+    """page별 LLM이 목차가 아니라고 판단하면 해당 page 항목을 버린다."""
+
+    schema_response = json.dumps(
+        {
+            "levels": [
+                {"level": 1, "name": "장", "cues": "T1", "examples": ["1장"]},
+            ]
+        }
+    )
+    page_response = json.dumps(
+        {
+            "is_toc_page": False,
+            "items": [{"tier": 1, "title": "광고 문구", "printed_page": None}],
+        }
+    )
+    fake = _FakeClient([schema_response, page_response])
+    extractor = SizeAwareStagedTocExtractor(chat_client=fake)
+    lines = [
+        TocVisualLine(pdf_page=3, height=18.0, text="광고 문구"),
+        TocVisualLine(pdf_page=3, height=8.0, text="본문 안내"),
+    ]
+
+    items = extractor.extract_from_lines(lines, [3])
+
+    assert items == []

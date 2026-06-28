@@ -68,6 +68,13 @@ def build_toc_schema(
             "schema": {
                 "type": "object",
                 "properties": {
+                    "is_toc_page": {
+                        "type": "boolean",
+                        "description": (
+                            "입력 page가 실제 목차 항목을 담은 page이면 true, 표지/서문/"
+                            "본문/List of Pages/광고/빈 page 등 목차가 아니면 false."
+                        ),
+                    },
                     "items": {
                         "type": "array",
                         "items": {
@@ -77,7 +84,7 @@ def build_toc_schema(
                         },
                     }
                 },
-                "required": ["items"],
+                "required": ["is_toc_page", "items"],
             },
         },
     }
@@ -185,7 +192,10 @@ class LlmTocExtractor:
             kwargs["max_tokens"] = self.config.max_completion_tokens
         response = self.chat_client.chat.completions.create(**kwargs)
         content = response.choices[0].message.content or "{}"
-        return json.loads(content).get("items", [])
+        payload = json.loads(content)
+        if payload.get("is_toc_page") is False:
+            return []
+        return payload.get("items", [])
 
     # ------------------------------------------------------------------ #
     # image 경로
@@ -229,7 +239,10 @@ class LlmTocExtractor:
                 kwargs["max_tokens"] = self.config.max_completion_tokens
             response = self.image_client.chat.completions.create(**kwargs)
             content = response.choices[0].message.content or "{}"
-            for raw in json.loads(content).get("items", []):
+            payload = json.loads(content)
+            if payload.get("is_toc_page") is False:
+                continue
+            for raw in payload.get("items", []):
                 if not raw.get("title"):
                     continue
                 items.append(
