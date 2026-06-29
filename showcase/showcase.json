@@ -117,6 +117,23 @@
       "finding": "ML detector seed -> per-page LlmTocRangeReviewer로 5권의 TOC range를 live 보정했다. LLM 보정 후 precision/recall 동시 1.0인 책은 4/5권이다. john_hull: missing_pdf | shreve_binomial: missing_pdf | luenberger_investment_science: missing_pdf | algorithm_nine: missing_pdf | algorithms_to_live_by: missing_pdf | zvi_bodie_investments: ML=[3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32](P0.3333/R1.0) -> LLM=[7, 8, 9, 10, 11, 12, 13, 14, 15, 16](P1.0/R1.0, stage=forward_scan, calls=17) | kim_econometrics_note1: ML=[2, 3, 4, 5, 6, 7, 8, 9, 10, 11](P0.1/R1.0) -> LLM=[3](P1.0/R1.0, stage=forward_scan, calls=5) | kim_econometrics_note2: ML=[2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30](P0.2759/R1.0) -> LLM=[3, 4, 5, 6, 7](P1.0/R0.625, stage=forward_scan, calls=9) | quant_world: ML=[2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28](P0.1481/R1.0) -> LLM=[17, 18, 19, 20](P1.0/R1.0, stage=forward_scan, calls=18) | hankyung_reader: ML=[2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27](P0.1923/R1.0) -> LLM=[6, 7, 8, 9, 10](P1.0/R1.0, stage=forward_scan, calls=11)",
       "command": "uv run python showcase/008_perpage_toc_range_review.py",
       "ran_at": "2026-06-29T16:50:32+09:00"
+    },
+    {
+      "id": "009_clustered_toc_extractor_live",
+      "purpose": "experiment 029/030에서 채택한 clustered staged TOC extractor가 기존 data/ PDF에서 실제 live call로 작동하는지 검증한다. 수동 TOC range로 실제 목차 page를 입력하고, 최신 production extractor가 계층/항목/제목을 추출한 뒤 indexed PDF는 bookmark weak reference와 비교한다.",
+      "inputs": [
+        "data/native-pdf-indexed/John Hull - Options, Futures, and Other Derivatives, Global Edition-Pearson (2021).pdf",
+        "data/scanned-pdf-indexed/(Springer Finance) Steven E. Shreve - Stochastic Calculus for Finance I The Binomial Asset Pricing Model-Springer (2005)-indexed.pdf",
+        "data/scanned-pdf-indexed/David G. Luenberger, Investment Science 2nd - adobeOCR - indexed.pdf",
+        "data/scanned-pdf-not-indexed/미래를_바꾼_아홉가지_알고리즘_-_존_맥코믹-compressed[algorithm cs book].pdf",
+        "data/scanned-pdf-not-indexed/알고리즘_인생을계산하다_The_computer_science_of_human_decisions_-_BrianChristian.pdf"
+      ],
+      "outputs": "showcase\\outputs\\009_clustered_toc_extractor_live\\result.json",
+      "labels": "experiments\\labels\\answer_toc_ranges_manual.json",
+      "model": "solar-pro3",
+      "finding": "john_hull: items=513, levels={'1': 38, '2': 475}, jumps=0, printed_mono=0.9961, source_grounding=513/513 (1.0), weakref match 462/470 rel=0.9436 abs=0.9545 | shreve_binomial: items=237, levels={'1': 47, '2': 172, '3': 15, '4': 3}, jumps=2, printed_mono=1.0, source_grounding=237/237 (1.0), weakref match 237/238 rel=0.839 abs=0.8312 | luenberger_investment_science: items=486, levels={'1': 26, '2': 460}, jumps=0, printed_mono=1.0, source_grounding=485/486 (0.9979), weakref match 26/29 rel=0.32 abs=0.4231 | algorithm_nine: items=19, levels={'1': 11, '2': 8}, jumps=0, printed_mono=0.8571, source_grounding=19/19 (1.0) | algorithms_to_live_by: items=109, levels={'1': 12, '2': 97}, jumps=0, printed_mono=0.9688, source_grounding=103/109 (0.945)",
+      "command": "uv run python showcase/009_clustered_toc_extractor_live.py",
+      "ran_at": "2026-06-29T18:24:07+09:00"
     }
   ]
 }
