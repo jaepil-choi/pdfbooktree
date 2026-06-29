@@ -92,7 +92,7 @@ class Processor:
         features = calculate_page_features(pages, total_pages)
         toc_detection = detect_toc_pages(features, self.config.toc_detection)
 
-        # LLM 3단계 fallback으로 TOC range를 보정한다(use_llm일 때만).
+        # LLM per-page 판정으로 TOC range를 보정한다(use_llm일 때만).
         range_review = self._review_toc_range(toc_detection, total_pages)
         toc_pages = (
             range_review.pages
@@ -165,7 +165,7 @@ class Processor:
     def _review_toc_range(
         self, toc_detection: TocDetectionResult, total_pages: int
     ) -> TocRangeReview | None:
-        """use_llm일 때 3단계 LLM fallback으로 TOC range를 보정한다."""
+        """use_llm일 때 LLM per-page 판정으로 TOC range를 보정한다."""
 
         if not self.config.use_llm:
             return None

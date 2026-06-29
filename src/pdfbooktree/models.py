@@ -58,11 +58,12 @@ class TocDetectionResult:
 
 @dataclass(frozen=True)
 class TocRangeReview:
-    """LLM 3단계 fallback이 보정한 TOC page range와 근거다.
+    """LLM per-page 판정이 보정한 TOC page range와 근거다.
 
-    PRD §7.8~7.11 구조(start accept / backtrack_start / sequential recovery)를
-    거친 결과다. `pages`는 보정된 1-based TOC page 목록이고, `stage`는 시작 page를
-    어느 단계에서 확정했는지, `decisions`는 page별 LLM 판정 trace다.
+    experiment 038 흐름(seed부터 forward 스캔으로 anchor를 잡고 양방향 확장)을
+    거친 결과다. `pages`는 보정된 1-based TOC page 목록이고, `stage`는 결과 상태
+    ("forward_scan" 성공 / "no_toc_range" 실패)이며, `decisions`는 page별 LLM
+    판정 trace다.
     """
 
     pages: list[int]

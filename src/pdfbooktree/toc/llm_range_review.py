@@ -1,15 +1,18 @@
-"""LLM 3단계 fallback으로 TOC page range를 검증/복구한다.
+"""LLM per-page 판정으로 TOC page range를 검증/복구한다.
 
-experiment 016에서 검증한 흐름을 패키지 코드로 옮긴 것이다. PRD §7.8~7.11(15.1)의
-3단계 구조를 따른다.
+experiment 038에서 검증한 흐름을 패키지 코드로 옮긴 것이다. experiment 016의
+3단계 fallback(start accept / backtrack / sequential)을 단순화해, LLM은 page별로
+"이 한 page가 목차인가"만 판정하고 범위를 어디서 멈출지는 코드가 결정한다.
 
-- 1단계 start page accept: 결정적 detector의 시작 page S가 TOC 첫 page이면 accept.
-- 2단계 backtrack_start: S가 TOC이지만 첫 page가 아니면 anchor로 삼고 backward merge한다.
-- 3단계 sequential recovery: S가 TOC가 아니면(또는 detector 후보가 없으면) page 1부터
-  순차 검토해 첫 TOC page를 anchor로 잡는다.
-
-anchor를 정한 뒤 양방향 contiguous 확장(`grow_block`)으로 start/end를 정한다.
-backward 확장은 brief contents 같은 인접 TOC segment를 merge한다.
+- anchor 탐색: detector start(seed)부터 앞으로 `max_anchor_scan` page까지 스캔해
+  첫 목차 page를 anchor로 잡는다(seed가 없으면 page 1부터).
+- 양방향 확장: anchor에서 forward/backward로 page를 한 칸씩 넓힌다.
+  - forward는 스캔 OCR 책의 중간 오판을 건너뛰도록 `forward_gap_tolerance`만큼
+    연속 non-TOC page를 관용한다.
+  - backward는 brief contents 오염을 막으려고 관용 없이 첫 non-TOC에서 멈춘다.
+- 수락 조건은 항상 `is_toc_page AND has_page_numbers`다. 페이지 번호 없이 제목·
+  주소·메모만 나열한 목록은(예: 본문 페이지 번호 없는 Brief Contents) 목차로
+  인정하지 않는다.
 
 LLM은 Upstage Solar chat(solar-pro3) 텍스트 경로만 쓴다(IE는 과금이라 금지).
 테스트나 재현을 위해 `chat_client`를 주입할 수 있다.
@@ -35,7 +38,7 @@ def build_decision_schema() -> dict[str, Any]:
     return {
         "type": "json_schema",
         "json_schema": {
-            "name": "toc_page_decision",
+            "name": "is_toc_page",
             "schema": {
                 "type": "object",
                 "properties": {
@@ -43,29 +46,38 @@ def build_decision_schema() -> dict[str, Any]:
                         "type": "boolean",
                         "description": (
                             "이 페이지가 책의 목차(Table of Contents / 차례 / Contents)"
-                            "또는 간략 목차(Contents in brief)의 일부이면 true."
+                            "또는 간략 목차(Brief Contents)의 일부이면 true."
                         ),
                     },
-                    "is_toc_start": {
+                    "has_page_numbers": {
                         "type": "boolean",
                         "description": (
-                            "이 페이지가 목차가 시작되는 첫 페이지이면 true. "
-                            "바로 앞 페이지는 목차가 아니어야 한다."
+                            "대부분의 줄에 본문 페이지 번호가 동반되면 true. "
+                            "페이지 번호 없이 제목/주소/메모만 나열되면 false."
                         ),
+                    },
+                    "confidence": {
+                        "type": "number",
+                        "description": "판정 신뢰도(0~1).",
                     },
                     "reason": {
                         "type": "string",
                         "description": "판정 근거를 한국어로 한두 문장.",
                     },
                 },
-                "required": ["is_toc_page", "is_toc_start", "reason"],
+                "required": [
+                    "is_toc_page",
+                    "has_page_numbers",
+                    "confidence",
+                    "reason",
+                ],
             },
         },
     }
 
 
 class LlmTocRangeReviewer:
-    """LLM 3단계 fallback으로 TOC page range를 보정한다."""
+    """LLM per-page 판정으로 TOC page range를 보정한다."""
 
     def __init__(
         self,
@@ -109,7 +121,7 @@ class LlmTocRangeReviewer:
         detection: TocDetectionResult,
         total_pages: int,
     ) -> TocRangeReview:
-        """결정적 detector 결과를 받아 3단계 fallback으로 보정한다."""
+        """결정적 detector 결과를 받아 per-page 판정으로 보정한다."""
 
         scan = min(self.config.scan_pages, total_pages)
         page_text = {
@@ -118,15 +130,15 @@ class LlmTocRangeReviewer:
         }
         state = _ReviewState(self, page_text, total_pages)
 
-        anchor, stage = state.find_anchor(detection.start_page)
+        anchor = state.find_anchor(detection.start_page)
         if anchor is None:
             return TocRangeReview(
                 pages=[],
                 start_page=None,
                 end_page=None,
                 anchor_page=None,
-                stage=stage,
-                method="llm_3stage_fallback",
+                stage="no_toc_range",
+                method="llm_perpage_scan",
                 llm_calls=state.call_count,
                 decisions=state.trace,
             )
@@ -137,8 +149,8 @@ class LlmTocRangeReviewer:
             start_page=start,
             end_page=end,
             anchor_page=anchor,
-            stage=stage,
-            method="llm_3stage_fallback",
+            stage="forward_scan",
+            method="llm_perpage_scan",
             llm_calls=state.call_count,
             decisions=state.trace,
         )
@@ -147,10 +159,11 @@ class LlmTocRangeReviewer:
     # low-level probe (state가 사용)
     # ------------------------------------------------------------------ #
     def _probe_call(self, pdf_page: int, snippet: str) -> dict[str, Any]:
+        # experiment 038에서 검증한 user prompt 형식을 그대로 쓴다. 군더더기 마커를
+        # 붙이면 OCR이 심하게 깨진 경계 page 판정이 흔들린다(kim_note1 page 3 등).
         user_prompt = (
-            f"다음은 PDF의 {pdf_page}번째 페이지(1-based) 텍스트다.\n"
-            f"이 페이지가 목차 페이지인지 판정하라.\n\n"
-            f"---PAGE {pdf_page} TEXT START---\n{snippet}\n---PAGE TEXT END---"
+            f"PDF page {pdf_page}의 텍스트다. 이 한 페이지가 목차 페이지인지 판정하라.\n\n"
+            f"{snippet}"
         )
         response = self.chat_client.chat.completions.create(
             model=self.config.model,
@@ -186,55 +199,49 @@ class _ReviewState:
         if pdf_page in self.cache:
             return self.cache[pdf_page]
         snippet = self.page_text.get(pdf_page, "")[: self.config.prompt_max_chars]
-        decision = self.reviewer._probe_call(pdf_page, snippet)
-        self.call_count += 1
+        # 빈 page는 LLM 호출 없이 비-목차로 처리한다.
+        if not snippet.strip():
+            decision = {
+                "is_toc_page": False,
+                "has_page_numbers": False,
+                "confidence": 1.0,
+                "reason": "빈 페이지",
+            }
+        else:
+            decision = self.reviewer._probe_call(pdf_page, snippet)
+            self.call_count += 1
         decision["pdf_page"] = pdf_page
         self.cache[pdf_page] = decision
+        self.trace.append(
+            {
+                "pdf_page": pdf_page,
+                "is_toc_page": bool(decision.get("is_toc_page")),
+                "has_page_numbers": bool(decision.get("has_page_numbers")),
+                "accepted": _is_accepted(decision),
+                "confidence": decision.get("confidence"),
+            }
+        )
         return decision
 
-    # 3단계 anchor 탐색 -------------------------------------------------- #
-    def find_anchor(self, detector_start: int | None) -> tuple[int | None, str]:
-        scan_limit = min(self.config.max_sequential, self.total_pages)
+    def accepted(self, pdf_page: int) -> bool:
+        """목차의 필수 요건(목차 page AND 페이지 번호 동반)을 만족하는지 본다."""
 
-        if detector_start is None:
-            return self._sequential_recovery(scan_limit)
+        return _is_accepted(self.probe(pdf_page))
 
-        s = self.probe(detector_start)
-        self.trace.append({"stage": "probe_detector_start", **s})
-
-        # 1단계: start page accept
-        if s["is_toc_page"] and s["is_toc_start"]:
-            return detector_start, "stage1_accept"
-        # 2단계: S가 TOC이지만 첫 page가 아님 → anchor = S (backward merge가 경계 처리)
-        if s["is_toc_page"]:
-            return detector_start, "stage2_backtrack"
-        # 3단계: sequential recovery
-        return self._sequential_recovery(scan_limit)
-
-    def _sequential_recovery(self, scan_limit: int) -> tuple[int | None, str]:
-        for page in range(1, scan_limit + 1):
-            d = self.probe(page)
-            self.trace.append({"stage": "sequential", **d})
-            if d["is_toc_page"]:
-                return page, "stage3_sequential_recovery"
-        return None, "stage3_failed"
+    # anchor 탐색: seed부터 앞으로 스캔 ---------------------------------- #
+    def find_anchor(self, detector_start: int | None) -> int | None:
+        page = max(1, detector_start or 1)
+        steps = 0
+        while page <= self.total_pages and steps < self.config.max_anchor_scan:
+            if self.accepted(page):
+                return page
+            page += 1
+            steps += 1
+        return None
 
     # 양방향 contiguous 확장 -------------------------------------------- #
     def grow_block(self, anchor: int) -> tuple[int, int]:
-        start = anchor
-        gap = 0
-        page = anchor - 1
-        while page >= 1 and page >= anchor - self.config.max_backtrack:
-            d = self.probe(page)
-            if d["is_toc_page"]:
-                start = page
-                gap = 0
-            else:
-                gap += 1
-                if gap > self.config.end_gap_tolerance:
-                    break
-            page -= 1
-
+        # forward: gap tolerance를 둬 스캔 OCR 중간 오판을 건너뛴다.
         end = anchor
         gap = 0
         page = anchor + 1
@@ -242,13 +249,29 @@ class _ReviewState:
             anchor + self.config.max_end_expand, self.total_pages, len(self.page_text)
         )
         while page <= span_limit:
-            d = self.probe(page)
-            if d["is_toc_page"]:
+            if self.accepted(page):
                 end = page
                 gap = 0
             else:
                 gap += 1
-                if gap > self.config.end_gap_tolerance:
+                if gap > self.config.forward_gap_tolerance:
                     break
             page += 1
+
+        # backward: 관용 없이 첫 non-TOC page에서 멈춘다(brief contents 오염 방지).
+        start = anchor
+        page = anchor - 1
+        back_limit = max(1, anchor - self.config.max_backtrack)
+        while page >= back_limit:
+            if self.accepted(page):
+                start = page
+                page -= 1
+            else:
+                break
         return start, end
+
+
+def _is_accepted(decision: dict[str, Any]) -> bool:
+    """수락 조건: 목차 page이면서 페이지 번호가 동반될 때만 True."""
+
+    return bool(decision.get("is_toc_page")) and bool(decision.get("has_page_numbers"))

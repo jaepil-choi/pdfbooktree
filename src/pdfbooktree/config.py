@@ -44,26 +44,30 @@ class OffsetEstimationConfig:
 
 
 # LLM TOC range reviewer system prompt 기본값. config로 통째로 교체할 수 있다.
-# experiment 016에서 검증한 프롬프트다.
+# experiment 038에서 검증한 per-page 프롬프트다. LLM은 한 page가 목차인지와
+# 페이지 번호 동반 여부만 판정하고, 목차 범위를 어디서 멈출지는 판단하지 않는다
+# (멈춤은 다음 page를 다시 물어 코드가 결정한다).
 DEFAULT_TOC_RANGE_REVIEW_SYSTEM_PROMPT = (
-    "당신은 PDF 책의 페이지가 목차(Table of Contents) 페이지인지 판정하는 분류기다.\n"
-    "규칙:\n"
-    "- 상세 목차(Contents)와 간략 목차(Contents in brief / Brief Contents)는 모두 목차로 본다.\n"
-    "- 목차 항목은 장/절 제목과 함께 '책 본문의 페이지 번호'를 가리킨다.\n"
-    "  제목 옆/끝에 본문 페이지 번호(예: ...... 23)가 줄마다 붙어 있는 형태가 핵심 신호다.\n"
-    "- 페이지 번호 없이 외부 웹사이트 자료나 노트 제목만 나열한 목록은 목차가 아니다.\n"
-    "- 표지, 헌사, 판권지, 서문/머리말, 본문 첫 페이지는 목차가 아니다.\n"
-    "- is_toc_start는 '이 페이지부터 목차가 시작'할 때만 true다.\n"
-    "- 반드시 주어진 JSON schema로만 답한다."
+    "너는 PDF 책의 한 페이지가 목차(Table of Contents) 페이지인지 판정하는 분류기다.\n"
+    "목차 페이지의 '필수 요건': 장/절 제목과 함께 본문 페이지 번호가 대부분의 줄에 "
+    "동반된다(제목 옆/끝의 숫자, 점선 leader 뒤 숫자 등). 페이지 번호 없이 제목·주소·"
+    "메모만 나열한 목록은 목차가 아니다.\n"
+    "- 상세 목차(Contents)와 간략 목차(Brief Contents / Contents in brief)는 모두 목차다.\n"
+    "- 표지, 헌사, 판권지, 서문/머리말, 추천사, 광고, 본문 첫 페이지는 목차가 아니다.\n"
+    "너는 이 '한 페이지'가 목차인지(is_toc_page)와 페이지 번호가 동반되는지"
+    "(has_page_numbers)만 판정한다. 목차 범위를 어디서 멈출지(halt)는 판단하지 않는다 — "
+    "그건 다음 페이지를 다시 너에게 물어 결정한다.\n"
+    "반드시 주어진 JSON schema로만 답한다."
 )
 
 
 @dataclass(frozen=True)
 class LlmRangeReviewConfig:
-    """LLM 3단계 TOC range fallback 설정이다.
+    """LLM per-page TOC range 보정 설정이다.
 
-    PRD §7.8~7.11(15.1)의 start accept / backtrack_start / sequential recovery
-    구조를 따른다. experiment 016에서 검증한 파라미터를 기본값으로 둔다.
+    experiment 038에서 검증한 흐름을 따른다. seed page부터 앞으로 스캔해 첫 목차
+    page(anchor)를 찾고, anchor에서 양방향으로 확장한다. 수락 조건은 항상
+    `is_toc_page AND has_page_numbers`다(페이지 번호 없는 목록은 목차로 보지 않는다).
     LLM은 Upstage Solar chat(solar-pro3) 텍스트 경로만 쓴다(IE는 과금이라 금지).
     """
 
@@ -74,13 +78,15 @@ class LlmRangeReviewConfig:
     request_timeout: float | None = None
     temperature: float = 0.0
 
-    # fallback 탐색 파라미터
+    # per-page 탐색 파라미터
     scan_pages: int = 40  # 앞부분 몇 page까지 page text를 미리 확보할지
-    max_backtrack: int = 8  # backward merge / 2단계 backtrack 최대 page 수
-    max_sequential: int = 40  # 3단계 sequential recovery 최대 검토 page 수
-    max_end_expand: int = 30  # end expansion 시 anchor 기준 최대 span
-    end_gap_tolerance: int = 0  # 확장 중 허용하는 연속 non-TOC page 수
-    prompt_max_chars: int = 4500
+    max_anchor_scan: int = 20  # seed부터 anchor를 찾기 위해 앞으로 스캔할 최대 page 수
+    max_end_expand: int = 30  # forward 확장 시 anchor 기준 최대 span
+    max_backtrack: int = 8  # backward 확장 시 anchor 기준 최대 page 수
+    # forward 확장은 스캔 OCR 책의 중간 오판을 건너뛰도록 gap을 관용한다.
+    # backward 확장은 brief contents 오염을 막으려고 gap을 관용하지 않는다(엄격 stop).
+    forward_gap_tolerance: int = 2
+    prompt_max_chars: int = 2500
 
     system_prompt: str = DEFAULT_TOC_RANGE_REVIEW_SYSTEM_PROMPT
 
@@ -100,7 +106,7 @@ class ProcessingConfig:
     toc_detection: TocMlDetectionConfig = field(default_factory=TocMlDetectionConfig)
     # offset 추정 설정. Processor가 estimate_page_offset에 그대로 넘긴다.
     offset: OffsetEstimationConfig = field(default_factory=OffsetEstimationConfig)
-    # LLM 3단계 TOC range reviewer 설정. use_llm=True일 때만 호출한다.
+    # LLM per-page TOC range reviewer 설정. use_llm=True일 때만 호출한다.
     llm_range_review: "LlmRangeReviewConfig" = field(
         default_factory=lambda: LlmRangeReviewConfig()
     )
