@@ -57,6 +57,26 @@ class TocDetectionResult:
 
 
 @dataclass(frozen=True)
+class TocRangeReview:
+    """LLM per-page 판정이 보정한 TOC page range와 근거다.
+
+    experiment 038 흐름(seed부터 forward 스캔으로 anchor를 잡고 양방향 확장)을
+    거친 결과다. `pages`는 보정된 1-based TOC page 목록이고, `stage`는 결과 상태
+    ("forward_scan" 성공 / "no_toc_range" 실패)이며, `decisions`는 page별 LLM
+    판정 trace다.
+    """
+
+    pages: list[int]
+    start_page: int | None
+    end_page: int | None
+    anchor_page: int | None
+    stage: str
+    method: str
+    llm_calls: int = 0
+    decisions: list[dict[str, Any]] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
 class BookmarkedPdfTocDetection:
     """bookmark가 있는 단일 PDF의 TOC page detection 결과다."""
 
@@ -156,6 +176,16 @@ class TocItem:
 
 
 @dataclass(frozen=True)
+class TocVisualLine:
+    """TOC page의 한 줄, 대표 글씨 높이, 줄 시작 x 좌표를 담는다."""
+
+    pdf_page: int
+    height: float
+    text: str
+    x1: float = 0.0
+
+
+@dataclass(frozen=True)
 class BandPageNumber:
     """page 상/하위 band에서 추출한 인쇄 page number 후보다."""
 
@@ -218,6 +248,23 @@ class BookmarkPlanItem:
     title: str
     level: int
     pdf_page: int
+
+
+@dataclass(frozen=True)
+class BookmarkTreeNode:
+    """bookmark 트리의 단일 노드다.
+
+    flat bookmark 목록을 level 기반으로 중첩한 결과이며, ``own_span``은 이 노드가
+    자기 본문으로 갖는 1-based PDF page 구간(start, end, inclusive)이다. 다음
+    bookmark가 같은 page에서 시작하는 등 본문이 없으면 ``None``이다.
+    """
+
+    title: str
+    level: int
+    start_pdf_page: int | None
+    own_span: tuple[int, int] | None
+    order: int
+    children: tuple["BookmarkTreeNode", ...] = ()
 
 
 @dataclass(frozen=True)

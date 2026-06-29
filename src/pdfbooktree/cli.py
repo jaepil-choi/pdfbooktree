@@ -9,7 +9,7 @@ import typer
 from rich import print as rich_print
 
 from pdfbooktree.batch import BatchProcessor
-from pdfbooktree.config import ProcessingConfig
+from pdfbooktree.config import ProcessingConfig, TocMlDetectionConfig
 from pdfbooktree.processor import Processor
 from pdfbooktree.toc.bookmark_batch import (
     BookmarkTocBatchDetector,
@@ -32,11 +32,32 @@ def process(
     output_dir: Path = typer.Option(
         Path("."), "--output-dir", "-o", help="출력 디렉터리다."
     ),
-    use_llm: bool = typer.Option(False, "--use-llm", help="LLM fallback 사용 여부다."),
+    use_llm: bool = typer.Option(
+        False,
+        "--use-llm",
+        help="런타임에서 LLM fallback을 실제 호출할지 여부다.",
+    ),
     skip_existing_bookmarks: bool = typer.Option(
         True,
         "--skip-existing-bookmarks/--no-skip-existing-bookmarks",
-        help="기존 bookmark가 있으면 runtime 처리를 건너뛴다.",
+        help=(
+            "기존 bookmark가 있으면 그 트리에서 markdown을 export하고 "
+            "bookmark embedding(PDF outline overwrite)만 건너뛴다. "
+            "--no-skip-existing-bookmarks를 주면 기존 bookmark를 무시하고 "
+            "TOC 탐지부터 강제 재처리한다."
+        ),
+    ),
+    toc_model_path: Path = typer.Option(
+        Path("outputs/300study_toc_page_dataset_model/toc_page_dataset_model.joblib"),
+        "--toc-model-path",
+        help="학습된 TOC page classifier joblib 파일이다. 없으면 처리 실패한다.",
+    ),
+    toc_probability_threshold: float = typer.Option(
+        0.5,
+        "--toc-probability-threshold",
+        min=0.0,
+        max=1.0,
+        help="TOC page classifier positive 판정 확률 임계값이다.",
     ),
 ) -> None:
     """단일 PDF를 처리한다."""
@@ -44,6 +65,10 @@ def process(
     config = ProcessingConfig(
         use_llm=use_llm,
         skip_existing_bookmarks=skip_existing_bookmarks,
+        toc_detection=TocMlDetectionConfig(
+            model_path=toc_model_path,
+            probability_threshold=toc_probability_threshold,
+        ),
     )
     result = Processor(pdf, output_dir, config).run()
     rich_print(to_jsonable(result))
@@ -172,7 +197,7 @@ def train_toc_page_dataset(
         help="학습된 모델과 train/test report를 저장할 디렉터리다.",
     ),
     model: str = typer.Option(
-        "random-forest",
+        "hist-gradient",
         "--model",
         help="decision-tree, hist-gradient, random-forest, all 중 하나다.",
     ),

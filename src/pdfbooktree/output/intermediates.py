@@ -10,6 +10,7 @@ from pdfbooktree.utils.jsonio import write_json
 
 INTERMEDIATE_FILENAMES = {
     "toc_page_candidates": "toc_page_candidates.json",
+    "toc_range_review": "toc_range_review.json",
     "toc_raw": "toc_raw.json",
     "page_offset": "page_offset.json",
     "toc_aligned": "toc_aligned.json",

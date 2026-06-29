@@ -57,6 +57,7 @@ def _page(pdf_page: int, lines: list[str]) -> PdfPageText:
 def test_extract_from_pages_builds_toc_items() -> None:
     response = json.dumps(
         {
+            "is_toc_page": True,
             "items": [
                 {
                     "title": "Chapter 1 Introduction",
@@ -87,7 +88,10 @@ def test_extract_from_pages_builds_toc_items() -> None:
 
 def test_null_printed_page_becomes_none() -> None:
     response = json.dumps(
-        {"items": [{"title": "찾아보기", "level": 1, "printed_page": None}]}
+        {
+            "is_toc_page": True,
+            "items": [{"title": "찾아보기", "level": 1, "printed_page": None}],
+        }
     )
     extractor = LlmTocExtractor(chat_client=_FakeClient([response]))
 
@@ -100,6 +104,7 @@ def test_null_printed_page_becomes_none() -> None:
 def test_invalid_source_page_falls_back_to_first_toc_page() -> None:
     response = json.dumps(
         {
+            "is_toc_page": True,
             "items": [
                 {
                     "title": "Preface",
@@ -121,6 +126,7 @@ def test_invalid_source_page_falls_back_to_first_toc_page() -> None:
 def test_items_without_title_are_dropped() -> None:
     response = json.dumps(
         {
+            "is_toc_page": True,
             "items": [
                 {"title": "", "level": 1, "printed_page": 1},
                 {"title": "Real", "level": 1, "printed_page": 2},
@@ -134,8 +140,17 @@ def test_items_without_title_are_dropped() -> None:
     assert [it.title for it in items] == ["Real"]
 
 
+def test_non_toc_page_response_is_skipped() -> None:
+    response = json.dumps({"is_toc_page": False, "items": [{"title": "Noise"}]})
+    extractor = LlmTocExtractor(chat_client=_FakeClient([response]))
+
+    items = extractor.extract_from_pages([_page(5, ["List of Pages", "x"])])
+
+    assert items == []
+
+
 def test_config_controls_model_and_hyperparameters() -> None:
-    response = json.dumps({"items": []})
+    response = json.dumps({"is_toc_page": True, "items": []})
     fake = _FakeClient([response])
     config = LlmTocExtractionConfig(
         text_model="solar-pro3",
@@ -160,10 +175,13 @@ def test_text_schema_allows_null_page_image_schema_does_not() -> None:
     text_props = text_schema["json_schema"]["schema"]["properties"]["items"]["items"][
         "properties"
     ]
+    text_top_props = text_schema["json_schema"]["schema"]["properties"]
     image_props = image_schema["json_schema"]["schema"]["properties"]["items"]["items"][
         "properties"
     ]
 
+    assert text_top_props["is_toc_page"]["type"] == "boolean"
+    assert "is_toc_page" in text_schema["json_schema"]["schema"]["required"]
     assert text_props["printed_page"]["type"] == ["integer", "null"]
     assert image_props["printed_page"]["type"] == "integer"
     assert "source_pdf_page" in text_props

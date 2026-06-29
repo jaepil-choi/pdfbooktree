@@ -16,6 +16,28 @@ def safe_filename(value: str, max_length: int = 80) -> str:
     return normalized[:max_length]
 
 
+# Windows에서 디렉터리/파일 이름에 쓸 수 없는 문자와 제어 문자.
+_ILLEGAL_FILENAME_CHARS = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
+
+
+def sanitize_title_for_path(title: str, max_length: int = 80) -> str:
+    """bookmark 제목을 Windows 안전한 디렉터리/파일 이름으로 바꾼다.
+
+    ``safe_filename``과 달리 공백과 Unicode(한글 등)를 그대로 두어 사람이 읽기 쉬운
+    제목을 보존한다. Windows 금지 문자만 제거하고, 연속 공백은 하나로 줄이며, 끝의
+    점/공백은 떼어낸다(Windows가 싫어한다). 결과가 비면 ``untitled``로 둔다.
+    """
+
+    name = _ILLEGAL_FILENAME_CHARS.sub("", title).strip()
+    name = re.sub(r"\s+", " ", name)
+    name = name.rstrip(". ")
+    if not name:
+        name = "untitled"
+    if len(name) > max_length:
+        name = name[:max_length].rstrip()
+    return name
+
+
 def build_bookmarked_pdf_path(input_pdf: Path, output_dir: Path) -> Path:
     """`_bookmarked.pdf` 출력 경로를 만든다."""
 

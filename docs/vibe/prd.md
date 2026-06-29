@@ -984,6 +984,71 @@ evidence:
 
 offset 추정은 이 package의 핵심 heuristic 중 하나다.
 
+### 9.1 Bookmark/title grounding 기반 offset 검증
+
+offset은 page number sequence만으로 확정하지 않는다.
+추정된 offset이 실제 본문 heading 위치와 맞는지 bookmark 또는 TOC item title로
+검증해야 한다.
+
+검증 절차:
+
+```text
+1. printed_page가 있는 bookmark 또는 TOC item을 고른다.
+2. estimated_pdf_page = printed_page + offset을 계산한다.
+3. estimated_pdf_page의 전체 text를 추출한다.
+4. item title을 normalize하고 단어 수를 센다.
+5. page text를 title과 비슷한 단어 수의 rolling window로 순회한다.
+6. 각 window와 title의 fuzzy similarity를 계산한다.
+7. similarity >= 0.8인 window가 하나라도 있으면 해당 item은 grounding 성공이다.
+8. 검증 대상 item의 majority가 grounding 성공이면 offset을 정상으로 본다.
+9. majority가 실패하면 offset은 숫자상 추정됐더라도 offset warning을 기록한다.
+```
+
+예:
+
+```text
+title: Understanding Geometric Brownian Motion
+title word count: 4
+
+linked page text:
+  ... 12.3 Understanding Geometric Brownian Motion ...
+
+rolling windows:
+  Understanding Geometric Brownian Motion
+  Geometric Brownian Motion The
+  ...
+
+best fuzzy similarity >= 0.8
+→ grounding 성공
+```
+
+rolling window 크기는 title word count와 동일한 크기를 기본으로 하되, OCR 누락이나
+분절을 고려해 ±1 word 정도를 허용할 수 있다.
+
+이 검증은 page 상단 heading 후보만 보지 않는다.
+offset 검증 단계에서는 linked page 전체 text를 순회해야 한다. 책마다 heading이
+page 중간에서 시작할 수 있고, OCR line break가 heading candidate 추출을 방해할 수
+있기 때문이다.
+
+출력에는 다음 정보를 남긴다.
+
+```text
+offset: 17
+offset_grounding_checked: 42
+offset_grounding_matched: 35
+offset_grounding_rate: 0.833
+offset_warning: false
+offset_grounding_threshold: 0.8
+offset_grounding_majority_threshold: 0.5
+```
+
+majority 검증이 실패한 경우:
+
+```text
+offset_warning: true
+warning_reason: "printed page 기반 offset은 추정됐지만 linked page title grounding majority가 실패했다."
+```
+
 ---
 
 ## 10. Hybrid TOC-body alignment 설계

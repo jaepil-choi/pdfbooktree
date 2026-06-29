@@ -68,6 +68,13 @@ def build_toc_schema(
             "schema": {
                 "type": "object",
                 "properties": {
+                    "is_toc_page": {
+                        "type": "boolean",
+                        "description": (
+                            "입력 page가 실제 목차 항목을 담은 page이면 true, 표지/서문/"
+                            "본문/List of Pages/광고/빈 page 등 목차가 아니면 false."
+                        ),
+                    },
                     "items": {
                         "type": "array",
                         "items": {
@@ -77,7 +84,7 @@ def build_toc_schema(
                         },
                     }
                 },
-                "required": ["items"],
+                "required": ["is_toc_page", "items"],
             },
         },
     }
@@ -87,7 +94,7 @@ class LlmTocExtractor:
     """Upstage LLM으로 TOC page에서 `TocItem` 목록을 추출한다.
 
     테스트나 재현을 위해 `chat_client`/`image_client`를 주입할 수 있다.
-    주입하지 않으면 config로 lazy 생성한다(openai는 optional dependency).
+    주입하지 않으면 config로 lazy 생성한다.
     """
 
     def __init__(
@@ -105,7 +112,7 @@ class LlmTocExtractor:
     # client
     # ------------------------------------------------------------------ #
     def _make_client(self, base_url: str) -> "OpenAI":
-        from openai import OpenAI  # optional dependency라 호출 시점에 import
+        from openai import OpenAI
 
         api_key = os.environ.get(self.config.api_key_env)
         if not api_key:
@@ -185,7 +192,10 @@ class LlmTocExtractor:
             kwargs["max_tokens"] = self.config.max_completion_tokens
         response = self.chat_client.chat.completions.create(**kwargs)
         content = response.choices[0].message.content or "{}"
-        return json.loads(content).get("items", [])
+        payload = json.loads(content)
+        if payload.get("is_toc_page") is False:
+            return []
+        return payload.get("items", [])
 
     # ------------------------------------------------------------------ #
     # image 경로
@@ -229,7 +239,10 @@ class LlmTocExtractor:
                 kwargs["max_tokens"] = self.config.max_completion_tokens
             response = self.image_client.chat.completions.create(**kwargs)
             content = response.choices[0].message.content or "{}"
-            for raw in json.loads(content).get("items", []):
+            payload = json.loads(content)
+            if payload.get("is_toc_page") is False:
+                continue
+            for raw in payload.get("items", []):
                 if not raw.get("title"):
                     continue
                 items.append(
