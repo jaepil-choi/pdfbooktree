@@ -586,7 +586,7 @@
     },
     {
       "id": "039_upstage_reocr_feature_source",
-      "purpose": "기존 PDF OCR 텍스트 레이어를 신뢰하지 않고 TOC page를 Upstage로 처음부터 재-OCR/parse해 height/x1 feature를 재구성한다. model=ocr(word box)과 model=document-parse(element category+word box) 두 source를 028/029 클러스터+LLM 순서 다운스트림에 동일하게 꽂아, 기존 text layer baseline과 비교한다. 핵심 평가축은 impl note 028이 깨뜨린 printed page coverage/monotonicity이며, 계층은 bookmark weak ref로 본다.",
+      "purpose": "기존 PDF OCR 텍스트 레이어를 신뢰하지 않고 TOC page를 Upstage Document Parse로 처음부터 재-OCR해 height/x1 feature를 재구성한다(Document OCR은 과금되어 사용 금지). word box는 Parse words=true에서 얻고, 'OCR 소스만 교체하고 기존 피쳐·방법론은 그대로 쓴다' 원칙에 따라 줄 feature(height/title_x/trailing_page=마지막 정수)와 028/029 클러스터+LLM 순서 다운스트림을 baseline과 동일하게 둔다. category는 header/footer 제거에만 쓰고 hierarchy feature로는 안 쓴다. 핵심 평가축은 impl note 028이 깨뜨린 printed page coverage/monotonicity, 계층은 bookmark weak ref.",
       "inputs": [
         "data/native-pdf-indexed/John Hull - Options, Futures, and Other Derivatives, Global Edition-Pearson (2021).pdf",
         "data/scanned-pdf-indexed/David G. Luenberger, Investment Science 2nd - adobeOCR - indexed.pdf",
@@ -597,13 +597,12 @@
       "outputs": "experiments\\outputs\\039_upstage_reocr_feature_source",
       "labels": "experiments\\labels\\answer_toc_ranges_manual.json",
       "models": [
-        "ocr",
         "document-parse",
         "solar-pro3"
       ],
       "temperature": 0.0,
-      "finding": "john_hull; baseline: page_cov 558/563(0.9911) mono=0.9964 rel=0.8395 abs=0.0; upstage_ocr: page_cov 558/568(0.9824) mono=0.9964 rel=0.8074 abs=0.879; upstage_parse: page_cov 557/563(0.9893) mono=0.9964 rel=0.8438 abs=0.0 || luenberger_investment_science; baseline: page_cov 159/523(0.304) mono=0.8291 rel=0.5385 abs=0.7778; upstage_ocr: page_cov 493/518(0.9517) mono=0.998 rel=0.6154 abs=0.1481; upstage_parse: page_cov 493/510(0.9667) mono=0.998 rel=0.6923 abs=0.1481 || shreve_binomial; baseline: page_cov 170/241(0.7054) mono=0.8402 rel=0.8734 abs=0.895; upstage_ocr: page_cov 238/238(1.0) mono=1.0 rel=0.5359 abs=0.3151; upstage_parse: page_cov 238/238(1.0) mono=1.0 rel=0.6878 abs=0.1429 || algorithms_to_live_by; baseline: page_cov 55/68(0.8088) mono=0.9074; upstage_ocr: page_cov 37/59(0.6271) mono=1.0; upstage_parse: page_cov 36/59(0.6102) mono=1.0 || algorithm_nine; baseline: page_cov 15/15(1.0) mono=0.8571; upstage_ocr: page_cov 11/15(0.7333) mono=1.0; upstage_parse: page_cov 11/15(0.7333) mono=1.0",
-      "ran_at": "2026-06-29T19:27:38"
+      "finding": "john_hull; baseline: page_cov 558/563(0.9911) mono=0.9964 rel=0.8395 abs=0.0; upstage_parse: page_cov 559/563(0.9929) mono=0.9946 rel=0.8091 abs=0.8831 || luenberger_investment_science; baseline: page_cov 159/523(0.304) mono=0.8291 rel=0.5385 abs=0.7778; upstage_parse: page_cov 495/510(0.9706) mono=0.9939 rel=0.6923 abs=0.1481 || shreve_binomial; baseline: page_cov 170/241(0.7054) mono=0.8402 rel=0.8734 abs=0.895; upstage_parse: page_cov 238/238(1.0) mono=1.0 rel=0.519 abs=0.3193 || algorithms_to_live_by; baseline: page_cov 55/68(0.8088) mono=0.9074; upstage_parse: page_cov 59/59(1.0) mono=0.8103 || algorithm_nine; baseline: page_cov 15/15(1.0) mono=0.8571; upstage_parse: page_cov 15/15(1.0) mono=1.0",
+      "ran_at": "2026-06-30T03:22:37"
     }
   ]
 }

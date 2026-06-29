@@ -12,15 +12,17 @@ height/x1(indent) feature를 처음부터 재구성한다. Upstage document-digi
   그 word/element 좌표로 우리가 원래 쓰던 textbox height, x1 bin 같은 feature를 다시 만든다.
   즉 "기존 pdf의 ocr을 신뢰하지 않고 처음부터 OCR" 한다.
 
-세 arm(같은 책, 같은 다운스트림, feature source만 다름)
+두 arm(같은 책, 같은 다운스트림, feature source만 다름)
 - baseline : 기존 PDF text layer(PyMuPDF span). 029와 동일 경로 = 현재 production 재현.
-- upstage_ocr : model=ocr. page를 PNG로 렌더 → word box(pixel) → 줄 재구성.
-- upstage_parse : model=document-parse(words=true, coordinates=true). element category로
-  header/footer를 걸러내고, element word box(normalized) → 줄 재구성. category를 font_type
-  축으로 클러스터에 주입한다.
+- upstage_parse : model=document-parse(words=true, coordinates=true). element word box
+  (normalized) → 줄 재구성. category는 header/footer 제거에만 쓰고, hierarchy feature로는
+  쓰지 않는다(기존 방법론 그대로).
 
-각 arm에서 줄 feature: height(letter word box 높이), title_x(letter word 최소 x),
-trailing_page(맨 오른쪽 정수 word를 page 오른쪽 영역에서 결정론적으로 채택), is_bold/font_type.
+제약(사용자 확정): TOC page OCR은 반드시 Document Parse로만 한다. Document OCR(model=ocr)은
+과금되므로 사용 금지(Parse는 special initiative로 무료). 그리고 "OCR 소스만 교체하고 기존 피쳐·
+방법론은 그대로 쓴다" — 즉 새로운 '맨 오른쪽 정수' 규칙을 만들지 않고, 줄 feature는 baseline과
+동일하게 만든다: height(letter word box 높이), title_x(letter word 최소 x), trailing_page(줄
+텍스트의 마지막 정수, 정규식). is_bold/font_type은 Parse가 weight/family를 안 주므로 비활성.
 
 평가
 - 계층: bookmark weak ref(rel_depth/abs) — 3권(hull/shreve/luenberger).
@@ -91,7 +93,6 @@ PARSE_DROP_CATEGORIES = {"header", "footer", "footnote"}
 _HANGUL = re.compile(r"[가-힣]")
 _LATIN2 = re.compile(r"[A-Za-z]{2,}")
 _SUBSET = re.compile(r"^[A-Z]{6}\+")
-_PURE_INT = re.compile(r"^\d{1,4}$")
 _TITLE_WORDS = {
     "목차", "목 차", "차례", "contents", "contents in brief",
     "brief contents", "table of contents",
@@ -177,19 +178,6 @@ def digitize(png: bytes, model: str, extra: dict[str, str] | None = None) -> dic
 # word -> 줄 재구성 (ocr/parse 공통)
 # word = (text, conf, x1, y1, x2, y2, category)
 # ---------------------------------------------------------------------------
-def _ocr_words(resp: dict[str, Any]) -> tuple[list[tuple], float]:
-    page = resp["pages"][0]
-    pw = float(page.get("width") or 1.0)
-    words = []
-    for w in page.get("words", []):
-        v = w["boundingBox"]["vertices"]
-        xs = [p["x"] for p in v]
-        ys = [p["y"] for p in v]
-        words.append((w["text"], float(w.get("confidence", 1.0)),
-                      float(min(xs)), float(min(ys)), float(max(xs)), float(max(ys)), "ocr"))
-    return words, pw
-
-
 def _parse_words(resp: dict[str, Any]) -> tuple[list[tuple], float]:
     # normalized 좌표 → page_width=1.0 기준으로 일관 유지.
     words = []
@@ -241,22 +229,18 @@ def group_words_to_lines(words: list[tuple], page_width: float, pdf_page: int) -
             continue
         height = max(w[5] - w[3] for w in content)
         title_x = min(w[2] for w in content)
-        # trailing page: 맨 오른쪽 word가 정수이고 page 오른쪽 영역(>0.5*pw)이면 결정론 채택.
-        last = ln[-1]
-        trailing = None
-        if _PURE_INT.match(last[0].strip()) and last[2] > 0.5 * page_width:
-            trailing = int(last[0].strip())
-        # category(parse)는 줄 내 letter word 다수결.
-        cats = Counter(w[6] for w in content)
-        category = cats.most_common(1)[0][0]
+        # trailing page: 기존 방법론 그대로 — 줄 텍스트의 마지막 정수를 채택한다(맨 오른쪽
+        # 정수 위치 규칙은 폐기). baseline lines_baseline과 동일 로직.
+        nums = re.findall(r"\d+", " ".join(w[0].strip() for w in ln if w[0].strip()))
+        trailing = int(nums[-1]) if nums else None
         out.append({
             "pdf_page": pdf_page,
             "text": text,
             "height": round(height, 3),
             "title_x": round(title_x, 3),
             "page_width": page_width,
-            "is_bold": False,
-            "font_type": "ocr" if category == "ocr" else category,
+            "is_bold": False,      # Parse는 font weight를 안 줌 → 기존 bold 축 비활성.
+            "font_type": "reocr",  # Parse는 font family를 안 줌 → category를 feature로 쓰지 않음.
             "trailing_page": trailing,
         })
     return out
@@ -296,17 +280,13 @@ def lines_baseline(pdf_path: Path, toc_pages: list[int]) -> list[dict[str, Any]]
     return lines
 
 
-def lines_upstage(pdf_path: Path, toc_pages: list[int], model: str) -> list[dict[str, Any]]:
+def lines_upstage_parse(pdf_path: Path, toc_pages: list[int]) -> list[dict[str, Any]]:
     lines: list[dict[str, Any]] = []
     for pno in toc_pages:
         png = render_png(pdf_path, pno)
-        if model == "ocr":
-            resp = digitize(png, "ocr")
-            words, pw = _ocr_words(resp)
-        else:
-            resp = digitize(png, "document-parse",
-                            {"output_formats": '["text"]', "coordinates": "true", "words": "true"})
-            words, pw = _parse_words(resp)
+        resp = digitize(png, "document-parse",
+                        {"output_formats": '["text"]', "coordinates": "true", "words": "true"})
+        words, pw = _parse_words(resp)
         lines.extend(group_words_to_lines(words, pw, pno))
     return lines
 
@@ -641,16 +621,15 @@ def _cid(t):
     return re.sub(r"[^0-9A-Za-z가-힣]+", "_", t).strip("_")[:80]
 
 
-ARMS = ["baseline", "upstage_ocr", "upstage_parse"]
+# Document OCR(model=ocr)은 과금되어 사용 금지. Parse만 사용한다.
+ARMS = ["baseline", "upstage_parse"]
 
 
 def run_arm(arm, pdf, toc_pages, bms):
     if arm == "baseline":
         lines = lines_baseline(pdf, toc_pages)
-    elif arm == "upstage_ocr":
-        lines = lines_upstage(pdf, toc_pages, "ocr")
     else:
-        lines = lines_upstage(pdf, toc_pages, "document-parse")
+        lines = lines_upstage_parse(pdf, toc_pages)
     if not lines:
         return {"status": "no_lines"}
     line_cluster, clusters, debug = build_clusters(lines)
@@ -721,16 +700,17 @@ def record_experiment(summary):
     entry = {
         "id": EXPERIMENT_ID,
         "purpose": (
-            "기존 PDF OCR 텍스트 레이어를 신뢰하지 않고 TOC page를 Upstage로 처음부터 재-OCR/parse해 "
-            "height/x1 feature를 재구성한다. model=ocr(word box)과 model=document-parse(element "
-            "category+word box) 두 source를 028/029 클러스터+LLM 순서 다운스트림에 동일하게 꽂아, "
-            "기존 text layer baseline과 비교한다. 핵심 평가축은 impl note 028이 깨뜨린 printed page "
-            "coverage/monotonicity이며, 계층은 bookmark weak ref로 본다."
+            "기존 PDF OCR 텍스트 레이어를 신뢰하지 않고 TOC page를 Upstage Document Parse로 처음부터 "
+            "재-OCR해 height/x1 feature를 재구성한다(Document OCR은 과금되어 사용 금지). word box는 "
+            "Parse words=true에서 얻고, 'OCR 소스만 교체하고 기존 피쳐·방법론은 그대로 쓴다' 원칙에 따라 "
+            "줄 feature(height/title_x/trailing_page=마지막 정수)와 028/029 클러스터+LLM 순서 다운스트림을 "
+            "baseline과 동일하게 둔다. category는 header/footer 제거에만 쓰고 hierarchy feature로는 안 쓴다. "
+            "핵심 평가축은 impl note 028이 깨뜨린 printed page coverage/monotonicity, 계층은 bookmark weak ref."
         ),
         "inputs": [lab["input_pdf"] for lab in summary["_labels_used"]],
         "outputs": str(OUTPUT_DIR.relative_to(ROOT_DIR)),
         "labels": "experiments\\labels\\answer_toc_ranges_manual.json",
-        "models": ["ocr", "document-parse", MODEL], "temperature": 0.0,
+        "models": ["document-parse", MODEL], "temperature": 0.0,
         "finding": summary["finding"], "ran_at": summary["ran_at"],
     }
     exps = data.get("experiments", data) if isinstance(data, dict) else data
@@ -763,7 +743,7 @@ def main():
                    ensure_ascii=False, indent=2), encoding="utf-8")
     record_experiment(summary)
 
-    print("\n=== exp 039: re-OCR feature source (baseline vs upstage_ocr vs upstage_parse) ===")
+    print("\n=== exp 039: re-OCR feature source (baseline vs upstage_parse; Document OCR은 과금이라 제외) ===")
     for r in results:
         print(f"\n- {r['id']} ({r.get('status')})  contents_pages={r.get('contents_pages')}")
         for arm in ARMS:
