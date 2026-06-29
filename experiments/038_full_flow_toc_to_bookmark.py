@@ -404,16 +404,24 @@ def correct_toc_range(
     if anchor is None:
         return [], None, trace
 
-    # 앞으로 확장: is_toc_page=true인 한 다음 page로 계속 넘어간다(필수).
+    # 앞으로 확장: is_toc_page=true인 한 다음 page로 계속 넘어간다. 단 스캔 OCR 책에서
+    # 중간 한 page가 false로 오판돼도 다음 page가 true면 이어가도록 gap tolerance 1을 둔다.
+    # end는 true page에서만 갱신되므로, 관용한 false page는 다음 true가 나와야 range에 포함되고
+    # 목차가 끝난 뒤 연속 false면(gap>1) 멈춘다.
+    max_gap = 2
     end = anchor
     page = anchor + 1
+    gap = 0
     while page <= total_pages and page in page_text:
         if judge(page):
             end = page
-            page += 1
+            gap = 0
         else:
-            break
-    # 뒤로 확장: anchor 앞쪽도 목차면 포함한다.
+            gap += 1
+            if gap > max_gap:
+                break
+        page += 1
+    # 뒤로 확장: anchor 앞쪽도 목차면 포함한다(brief contents 오염 방지로 gap 관용 없이 엄격).
     start = anchor
     page = anchor - 1
     while page >= 1 and page in page_text:
@@ -430,22 +438,29 @@ def correct_toc_range(
 # ===========================================================================
 PANE_SYSTEM = (
     "너는 책 목차 page 하나가 한 단(1 pane)인지 두 단(2 pane)인지 판정하는 도구다.\n"
-    "같은 page에서 추출한 같은 텍스트를 두 읽기로 보여준다.\n"
-    "- reading A: page를 한 단으로 보고 줄 순서대로 읽은 것.\n"
-    "- reading B: page를 좌우 두 단으로 나눠 왼쪽 단을 위에서 아래로 읽은 뒤 오른쪽 단을 읽은 것.\n\n"
-    "핵심 판단 기준은 '문장 연결성'이다. 어느 읽기에서 각 목차 항목의 제목 문장이 끊기지 않고 "
-    "자연스럽게 이어지는가?\n"
-    "- 한 단(1 pane) page를 억지로 두 단으로 나누면, 중앙을 넘어가는 긴 줄이 좌우로 잘려 "
-    "제목 문장이 조각난다. 예: 왼쪽 단에 '...between lim and', 오른쪽 단에 'plim' 처럼 한 제목이 "
-    "둘로 쪼개진다. 이러면 reading B가 깨진 것이므로 pane_count=1이다.\n"
-    "- 진짜 두 단(2 pane) page를 한 단으로 읽으면, 좌우 칼럼의 서로 무관한 항목이 한 줄에 "
-    "뒤섞이고 페이지 번호가 줄 중간에 낀다. 이러면 reading A가 깨진 것이므로 pane_count=2이다.\n\n"
-    "보조 신호로 결정론 값 세 개를 준다. (1) 좌우 balance(0~1): 1에 가까우면 양쪽 단이 모두 꽉 찬 "
-    "2단 신호, 0에 가까우면 한쪽만 차서 1단 신호. (2) shared_row_pct(0~1): 한 줄에 좌우가 함께 있는 "
-    "비율. (3) gutter_straddle_ratio(0~ ): 검출한 세로 빈 띠(gutter)를 가로지르는 줄의 비율로, "
-    "0에 가까우면 중앙에 깨끗한 빈 띠가 있어 2단, 높으면 긴 줄이 중앙을 가로질러 1단(또는 wrap) 신호다. "
-    "이 신호들은 참고만 하고 최종 판단은 문장 연결성으로 한다.\n\n"
-    "reading A에서 문장이 자연스러우면 pane_count=1, reading B에서 문장이 자연스러우면 pane_count=2."
+    "같은 page에서 추출한 같은 텍스트를 두 가지로 읽어 보여준다.\n"
+    "- reading A: page를 한 단으로 보고 위에서 아래로 줄 순서대로 읽은 것.\n"
+    "- reading B: page를 좌우 두 단으로 나눠 왼쪽 단을 위에서 아래로 다 읽은 뒤 오른쪽 단을 읽은 것.\n\n"
+    "판정은 '결정론 신호 3개'와 '두 읽기의 흐름'을 함께 보고, 둘이 같은 결론을 가리키는지 확인해 내린다.\n\n"
+    "[결정론 신호의 의미]\n"
+    "- balance(0~1): 검출한 중앙 gutter를 기준으로 좌/우에 놓인 글자상자 수의 균형이다(min(L,R)/max(L,R)). "
+    "1에 가까우면 좌우 두 칼럼이 모두 비슷하게 꽉 찼다는 뜻(2단). 0에 가까우면 한쪽(보통 오른쪽)에 "
+    "글자가 거의 없다는 뜻이다 — 둘째 칼럼이 실제로 없으므로 1단이고, 이때 reading B의 오른쪽 단은 "
+    "비었거나 부스러기뿐인 가짜 두 단 읽기가 된다.\n"
+    "- shared_row_pct(0~1): 한 가로줄(row)에 좌·우 양쪽 칼럼 글자가 함께 있는 비율이다. 높으면 같은 줄에 "
+    "좌우 독립 항목이 나란히 있다는 뜻(2단), 낮으면 줄마다 한 항목뿐(1단)이다.\n"
+    "- gutter_straddle_ratio(0~): 검출한 중앙 세로 빈 띠(gutter)를 가로지르는 줄의 비율이다. 0에 가까우면 "
+    "중앙에 깨끗한 빈 띠가 있어 좌우가 분리된다(2단), 높으면 긴 줄이 중앙을 가로질러 빈 띠가 없다"
+    "(1단, 또는 줄바꿈 wrap)다.\n\n"
+    "[두 읽기의 흐름 확인]\n"
+    "- reading B를 직접 검사하라: 오른쪽 단(둘째 단)이 실제로 의미 있는 '독립 목차 항목 목록'을 담고 있는가? "
+    "오른쪽 단이 비었거나 짧은 부스러기뿐이거나, 한 제목이 좌우로 잘려 조각났다면(예: 왼쪽 '...between lim "
+    "and', 오른쪽 'plim') reading B는 가짜다 → pane_count=1.\n"
+    "- reading A를 검사하라: 좌우 칼럼의 서로 무관한 항목이 한 줄에 뒤섞이고 페이지 번호가 줄 중간에 끼어 "
+    "흐름이 깨졌다면 reading A가 가짜다 → pane_count=2.\n\n"
+    "[결론] 신호와 읽기는 보통 같은 결론을 가리킨다. balance가 0에 가깝고 reading B의 오른쪽 단이 비었으면 "
+    "신호와 읽기 모두 1단이다 — 이때 reading A가 멀쩡해 보여도 절대 2단이라고 하지 마라(reading A가 자연스러운 "
+    "건 원래 1단이기 때문이다). reading A가 자연스러우면 pane_count=1, reading B가 자연스러우면 pane_count=2."
 )
 PANE_RESPONSE_FORMAT = {
     "type": "json_schema",
@@ -687,9 +702,9 @@ def run_book(target: dict[str, Any]) -> dict[str, Any]:
                            "gutter_straddle_ratio": balance["gutter_straddle_ratio"], "pane": pred})
         print(f"  p{pdf_page}: balance={balance['balance']:.3f} straddle={balance['gutter_straddle_ratio']:.3f} -> pane={pred}")
     vote = Counter(v["pane"] for v in page_votes)
-    # 한 page라도 2단이면 2단 책(037 rollup)
-    pane_mode = 2 if vote.get(2, 0) > 0 else 1
-    print(f"  vote = {dict(vote)} -> book pane_mode = {pane_mode}")
+    # 다수결 rollup. 동률이면 단순한 1-pane으로 둔다(2-pane 처리가 더 파괴적이므로 보수적).
+    pane_mode = 2 if vote.get(2, 0) > vote.get(1, 0) else 1
+    print(f"  vote = {dict(vote)} -> book pane_mode = {pane_mode} (majority)")
     result["pane"] = {"votes": page_votes, "vote_count": dict(vote), "pane_mode": pane_mode}
 
     # --- Stage 5: deterministic level/hierarchy ---
