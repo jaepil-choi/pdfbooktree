@@ -475,6 +475,32 @@
       "temperature": 0.0,
       "finding": "300STUDY PDF 1250개를 스캔해 bookmark 품질 필터 통과 후보 306개를 만들고 seed 31031로 10권을 랜덤 선택했다. ML TOC detector는 10/10권에서 목차 page를 찾았다. LLM(solar-pro3) page별 추출 후 bookmark golden과 title fuzzy matching(threshold 82)으로 평가한 macro precision/recall/f1은 0.7612/0.7351/0.723이다. matching된 항목의 macro abs level agreement는 0.6598, relative depth agreement는 0.8983이다. 하위 사례: Software-Architecture-Patterns_Mark-Richard.p f1=0.0 det=[13]-[42]; Quantitative Portfolio Management in Python.p f1=0.4792 det=[1]-[14]; IFRS회계원리(2018)_이효익_최관_백원선_최영수-compressed-inde f1=0.6042 det=[6]-[35].",
       "ran_at": "2026-06-28T22:28:13"
+    },
+    {
+      "id": "032_y_kde_line_indent",
+      "purpose": "data/ 아래 실제 PDF에서 TOC page의 span/textbox y 좌표를 KDE valley cut으로 줄 tier로 나누고, 같은 page와 y tier의 textbox를 x 방향으로 이어 붙여 line을 재구성한 뒤, line min x를 다시 KDE valley cut으로 indentation tier화한다. 2단 목차에서 좌우 column이 같은 y tier로 합쳐지는 문제를 보기 위해 page를 세로 절반으로 나눈 vertical-half arm도 함께 비교한다. 실제 처리 후보는 content x 분포의 좌우 balance와 중앙 gap을 먼저 보고 vertical-half 여부를 결정한 뒤 y-KDE를 수행하는 auto arm이다.",
+      "inputs": [
+        "data/native-pdf-indexed/Zvi Bodie, Alex Kane, Alan Marcus - Investments-McGraw Hill (2021)[finance].pdf",
+        "data/scanned-pdf-indexed/고려대_계량경제학노트1_김창진-compressed-indexed[econ stats book].pdf",
+        "data/scanned-pdf-indexed/고려대_계량경제학노트2_김창진-compressed-indexed[econ stats book].pdf",
+        "data/scanned-pdf-not-indexed/퀀트의 세계 - 홍창수.pdf",
+        "data/scanned-pdf-not-indexed/한경_읽는법_-_한국경제신문-compressed[econ macro book].pdf"
+      ],
+      "outputs": "experiments\\outputs\\032_y_kde_line_indent",
+      "model": "none(deterministic)",
+      "finding": "zvi_bodie_investments: old_lines=753, auto_lines=687 (auto_delta=-66, auto_half=True), y_kde_lines=423 (delta=-330), half_lines=700 (half_delta=-53), y_cuts=52, x_cuts_all=1, x_cuts_content=1, auto_indent_content={'1': 320, '2': 367}, indent_all={'1': 352, '2': 71}, indent_content={'1': 342, '2': 81}, half_indent_content={'1': 342, '2': 358} | kim_econometrics_note1: old_lines=47, auto_lines=43 (auto_delta=-4, auto_half=False), y_kde_lines=43 (delta=-4), half_lines=46 (half_delta=-1), y_cuts=42, x_cuts_all=2, x_cuts_content=2, auto_indent_content={'1': 39, '2': 3, '3': 1}, indent_all={'1': 2, '2': 37, '3': 4}, indent_content={'1': 39, '2': 3, '3': 1}, half_indent_content={'1': 43, '2': 2, '3': 1} | kim_econometrics_note2: old_lines=453, auto_lines=348 (auto_delta=-105, auto_half=False), y_kde_lines=348 (delta=-105), half_lines=526 (half_delta=73), y_cuts=34, x_cuts_all=2, x_cuts_content=2, auto_indent_content={'1': 320, '2': 21, '3': 7}, indent_all={'1': 330, '2': 11, '3': 7}, indent_content={'1': 320, '2': 21, '3': 7}, half_indent_content={'1': 315, '2': 211} | quant_world: old_lines=58, auto_lines=54 (auto_delta=-4, auto_half=False), y_kde_lines=54 (delta=-4), half_lines=59 (half_delta=1), y_cuts=24, x_cuts_all=1, x_cuts_content=1, auto_indent_content={'1': 20, '2': 34}, indent_all={'1': 20, '2': 34}, indent_content={'1': 20, '2': 34}, half_indent_content={'1': 54, '2': 5} | hankyung_reader: old_lines=34, auto_lines=34 (auto_delta=0, auto_half=False), y_kde_lines=34 (delta=0), half_lines=34 (half_delta=0), y_cuts=33, x_cuts_all=1, x_cuts_content=2, auto_indent_content={'1': 1, '2': 19, '3': 14}, indent_all={'1': 1, '2': 33}, indent_content={'1': 1, '2': 19, '3': 14}, half_indent_content={'1': 1, '2': 19, '3': 14}",
+      "ran_at": "2026-06-29T09:40:49"
+    },
+    {
+      "id": "033_half_pane_indent_kde",
+      "purpose": "Zvi Bodie Investments TOC page를 좌우 vertical half로 나누고, 각 pane 내부 y-KDE로 line을 만든 뒤 line indent x 분포의 KDE와 valley cut을 같은 축에 겹쳐 그려 half split 여부를 판정할 더 단순한 신호가 되는지 확인한다.",
+      "inputs": [
+        "data/native-pdf-indexed/Zvi Bodie, Alex Kane, Alan Marcus - Investments-McGraw Hill (2021)[finance].pdf"
+      ],
+      "outputs": "experiments\\outputs\\033_half_pane_indent_kde",
+      "model": "none(deterministic)",
+      "finding": "Zvi Bodie TOC를 vertical half로 나눈 뒤 y-KDE로 line을 재구성하고 pane-local line indent x를 KDE로 겹쳐 그렸다. left/right count=44/44, left cuts=[0.77], right cuts=[0.3052], cut mean_abs_diff=0.4648, max_abs_diff=0.4648이다. 좌우 pane의 KDE peak/valley 위치가 유사하면 half split이 단순 count/gap 휴리스틱보다 강한 2단 목차 증거로 쓸 수 있다.",
+      "ran_at": "2026-06-29T10:02:22"
     }
   ]
 }
