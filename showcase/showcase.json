@@ -95,6 +95,28 @@
       "finding": "John Hull - Options, Futures, and Other Derivatives, Global Edition-Pearson (2021).pdf: bookmark 470개 → markdown 디렉터리 470개, md 470개(본문 있는 것 388개) export(processed). (Springer Finance) Steven E. Shreve - Stochastic Calculus for Finance I The Binomial Asset Pricing Model-Springer (2005)-indexed.pdf: bookmark 238개 → markdown 디렉터리 238개, md 238개(본문 있는 것 180개) export(processed).",
       "command": "uv run python showcase/007_bookmark_markdown_export.py",
       "ran_at": "2026-06-28T12:35:58+09:00"
+    },
+    {
+      "id": "008_perpage_toc_range_review",
+      "purpose": "experiment 038에서 검증한 per-page TOC range 보정을 src 공개 인터페이스(LlmTocRangeReviewer)로 옮긴 뒤, 로컬 정답 라벨 PDF에서 ML detector seed -> LLM per-page 보정 range가 정답에 얼마나 맞는지 real data + live call로 검증한다. has_page_numbers gate와 forward gap/backward 엄격 확장을 확인한다.",
+      "inputs": [
+        "data/native-pdf-indexed/John Hull - Options, Futures, and Other Derivatives, Global Edition-Pearson (2021).pdf",
+        "data/scanned-pdf-indexed/(Springer Finance) Steven E. Shreve - Stochastic Calculus for Finance I The Binomial Asset Pricing Model-Springer (2005)-indexed.pdf",
+        "data/scanned-pdf-indexed/David G. Luenberger, Investment Science 2nd - adobeOCR - indexed.pdf",
+        "data/scanned-pdf-not-indexed/미래를_바꾼_아홉가지_알고리즘_-_존_맥코믹-compressed[algorithm cs book].pdf",
+        "data/scanned-pdf-not-indexed/알고리즘_인생을계산하다_The_computer_science_of_human_decisions_-_BrianChristian.pdf",
+        "data/native-pdf-indexed/Zvi Bodie, Alex Kane, Alan Marcus - Investments-McGraw Hill (2021)[finance].pdf",
+        "data/scanned-pdf-indexed/고려대_계량경제학노트1_김창진-compressed-indexed[econ stats book].pdf",
+        "data/scanned-pdf-indexed/고려대_계량경제학노트2_김창진-compressed-indexed[econ stats book].pdf",
+        "data/scanned-pdf-not-indexed/퀀트의 세계 - 홍창수.pdf",
+        "data/scanned-pdf-not-indexed/한경_읽는법_-_한국경제신문-compressed[econ macro book].pdf"
+      ],
+      "outputs": "showcase/outputs/008_perpage_toc_range_review/result.json",
+      "labels": "experiments/labels/answer_toc_ranges_manual.json",
+      "model": "solar-pro3",
+      "finding": "ML detector seed -> per-page LlmTocRangeReviewer로 5권의 TOC range를 live 보정했다. LLM 보정 후 precision/recall 동시 1.0인 책은 4/5권이다. john_hull: missing_pdf | shreve_binomial: missing_pdf | luenberger_investment_science: missing_pdf | algorithm_nine: missing_pdf | algorithms_to_live_by: missing_pdf | zvi_bodie_investments: ML=[3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32](P0.3333/R1.0) -> LLM=[7, 8, 9, 10, 11, 12, 13, 14, 15, 16](P1.0/R1.0, stage=forward_scan, calls=17) | kim_econometrics_note1: ML=[2, 3, 4, 5, 6, 7, 8, 9, 10, 11](P0.1/R1.0) -> LLM=[3](P1.0/R1.0, stage=forward_scan, calls=5) | kim_econometrics_note2: ML=[2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30](P0.2759/R1.0) -> LLM=[3, 4, 5, 6, 7](P1.0/R0.625, stage=forward_scan, calls=9) | quant_world: ML=[2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28](P0.1481/R1.0) -> LLM=[17, 18, 19, 20](P1.0/R1.0, stage=forward_scan, calls=18) | hankyung_reader: ML=[2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27](P0.1923/R1.0) -> LLM=[6, 7, 8, 9, 10](P1.0/R1.0, stage=forward_scan, calls=11)",
+      "command": "uv run python showcase/008_perpage_toc_range_review.py",
+      "ran_at": "2026-06-29T16:50:32+09:00"
     }
   ]
 }
