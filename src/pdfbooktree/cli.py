@@ -35,7 +35,7 @@ def process(
     use_llm: bool = typer.Option(
         False,
         "--use-llm",
-        help="런타임에서 LLM fallback을 실제 호출할지 여부다.",
+        help="런타임에서 LLM range review와 clustered item extraction을 실제 호출할지 여부다.",
     ),
     skip_existing_bookmarks: bool = typer.Option(
         True,

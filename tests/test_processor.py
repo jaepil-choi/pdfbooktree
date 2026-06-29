@@ -233,8 +233,8 @@ class _StubReviewer:
             start_page=self.pages[0],
             end_page=self.pages[-1],
             anchor_page=self.pages[0],
-            stage="stage1_accept",
-            method="llm_3stage_fallback",
+            stage="forward_scan",
+            method="llm_perpage_scan",
             llm_calls=3,
         )
 
@@ -249,7 +249,7 @@ class _StubExtractor:
         return self.items
 
 
-def test_processor_uses_llm_range_review_and_item_fallback(
+def test_processor_uses_llm_range_review_and_item_extraction(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
@@ -308,11 +308,11 @@ def test_processor_uses_llm_range_review_and_item_fallback(
     assert [entry["start_pdf_page"] for entry in ranges_payload] == [5, 14]
 
 
-def test_processor_defaults_to_staged_llm_item_extractor(
+def test_processor_defaults_to_clustered_staged_llm_item_extractor(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
-    """주입 extractor가 없으면 staged LLM item extractor를 기본으로 lazy 생성한다."""
+    """주입 extractor가 없으면 최신 clustered staged extractor를 기본으로 lazy 생성한다."""
 
     pdf_path = tmp_path / "no_bookmark.pdf"
     _make_offset_pdf(pdf_path)
@@ -356,6 +356,57 @@ def test_processor_defaults_to_staged_llm_item_extractor(
 
     assert calls["toc_pages"] == [5]
     assert calls["config"] is not None
+
+
+def test_processor_llm_item_extractor_replaces_regex_when_enabled(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    """use_llm=True이면 regex 결과가 있어도 최신 LLM item 추출 결과를 사용한다."""
+
+    pdf_path = tmp_path / "no_bookmark.pdf"
+    _make_offset_pdf(pdf_path)
+    _patch_toc_detection(monkeypatch, [3])
+
+    monkeypatch.setattr(
+        "pdfbooktree.processor.parse_toc_items",
+        lambda _pages, _toc_pages: [
+            TocItem(
+                title="Regex Wrong",
+                level=1,
+                printed_page=1,
+                raw_text="Regex Wrong 1",
+                source_pdf_page=3,
+                confidence=0.2,
+            )
+        ],
+    )
+
+    extractor = _StubExtractor(
+        [
+            TocItem(
+                title="Chapter 2 Methods",
+                level=1,
+                printed_page=10,
+                raw_text="Chapter 2 Methods",
+                source_pdf_page=5,
+                confidence=0.8,
+            )
+        ]
+    )
+
+    output_dir = tmp_path / "out"
+    Processor(
+        pdf_path,
+        output_dir,
+        ProcessingConfig(use_llm=True),
+        range_reviewer=_StubReviewer([5]),
+        item_extractor=extractor,
+    ).run()
+
+    ranges_payload = json.loads((output_dir / "ranges.json").read_text("utf-8"))
+    assert [entry["title"] for entry in ranges_payload] == ["Chapter 2 Methods"]
+    assert extractor.called_with == [5]
 
 
 def test_processor_skips_llm_when_use_llm_false(

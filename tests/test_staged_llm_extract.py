@@ -5,9 +5,11 @@ from typing import Any
 
 from pdfbooktree.models import TocVisualLine
 from pdfbooktree.toc.staged_llm_extract import (
+    ClusteredTocLine,
     SizeAwareStagedTocExtractor,
     annotate_page,
     assign_tier,
+    build_clusters,
     cluster_height_cut_points,
     content_tier_to_level,
 )
@@ -89,86 +91,136 @@ def test_annotate_page_adds_tier_markers() -> None:
     annotated = annotate_page(lines, 7, [12.0])
 
     assert '<T1 x1="72.0">1장 큰 제목</T1>' in annotated
-    assert '<T2 x1="96.5">작은 &lt;항목&gt; \'10\'</T2>' in annotated
+    assert "<T2 x1=\"96.5\">작은 &lt;항목&gt; '10'</T2>" in annotated
 
 
-def test_staged_extractor_uses_schema_then_page_extraction() -> None:
-    """schema 결정 뒤 page별 추출을 호출하고 level은 tier 매핑으로 부여한다."""
+def test_build_clusters_keeps_visual_signals_separate() -> None:
+    """height와 indent column을 함께 써서 content 줄을 signature cluster로 묶는다."""
 
-    schema_response = json.dumps(
+    lines = [
+        ClusteredTocLine(
+            pdf_page=3,
+            text="Chapter 1 Introduction",
+            height=18.0,
+            title_x=72.0,
+            page_width=600.0,
+            is_bold=True,
+            font_type="times",
+            trailing_page=1,
+        ),
+        ClusteredTocLine(
+            pdf_page=3,
+            text="1.1 Motivation",
+            height=9.0,
+            title_x=96.0,
+            page_width=600.0,
+            is_bold=False,
+            font_type="times",
+            trailing_page=3,
+        ),
+        ClusteredTocLine(
+            pdf_page=3,
+            text="1.2 Scope",
+            height=9.1,
+            title_x=96.5,
+            page_width=600.0,
+            is_bold=False,
+            font_type="times",
+            trailing_page=4,
+        ),
+    ]
+
+    line_cluster, clusters, debug = build_clusters(lines)
+
+    assert len(clusters) == 2
+    assert line_cluster[1] == line_cluster[2]
+    assert line_cluster[0] != line_cluster[1]
+    assert debug["n_clusters"] == 2
+
+
+def test_staged_extractor_uses_cluster_order_split_then_correction() -> None:
+    """클러스터 순서 결정 뒤 level marker 추출과 제목 교정을 순서대로 호출한다."""
+
+    cluster_response = json.dumps(
         {
-            "levels": [
-                {"level": 1, "name": "장", "cues": "T1", "examples": ["1장"]},
-                {"level": 2, "name": "항목", "cues": "T2", "examples": ["비서 문제"]},
+            "clusters": [
+                {"cluster_id": 0, "level": 1},
+                {"cluster_id": 1, "level": 2},
             ]
         }
     )
-    page_response = json.dumps(
+    split_response = json.dumps(
         {
-            "is_toc_page": True,
             "items": [
-                {"tier": 1, "title": "1장 선택의 기술", "printed_page": 1},
-                {"tier": 2, "title": "비서 문제", "printed_page": 12},
-                {"tier": 99, "title": "알 수 없는 tier", "printed_page": None},
-                {"tier": 2, "title": "2장 순서의 기술", "printed_page": 30},
-                {"tier": 2, "title": "치", "printed_page": None},
+                {"level": 1, "title": "1장선택의기술", "printed_page": 1},
+                {"level": 2, "title": "비서 문제", "printed_page": 12},
+                {"level": 2, "title": "치", "printed_page": None},
             ]
         }
     )
-    fake = _FakeClient([schema_response, page_response])
+    correction_response = json.dumps({"titles": ["1장 선택의 기술", "비서 문제"]})
+    fake = _FakeClient([cluster_response, split_response, correction_response])
     extractor = SizeAwareStagedTocExtractor(chat_client=fake)
     lines = [
-        TocVisualLine(pdf_page=3, height=24.0, text="목차"),
-        TocVisualLine(pdf_page=3, height=18.0, text="1장 선택의 기술"),
-        TocVisualLine(pdf_page=3, height=17.8, text="2장 순서의 기술"),
-        TocVisualLine(pdf_page=3, height=18.2, text="3장 예측의 기술"),
-        TocVisualLine(pdf_page=3, height=8.0, text="비서 문제 12"),
-        TocVisualLine(pdf_page=3, height=8.2, text="37퍼센트 규칙 16"),
-        TocVisualLine(pdf_page=3, height=7.8, text="탐색과 이용 20"),
+        ClusteredTocLine(
+            pdf_page=3,
+            text="목차",
+            height=24.0,
+            title_x=72.0,
+            page_width=600.0,
+            is_bold=True,
+            font_type="gothic",
+            trailing_page=None,
+        ),
+        ClusteredTocLine(
+            pdf_page=3,
+            text="1장선택의기술 1",
+            height=18.0,
+            title_x=72.0,
+            page_width=600.0,
+            is_bold=True,
+            font_type="gothic",
+            trailing_page=1,
+        ),
+        ClusteredTocLine(
+            pdf_page=3,
+            text="비서 문제 12",
+            height=8.0,
+            title_x=96.0,
+            page_width=600.0,
+            is_bold=False,
+            font_type="gothic",
+            trailing_page=12,
+        ),
     ]
 
-    items = extractor.extract_from_lines(lines, [3])
+    items = extractor.extract_from_clustered_lines(lines, [3])
 
-    assert [item.title for item in items] == [
-        "1장 선택의 기술",
-        "비서 문제",
-        "알 수 없는 tier",
-        "2장 순서의 기술",
-    ]
-    assert [item.level for item in items] == [1, 2, 2, 1]
-    assert [item.printed_page for item in items] == [1, 12, None, 30]
+    assert [item.title for item in items] == ["1장 선택의 기술", "비서 문제"]
+    assert [item.level for item in items] == [1, 2]
+    assert [item.printed_page for item in items] == [1, 12]
     assert all(item.source_pdf_page == 3 for item in items)
-    assert fake.calls[0]["response_format"]["json_schema"]["name"] == "hierarchy_schema"
-    assert fake.calls[1]["response_format"]["json_schema"]["name"] == (
-        "toc_page_extraction"
+    assert fake.calls[0]["response_format"]["json_schema"]["name"] == "cluster_levels"
+    assert fake.calls[1]["response_format"]["json_schema"]["name"] == "toc_split"
+    assert fake.calls[2]["response_format"]["json_schema"]["name"] == (
+        "toc_title_correction"
     )
-    assert "T1=level 1" in fake.calls[0]["messages"][1]["content"]
-    assert '<T1 x1="' in fake.calls[0]["messages"][1]["content"]
+    assert "클러스터 목록" in fake.calls[0]["messages"][1]["content"]
+    assert "[L1]" in fake.calls[1]["messages"][1]["content"]
 
 
-def test_staged_extractor_skips_non_toc_page() -> None:
-    """page별 LLM이 목차가 아니라고 판단하면 해당 page 항목을 버린다."""
+def test_staged_extractor_returns_empty_when_page_extraction_has_no_items() -> None:
+    """page별 추출 결과가 비면 제목 교정을 호출하지 않고 빈 결과를 반환한다."""
 
-    schema_response = json.dumps(
-        {
-            "levels": [
-                {"level": 1, "name": "장", "cues": "T1", "examples": ["1장"]},
-            ]
-        }
-    )
-    page_response = json.dumps(
-        {
-            "is_toc_page": False,
-            "items": [{"tier": 1, "title": "광고 문구", "printed_page": None}],
-        }
-    )
-    fake = _FakeClient([schema_response, page_response])
+    cluster_response = json.dumps({"clusters": [{"cluster_id": 0, "level": 1}]})
+    split_response = json.dumps({"items": []})
+    fake = _FakeClient([cluster_response, split_response])
     extractor = SizeAwareStagedTocExtractor(chat_client=fake)
     lines = [
-        TocVisualLine(pdf_page=3, height=18.0, text="광고 문구"),
-        TocVisualLine(pdf_page=3, height=8.0, text="본문 안내"),
+        TocVisualLine(pdf_page=3, height=18.0, text="광고 문구", x1=72.0),
     ]
 
     items = extractor.extract_from_lines(lines, [3])
 
     assert items == []
+    assert len(fake.calls) == 2

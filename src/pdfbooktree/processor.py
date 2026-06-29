@@ -28,7 +28,6 @@ from pdfbooktree.pdf.bookmarks import extract_existing_bookmarks
 from pdfbooktree.pdf.text import extract_page_texts, extract_selected_page_texts
 from pdfbooktree.toc.detect import detect_toc_pages
 from pdfbooktree.toc.features import calculate_page_features
-from pdfbooktree.toc.llm_extract import LlmTocExtractor
 from pdfbooktree.toc.llm_range_review import LlmTocRangeReviewer
 from pdfbooktree.toc.parse import parse_toc_items
 from pdfbooktree.toc.staged_llm_extract import SizeAwareStagedTocExtractor
@@ -44,7 +43,7 @@ class Processor:
         config: ProcessingConfig | None = None,
         *,
         range_reviewer: LlmTocRangeReviewer | None = None,
-        item_extractor: LlmTocExtractor | SizeAwareStagedTocExtractor | None = None,
+        item_extractor: SizeAwareStagedTocExtractor | None = None,
     ) -> None:
         self.input_pdf = Path(input_pdf)
         self.output_dir = Path(output_dir)
@@ -108,8 +107,9 @@ class Processor:
 
         toc_items = parse_toc_items(pages, toc_pages)
         item_method = "deterministic_regex"
-        # 결정적 파서가 0개면(한국어/OCR 목차) LLM item 추출로 fallback한다.
-        if not toc_items and self.config.use_llm and toc_pages:
+        # 최신 production 경로에서는 use_llm=True일 때 regex 결과와 무관하게
+        # clustered staged extractor가 item 추출을 소유한다.
+        if self.config.use_llm and toc_pages:
             toc_items = self._extract_items_with_llm(toc_pages)
             item_method = "llm_item_extraction" if toc_items else "none"
 
@@ -174,15 +174,12 @@ class Processor:
         return self._range_reviewer.review(self.input_pdf, toc_detection, total_pages)
 
     def _extract_items_with_llm(self, toc_pages: list[int]) -> list[TocItem]:
-        """결정적 파서가 0개를 뽑은 TOC range에서 LLM으로 item을 추출한다."""
+        """TOC range에서 최신 clustered staged extractor로 item을 추출한다."""
 
         if self._item_extractor is None:
-            if self.config.llm_item_extraction_strategy == "basic":
-                self._item_extractor = LlmTocExtractor(self.config.llm_extraction)
-            else:
-                self._item_extractor = SizeAwareStagedTocExtractor(
-                    self.config.llm_staged_extraction
-                )
+            self._item_extractor = SizeAwareStagedTocExtractor(
+                self.config.llm_staged_extraction
+            )
         return self._item_extractor.extract(self.input_pdf, toc_pages)
 
     def _build_heading_candidates(
