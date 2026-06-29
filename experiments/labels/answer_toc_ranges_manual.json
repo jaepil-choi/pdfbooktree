@@ -11,7 +11,20 @@
       "input_pdf": "data/native-pdf-indexed/John Hull - Options, Futures, and Other Derivatives, Global Edition-Pearson (2021).pdf",
       "toc_start_page": 5,
       "toc_end_page": 16,
-      "toc_pages": [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16],
+      "toc_pages": [
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16
+      ],
       "toc_segments": [
         {
           "kind": "contents_in_brief",
@@ -31,7 +44,17 @@
       "input_pdf": "data/scanned-pdf-indexed/(Springer Finance) Steven E. Shreve - Stochastic Calculus for Finance I The Binomial Asset Pricing Model-Springer (2005)-indexed.pdf",
       "toc_start_page": 3,
       "toc_end_page": 11,
-      "toc_pages": [3, 4, 5, 6, 7, 8, 9, 10, 11],
+      "toc_pages": [
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11
+      ],
       "toc_segments": [
         {
           "kind": "contents",
@@ -46,7 +69,22 @@
       "input_pdf": "data/scanned-pdf-indexed/David G. Luenberger, Investment Science 2nd - adobeOCR - indexed.pdf",
       "toc_start_page": 7,
       "toc_end_page": 20,
-      "toc_pages": [7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20],
+      "toc_pages": [
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20
+      ],
       "toc_segments": [
         {
           "kind": "contents_in_brief",
@@ -66,7 +104,9 @@
       "input_pdf": "data/scanned-pdf-not-indexed/미래를_바꾼_아홉가지_알고리즘_-_존_맥코믹-compressed[algorithm cs book].pdf",
       "toc_start_page": 12,
       "toc_end_page": 12,
-      "toc_pages": [12],
+      "toc_pages": [
+        12
+      ],
       "toc_segments": [
         {
           "kind": "contents",
@@ -81,7 +121,12 @@
       "input_pdf": "data/scanned-pdf-not-indexed/알고리즘_인생을계산하다_The_computer_science_of_human_decisions_-_BrianChristian.pdf",
       "toc_start_page": 16,
       "toc_end_page": 19,
-      "toc_pages": [16, 17, 18, 19],
+      "toc_pages": [
+        16,
+        17,
+        18,
+        19
+      ],
       "toc_segments": [
         {
           "kind": "contents",
@@ -90,6 +135,114 @@
         }
       ],
       "notes": "bookmark 없는 runtime 타깃. 목차 16-19."
+    },
+    {
+      "id": "zvi_bodie_investments",
+      "input_pdf": "data/native-pdf-indexed/Zvi Bodie, Alex Kane, Alan Marcus - Investments-McGraw Hill (2021)[finance].pdf",
+      "toc_start_page": 7,
+      "toc_end_page": 16,
+      "toc_pages": [
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16
+      ],
+      "toc_segments": [
+        {
+          "kind": "contents",
+          "start_page": 7,
+          "end_page": 16
+        }
+      ],
+      "notes": "사용자 제공 정답. data/ 현재 책의 수동 TOC page range다."
+    },
+    {
+      "id": "kim_econometrics_note1",
+      "input_pdf": "data/scanned-pdf-indexed/고려대_계량경제학노트1_김창진-compressed-indexed[econ stats book].pdf",
+      "toc_start_page": 3,
+      "toc_end_page": 3,
+      "toc_pages": [
+        3
+      ],
+      "toc_segments": [
+        {
+          "kind": "contents",
+          "start_page": 3,
+          "end_page": 3
+        }
+      ],
+      "notes": "사용자 제공 정답. data/ 현재 책의 수동 TOC page range다."
+    },
+    {
+      "id": "kim_econometrics_note2",
+      "input_pdf": "data/scanned-pdf-indexed/고려대_계량경제학노트2_김창진-compressed-indexed[econ stats book].pdf",
+      "toc_start_page": 3,
+      "toc_end_page": 10,
+      "toc_pages": [
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "toc_segments": [
+        {
+          "kind": "contents",
+          "start_page": 3,
+          "end_page": 10
+        }
+      ],
+      "notes": "사용자 제공 정답. data/ 현재 책의 수동 TOC page range다."
+    },
+    {
+      "id": "quant_world",
+      "input_pdf": "data/scanned-pdf-not-indexed/퀀트의 세계 - 홍창수.pdf",
+      "toc_start_page": 17,
+      "toc_end_page": 20,
+      "toc_pages": [
+        17,
+        18,
+        19,
+        20
+      ],
+      "toc_segments": [
+        {
+          "kind": "contents",
+          "start_page": 17,
+          "end_page": 20
+        }
+      ],
+      "notes": "사용자 제공 정답. data/ 현재 책의 수동 TOC page range다."
+    },
+    {
+      "id": "hankyung_reader",
+      "input_pdf": "data/scanned-pdf-not-indexed/한경_읽는법_-_한국경제신문-compressed[econ macro book].pdf",
+      "toc_start_page": 6,
+      "toc_end_page": 10,
+      "toc_pages": [
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "toc_segments": [
+        {
+          "kind": "contents",
+          "start_page": 6,
+          "end_page": 10
+        }
+      ],
+      "notes": "사용자 제공 정답. data/ 현재 책의 수동 TOC page range다."
     }
   ]
 }
