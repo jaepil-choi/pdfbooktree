@@ -603,6 +603,60 @@
       "temperature": 0.0,
       "finding": "john_hull; baseline: page_cov 558/563(0.9911) mono=0.9964 rel=0.8395 abs=0.0; upstage_parse: page_cov 559/563(0.9929) mono=0.9946 rel=0.8091 abs=0.8831 || luenberger_investment_science; baseline: page_cov 159/523(0.304) mono=0.8291 rel=0.5385 abs=0.7778; upstage_parse: page_cov 495/510(0.9706) mono=0.9939 rel=0.6923 abs=0.1481 || shreve_binomial; baseline: page_cov 170/241(0.7054) mono=0.8402 rel=0.8734 abs=0.895; upstage_parse: page_cov 238/238(1.0) mono=1.0 rel=0.519 abs=0.3193 || algorithms_to_live_by; baseline: page_cov 55/68(0.8088) mono=0.9074; upstage_parse: page_cov 59/59(1.0) mono=0.8103 || algorithm_nine; baseline: page_cov 15/15(1.0) mono=0.8571; upstage_parse: page_cov 15/15(1.0) mono=1.0",
       "ran_at": "2026-06-30T03:22:37"
+    },
+    {
+      "id": "040_upstage_parse_src_endtoend",
+      "purpose": "현재 src/ production 흐름을 그대로 타되, 최초 input만 Document Parse 원칙으로 TOC range page의 줄 신호 source만 Document Parse(page per page, 한 호출당 1 page)로 바꾼다. TOC range 탐지는 Document Parse를 쓰지 않고 기존 src production(ML detector + LLM per-page range review)으로, offset은 Document Parse 없이 src 결정론 estimate_page_offset으로 진행한다. 두 arm(baseline=src extractor의 PyMuPDF span, upstage_parse=TOC range page Parse 후 동일 extractor.extract_from_clustered_lines)을 같은 탐지/offset/align 위에서 비교한다. 평가축은 GT range P/R, bookmark weak ref rel_depth/abs, printed page coverage/monotonicity, offset 적용 후 bookmark placeable.",
+      "inputs": [
+        "data/native-pdf-indexed/Zvi Bodie, Alex Kane, Alan Marcus - Investments-McGraw Hill (2021)[finance].pdf",
+        "data/scanned-pdf-indexed/고려대_계량경제학노트1_김창진-compressed-indexed[econ stats book].pdf",
+        "data/scanned-pdf-indexed/고려대_계량경제학노트2_김창진-compressed-indexed[econ stats book].pdf",
+        "data/scanned-pdf-not-indexed/퀀트의 세계 - 홍창수.pdf",
+        "data/scanned-pdf-not-indexed/한경_읽는법_-_한국경제신문-compressed[econ macro book].pdf"
+      ],
+      "outputs": "experiments\\outputs\\040_upstage_parse_src_endtoend",
+      "labels": "experiments\\labels\\answer_toc_ranges_manual.json",
+      "models": [
+        "document-parse",
+        "solar-pro3"
+      ],
+      "temperature": 0.0,
+      "finding": "zvi_bodie_investments(range P1.0/R1.0, offset=29); baseline: page_cov 253/765(0.3307) mono=0.9603 placeable=253/765 rel=0.5668 abs=0.1974; upstage_parse: page_cov 195/584(0.3339) mono=0.7577 placeable=195/584 rel=0.55 abs=0.0439 || kim_econometrics_note1(range P1.0/R1.0, offset=1); baseline: page_cov 0/45(0.0) mono=None placeable=0/45 rel=0.8409 abs=0.8222; upstage_parse: page_cov 38/42(0.9048) mono=1.0 placeable=38/42 rel=0.6889 abs=0.087 || kim_econometrics_note2(range P1.0/R0.625, offset=-1); baseline: page_cov 5/130(0.0385) mono=0.5 placeable=5/130 rel=0.6463 abs=0.0541; upstage_parse: page_cov 9/129(0.0698) mono=1.0 placeable=9/129 rel=0.604 abs=0.0 || quant_world(range P1.0/R1.0, offset=1); baseline: page_cov 26/57(0.4561) mono=1.0 placeable=26/57 rel=0.9756 abs=0.6429; upstage_parse: page_cov 42/54(0.7778) mono=1.0 placeable=42/54 rel=0.9024 abs=0.2857 || hankyung_reader(range P1.0/R1.0, offset=1); baseline: page_cov 33/130(0.2538) mono=0.9688 placeable=33/130; upstage_parse: page_cov 110/122(0.9016) mono=1.0 placeable=110/122",
+      "ran_at": "2026-06-30T14:01:12"
+    },
+    {
+      "id": "041_parse_fitz_hybrid_lines",
+      "purpose": "040에서 Parse가 printed page 채널은 살리지만 계층을 평탄화한 문제를, fitz(계층 geometry: height/title_x/is_bold/font_type)와 Document Parse(깨끗한 텍스트·페이지번호)를 줄 매칭으로 합쳐 푼다. Parse는 전 책에 적용한다(native는 기존 bookmark가 있어 production 대상이 아니므로 책별 gate 없음). hybrid는 fitz 줄을 backbone(클러스터=baseline 동일 -> 계층 보존)으로 두고, 같은 page에서 정규화 y 근접+텍스트 fuzzy로 1:1 매칭된 Parse 줄의 텍스트/페이지번호만 이식한다(src staged extractor는 printed_page를 줄 텍스트에서 LLM이 읽으므로 텍스트 교체가 필요). TOC range 탐지/offset은 040과 동일하게 src production·결정론. baseline/parse/hybrid 3-arm을 GT range P/R, weakref rel/abs, page coverage/monotonicity, offset 적용 후 placeable로 비교한다.",
+      "inputs": [
+        "data/native-pdf-indexed/Zvi Bodie, Alex Kane, Alan Marcus - Investments-McGraw Hill (2021)[finance].pdf",
+        "data/scanned-pdf-indexed/고려대_계량경제학노트1_김창진-compressed-indexed[econ stats book].pdf",
+        "data/scanned-pdf-indexed/고려대_계량경제학노트2_김창진-compressed-indexed[econ stats book].pdf",
+        "data/scanned-pdf-not-indexed/퀀트의 세계 - 홍창수.pdf",
+        "data/scanned-pdf-not-indexed/한경_읽는법_-_한국경제신문-compressed[econ macro book].pdf"
+      ],
+      "outputs": "experiments\\outputs\\041_parse_fitz_hybrid_lines",
+      "labels": "experiments\\labels\\answer_toc_ranges_manual.json",
+      "models": [
+        "document-parse",
+        "solar-pro3"
+      ],
+      "temperature": 0.0,
+      "source_experiment": "040_upstage_parse_src_endtoend",
+      "finding": "zvi_bodie_investments(range P1.0/R1.0, offset=29); baseline: cov 252/826(0.3051) mono=0.9602 placeable=252/826 rel=0.5628 abs=0.1948; parse: cov 217/639(0.3396) mono=0.7407 placeable=217/639 rel=0.5319 abs=0.0415; hybrid: cov 232/763(0.3041) mono=0.8701 placeable=232/763 transplanted=483/753 rel=0.5807 abs=0.2666 || kim_econometrics_note1(range P1.0/R1.0, offset=1); baseline: cov 0/47(0.0) mono=None placeable=0/47 rel=0.8333 abs=0.814; parse: cov 38/42(0.9048) mono=1.0 placeable=38/42 rel=0.6889 abs=0.087; hybrid: cov 37/47(0.7872) mono=1.0 placeable=37/47 transplanted=41/47 rel=0.8444 abs=0.913 || kim_econometrics_note2(range P1.0/R0.625, offset=-1); baseline: cov 5/127(0.0394) mono=0.5 placeable=5/127 rel=0.6438 abs=0.0544; parse: cov 9/129(0.0698) mono=1.0 placeable=9/129 rel=0.604 abs=0.0; hybrid: cov 9/129(0.0698) mono=1.0 placeable=9/129 transplanted=129/131 rel=0.651 abs=0.0133 || quant_world(range P1.0/R1.0, offset=1); baseline: cov 26/57(0.4561) mono=1.0 placeable=26/57 rel=0.9756 abs=0.6429; parse: cov 42/54(0.7778) mono=1.0 placeable=42/54 rel=0.9024 abs=0.2857; hybrid: cov 43/57(0.7544) mono=1.0 placeable=43/57 transplanted=55/58 rel=0.9512 abs=0.6429 || hankyung_reader(range P1.0/R1.0, offset=1); baseline: cov 39/130(0.3) mono=0.8684 placeable=39/130; parse: cov 110/122(0.9016) mono=1.0 placeable=110/122; hybrid: cov 110/126(0.873) mono=1.0 placeable=110/126 transplanted=125/129",
+      "ran_at": "2026-06-30T17:27:22",
+      "src_porting_plan": {
+        "gate": "extraction 경로를 타는 책(=기존 bookmark 없는 스캔/OCR 책)에만 hybrid를 적용한다. native 등 bookmark 보유 책은 Processor 상류에서 이미 skip되므로 책별 추가 게이트는 두지 않는다.",
+        "steps": [
+          "(1) Parse 어댑터 신설: src/pdfbooktree/pdf/parse_ocr.py에 page-per-page Document Parse(words=true, coordinates=true) 호출 + word->줄(정규화 y 포함) 변환을 둔다. 디스크 캐시/429 지수 backoff/사내 TLS용 truststore 주입을 포함하고, endpoint/model/캐시경로/DPI를 config로 노출한다(Document OCR=model=ocr는 과금이라 금지, Parse만).",
+          "(2) fitz 줄에 정규화 y 추가: extract_clustered_toc_lines가 만드는 ClusteredTocLine(또는 내부 표현)에 yc_norm을 실어 hybrid 매칭이 가능하게 한다.",
+          "(3) hybrid 줄 빌더: build_hybrid_lines(fitz_lines, parse_lines)를 추가한다. fitz 줄을 backbone으로 두고(클러스터=baseline과 동일 -> 계층 보존), 같은 page에서 정규화 y 근접(DY_GATE=0.05)+텍스트 fuzzy(token_set_ratio>=TEXT_MIN=50) 1:1 greedy 매칭으로 매칭된 Parse 줄의 text/trailing_page만 fitz 줄에 이식한다(geometry=height/title_x/is_bold/font_type은 fitz가 계속 소유). 매칭 실패 줄은 fitz 원문 유지.",
+          "(4) seam/플래그: LlmStagedTocExtractionConfig에 use_parse_hybrid: bool을 추가하고, SizeAwareStagedTocExtractor.extract가 True면 fitz 줄+Parse 줄을 build_hybrid_lines로 합쳐 기존 extract_from_clustered_lines에 넘긴다(계층/LLM 분업은 그대로).",
+          "(5) Processor 연결 + fallback: bookmark 없는 분기에서 use_parse_hybrid를 켠다. Parse 호출이 실패(네트워크/쿼터)하면 fitz-only(baseline) 줄로 결정론 fallback한다."
+        ],
+        "rationale": "041에서 hybrid가 스캔책 cov를 Parse 수준으로 회복(kim1 0->0.79, quant 0.46->0.75, hankyung 0.30->0.87)하면서 계층 abs를 baseline 이상으로 유지(kim1 0.81->0.91, quant 0.64 유지)했다. Parse-only가 깨뜨린 계층 평탄화를 fitz backbone이 막는다.",
+        "out_of_scope": "kim_note2는 강의노트 목차라 인쇄 페이지번호 자체가 거의 없어(cov ~0.07로 전 arm 동일) hybrid 대상이 아니며, detection range 과소복구(R0.625)도 별개 과제다.",
+        "verification": "src 이식 후 tests/에 build_hybrid_lines 단위테스트(1:1 매칭/y게이트/fuzzy 임계/실패 fallback)와 5권 회귀를 추가하고, 구현 커밋 직후 impl note(docs/vibe/implementations)를 작성한다(AGENTS 6/10.3)."
+      }
     }
   ]
 }
