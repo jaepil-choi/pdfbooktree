@@ -855,6 +855,76 @@
       ],
       "finding": "Zvi 047 word_element_columns line 712개를 최소 feature table로 변환했다. pane_count는 035 LLM pane gate 결과 2를 재사용했다. font_tier dist={0: 5, 3: 482, 4: 189, 1: 15, 2: 21}, pane_indent_tier dist={0: 661, 1: 48, 2: 3}, numbering_depth dist={-1: 509, 0: 15, 1: 34, 2: 154}, category dist={'paragraph': 54, 'heading1': 3, 'table': 15, 'index': 640}, weak_label_matched_rows=457.",
       "ran_at": "2026-07-03T15:45:16"
+    },
+    {
+      "id": "051_parse_feature_toc_page_separation_zvi",
+      "purpose": "050의 Document Parse 최소 feature(category, element 위치/길이, pane/indent, numbering, trailing page)가 Zvi에서 TOC page와 non-TOC page를 구분하는 데도 도움이 되는지 확인한다. TOC page는 047 캐시를 재사용하고, TOC 밖 page는 seed 고정 random 30p 이상을 새로 Document Parse한다.",
+      "inputs": [
+        "data/native-pdf-indexed/Zvi Bodie, Alex Kane, Alan Marcus - Investments-McGraw Hill (2021)[finance].pdf"
+      ],
+      "outputs": "experiments\\outputs\\051_parse_feature_toc_page_separation_zvi",
+      "labels": "experiments\\labels\\answer_toc_ranges_manual.json",
+      "models": [
+        "document-parse"
+      ],
+      "output_formats": [
+        "text",
+        "html",
+        "markdown"
+      ],
+      "source_experiments": [
+        "047_document_parse_output_formats_zvi",
+        "050_generalized_minimal_feature_table_zvi"
+      ],
+      "selection": {
+        "seed": 20260703,
+        "positive_toc_pages": [
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16
+        ],
+        "negative_random_pages": [
+          19,
+          31,
+          37,
+          102,
+          133,
+          202,
+          263,
+          381,
+          418,
+          453,
+          479,
+          490,
+          497,
+          507,
+          521,
+          534,
+          585,
+          655,
+          705,
+          745,
+          765,
+          774,
+          847,
+          887,
+          904,
+          943,
+          952,
+          953,
+          957,
+          1014
+        ]
+      },
+      "finding": "Zvi TOC 10p + random non-TOC 30p(seed=20260703)를 Document Parse로 비교했다. structural_only LOO: auc=0.99 ap=0.9733 f1=0.9091 cm={'tn': 28, 'fp': 2, 'fn': 0, 'tp': 10}; with_lexicon LOO: auc=0.9933 ap=0.9809 f1=0.9091 cm={'tn': 28, 'fp': 2, 'fn': 0, 'tp': 10}; 상위 단일 구조 feature는 trailing_page_ratio(high_is_toc, auc=0.9667), numbering_any_ratio(high_is_toc, auc=0.9533), category_index_ratio(high_is_toc, auc=0.9), line_index_ratio(high_is_toc, auc=0.9), line_paragraph_ratio(low_is_toc, auc=0.8833).",
+      "ran_at": "2026-07-03T16:22:00"
     }
   ]
 }
