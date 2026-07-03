@@ -802,6 +802,59 @@
       "source_experiment": "046_parse_geometry_toc_hierarchy",
       "finding": "Zvi Bodie TOC page 7-16을 document-parse output_formats=['text','html','markdown']로 재호출했다. || category 분포는 {'paragraph': 48, 'heading1': 3, 'table': 1, 'footer': 10, 'index': 8}이다. || html tag 분포는 {'p': 56, 'br': 558, 'h1': 3, 'table': 1, 'thead': 1, 'tr': 4, 'td': 4, 'tbody': 1, 'footer': 10}, html font-size set은 [14.0, 16.0, 18.0, 20.0, 22.0]이다. || text: lines=586 bookmark_title_recall=0.9344 matched=741/793 || html: lines=582 bookmark_title_recall=0.9344 matched=741/793 || markdown: lines=586 bookmark_title_recall=0.9344 matched=741/793 || word_element: lines=497 bookmark_title_recall=0.9105 matched=722/793 || word_element_columns: lines=712 bookmark_title_recall=0.9533 matched=756/793",
       "ran_at": "2026-07-03T11:18:25"
+    },
+    {
+      "id": "048_parse_html_feature_hierarchy",
+      "purpose": "047에서 확인한 Document Parse html font-size, category, element boundary, word box column split, numbering pattern을 feature로 결합해 Zvi Bodie TOC 항목의 level을 다시 추정한다. 새 API 호출 없이 047 산출물을 재사용하고, 046 parse_geometry weakref 결과와 abs/rel hierarchy agreement를 비교한다.",
+      "inputs": [
+        "data/native-pdf-indexed/Zvi Bodie, Alex Kane, Alan Marcus - Investments-McGraw Hill (2021)[finance].pdf",
+        "experiments\\outputs\\047_document_parse_output_formats_zvi\\word_element_columns_lines.csv",
+        "experiments\\outputs\\047_document_parse_output_formats_zvi\\elements.csv"
+      ],
+      "outputs": "experiments\\outputs\\048_parse_html_feature_hierarchy",
+      "labels": "data/native-pdf-indexed 기존 bookmark(golden 재활용, 수기 라벨 아님)",
+      "models": [
+        "document-parse"
+      ],
+      "source_experiments": [
+        "046_parse_geometry_toc_hierarchy",
+        "047_document_parse_output_formats_zvi"
+      ],
+      "finding": "baseline_046_parse_geometry: items=660 matched=676/793 match=0.8525 abs=0.2751 rel=0.5378 levels={'1': 2, '2': 9, '3': 649} || word_columns_numbering_only: items=671 matched=757/793 match=0.9546 abs=0.6843 rel=0.6971 levels={'1': 28, '2': 3, '3': 163, '4': 477} || word_columns_html_font: items=672 matched=757/793 match=0.9546 abs=0.6724 rel=0.7143 levels={'1': 32, '2': 29, '3': 163, '4': 448} || full_feature_fusion: items=1195 matched=787/793 match=0.9924 abs=0.7078 rel=0.7252 levels={'1': 37, '2': 13, '3': 161, '4': 984}",
+      "ran_at": "2026-07-03T13:23:56"
+    },
+    {
+      "id": "049_stack_refine_l4_l5_zvi",
+      "purpose": "048 full_feature_fusion이 Zvi TOC에서 L5를 거의 전부 L4로 예측한 문제를 분리해, 048 feature_lines.csv를 재사용한 sequence stack refinement로 L4 parent와 L5 slash topic을 구분할 수 있는지 검증한다.",
+      "inputs": [
+        "data/native-pdf-indexed/Zvi Bodie, Alex Kane, Alan Marcus - Investments-McGraw Hill (2021)[finance].pdf",
+        "experiments\\outputs\\048_parse_html_feature_hierarchy\\feature_lines.csv"
+      ],
+      "outputs": "experiments\\outputs\\049_stack_refine_l4_l5_zvi",
+      "labels": "data/native-pdf-indexed 기존 bookmark(golden 재활용, 수기 라벨 아님)",
+      "models": [
+        "document-parse"
+      ],
+      "source_experiment": "048_parse_html_feature_hierarchy",
+      "finding": "full_feature_048: items=1195 matched=787/793 match=0.9924 abs=0.7078 rel=0.7252 levels={'1': 37, '2': 13, '3': 161, '4': 984} || stack_refine_l5: items=1195 matched=787/793 match=0.9924 abs=0.751 rel=0.6985 levels={'1': 37, '2': 40, '3': 161, '4': 782, '5': 175} || segment_stack_pruned: items=934 matched=786/793 match=0.9912 abs=0.7697 rel=0.707 levels={'1': 28, '2': 39, '3': 161, '4': 581, '5': 125}",
+      "ran_at": "2026-07-03T13:57:29"
+    },
+    {
+      "id": "050_generalized_minimal_feature_table_zvi",
+      "purpose": "047 Zvi Document Parse column-aware lines를 대상으로, 048/049의 overfit rule을 제거하고 font_tier/category/element_position/pane_indent/numbering_depth/prev delta로 구성된 일반화 가능한 최소 feature table을 만든다. pane 수는 035 LLM pane gate의 Zvi=2 pane 판정을 재사용한다.",
+      "inputs": [
+        "data/native-pdf-indexed/Zvi Bodie, Alex Kane, Alan Marcus - Investments-McGraw Hill (2021)[finance].pdf",
+        "experiments\\outputs\\047_document_parse_output_formats_zvi\\word_element_columns_lines.csv",
+        "experiments\\outputs\\035_llm_pane_gated_indent_tier\\zvi_bodie_investments\\llm_pane_response.json"
+      ],
+      "outputs": "experiments\\outputs\\050_generalized_minimal_feature_table_zvi",
+      "labels": "data/native-pdf-indexed 기존 bookmark(golden 재활용, feature가 아닌 audit label)",
+      "source_experiments": [
+        "035_llm_pane_gated_indent_tier",
+        "047_document_parse_output_formats_zvi"
+      ],
+      "finding": "Zvi 047 word_element_columns line 712개를 최소 feature table로 변환했다. pane_count는 035 LLM pane gate 결과 2를 재사용했다. font_tier dist={0: 5, 3: 482, 4: 189, 1: 15, 2: 21}, pane_indent_tier dist={0: 661, 1: 48, 2: 3}, numbering_depth dist={-1: 509, 0: 15, 1: 34, 2: 154}, category dist={'paragraph': 54, 'heading1': 3, 'table': 15, 'index': 640}, weak_label_matched_rows=457.",
+      "ran_at": "2026-07-03T15:45:16"
     }
   ]
 }
