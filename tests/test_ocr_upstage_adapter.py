@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from pdfbooktree.ocr.engines.upstage import UpstageOcrEngine
 from pdfbooktree.ocr.models import RenderedPage
 
@@ -139,3 +141,45 @@ def test_upstage_adapter_selects_word_row_and_element_overlay_modes() -> None:
     assert page.elements[0].lines[0].words[0].bbox.x0 == 100.0
     assert page.elements[1].lines[0].text == "| A | B |"
     assert page.elements[2].lines[0].text == "\\operatorname*{lim}_{m\\rightarrow\\infty}"
+
+
+def test_upstage_engine_loads_api_key_from_dotenv(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    captured: dict[str, object] = {}
+
+    class FakeResponse:
+        status_code = 200
+        headers: dict[str, str] = {}
+
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict[str, object]:
+            return {"elements": []}
+
+    class FakeClient:
+        def __init__(self, **kwargs: object) -> None:
+            captured["client_kwargs"] = kwargs
+
+        def __enter__(self) -> "FakeClient":
+            return self
+
+        def __exit__(self, *args: object) -> None:
+            return None
+
+        def post(self, url: str, **kwargs: object) -> FakeResponse:
+            captured["url"] = url
+            captured["headers"] = kwargs["headers"]
+            return FakeResponse()
+
+    monkeypatch.delenv("UPSTAGE_API_KEY", raising=False)
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / ".env").write_text("UPSTAGE_API_KEY=dotenv-key\n", encoding="utf-8")
+    monkeypatch.setattr("pdfbooktree.ocr.engines.upstage.httpx.Client", FakeClient)
+
+    response = UpstageOcrEngine().recognize_page(rendered_page())
+
+    assert response == {"elements": []}
+    assert captured["headers"] == {"Authorization": "Bearer dotenv-key"}

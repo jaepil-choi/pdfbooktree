@@ -58,6 +58,7 @@ class UpstageOcrEngine:
     def recognize_page(self, rendered_page: RenderedPage) -> dict[str, Any]:
         """Upstage Document Parse API를 호출한다."""
 
+        _load_dotenv_if_available()
         api_key = os.environ.get(self.api_key_env)
         if not api_key:
             raise RuntimeError(f"{self.api_key_env}가 설정되지 않았다.")
@@ -302,3 +303,15 @@ def _ssl_context() -> ssl.SSLContext | bool:
     except ImportError:
         return True
     return truststore.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+
+
+def _load_dotenv_if_available() -> None:
+    """현재 작업 디렉터리부터 올라가며 .env를 찾아 환경변수에 반영한다."""
+
+    try:
+        from dotenv import find_dotenv, load_dotenv
+    except ImportError:
+        return
+    dotenv_path = find_dotenv(usecwd=True)
+    if dotenv_path:
+        load_dotenv(dotenv_path, override=False)

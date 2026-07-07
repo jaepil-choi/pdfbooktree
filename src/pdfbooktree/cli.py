@@ -11,6 +11,7 @@ from rich import print as rich_print
 from pdfbooktree.batch import BatchProcessor
 from pdfbooktree.config import ProcessingConfig, TocMlDetectionConfig
 from pdfbooktree.ocr import OcrOverlayBuilder, OcrOverlayConfig
+from pdfbooktree.ocr.logger import OcrLogMode, build_ocr_logger, default_ocr_log_mode
 from pdfbooktree.processor import Processor
 from pdfbooktree.toc.bookmark_batch import (
     BookmarkTocBatchDetector,
@@ -128,9 +129,27 @@ def ocr_overlay(
         "--engine-option",
         help="OCR engine option이다. key=value 형식이며 여러 번 줄 수 있다.",
     ),
+    log_mode: str = typer.Option(
+        "auto",
+        "--log-mode",
+        help="OCR runtime 로그 출력 방식이다. auto, rich, plain, json, none 중 하나다.",
+    ),
+    no_log_file: bool = typer.Option(
+        False,
+        "--no-log-file",
+        help="ocr_log.jsonl과 ocr_progress.json 파일 기록을 끈다.",
+    ),
 ) -> None:
     """PDF 모든 page를 OCR parse한 뒤 invisible text layer를 다시 입힌다."""
 
+    resolved_log_mode = default_ocr_log_mode() if log_mode == "auto" else log_mode
+    if resolved_log_mode not in {"rich", "plain", "json", "none"}:
+        raise typer.BadParameter("log-mode은 auto, rich, plain, json, none 중 하나여야 한다.")
+    logger = build_ocr_logger(
+        cast(OcrLogMode, resolved_log_mode),
+        output_dir,
+        enable_file=not no_log_file,
+    )
     config = OcrOverlayConfig(
         input_pdf=pdf,
         output_pdf=output_pdf,
@@ -143,7 +162,7 @@ def ocr_overlay(
         confirm_bookmark_ocr_overwrite=confirm_bookmark_ocr_overwrite,
         stats_word_level=stats_word_level,
     )
-    result = OcrOverlayBuilder(config).run()
+    result = OcrOverlayBuilder(config, logger=logger).run()
     rich_print(to_jsonable(result))
 
 
