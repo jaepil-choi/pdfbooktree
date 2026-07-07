@@ -2,732 +2,615 @@
 
 ## 1. 배경
 
-`pdfbooktree`는 scanned PDF book에서 PDF bookmark와 Markdown tree를 자동 생성하는 Python library다.
+`pdfbooktree`는 PDF book에서 구조화된 bookmark tree를 만들고, 그 결과를 PDF bookmark와 Markdown tree로 내보내는 Python library다.
 
-이 프로젝트가 다루는 핵심 문제는 다음 두 가지다.
+초기 구상은 scanned PDF에서 Table of Contents page를 찾고, 그 TOC page를 parsing해서 bookmark를 복원하는 것이었다.
+하지만 최근 실험에서 더 근본적인 병목이 확인되었다.
 
-1. PDF 내부에서 Table of Contents page range를 찾는다.
-2. 찾은 TOC page에서 hierarchical bookmark tree를 복원한다.
+```text
+garbage OCR text in
+→ garbage TOC detection
+→ garbage bookmark tree out
+```
 
-입력 PDF는 다음 두 부류를 모두 고려한다.
+scanned PDF에 들어 있는 기존 OCR text layer가 깨져 있으면 다음 작업이 모두 불안정해진다.
 
-- 기존 bookmark가 있는 PDF
-- 기존 bookmark가 없는 scanned PDF
+- TOC page detection
+- TOC item extraction
+- book-wide font / height hierarchy inference
+- heading title matching
+- page alignment
+- Markdown export
 
-기존 bookmark가 있는 PDF는 runtime 처리 대상이라기보다 학습과 평가를 위한 answer reference로 사용한다.
-단, 여기서 answer reference인 것은 bookmark tree의 title, target PDF page, hierarchy level이다.
-bookmark를 이용해 역추정한 TOC page range는 정답이 아니라 pseudo label이다.
-기존 bookmark가 없는 scanned PDF는 최종 runtime 대상이다.
+따라서 `pdfbooktree`는 bookmark 생성 library라는 정체성을 유지하되, supportive capability로 OCR / Document Parse 기반 searchable PDF 생성 기능을 제공한다.
+이 기능은 core output 자체가 아니라 core 알고리즘이 신뢰할 수 있는 입력을 얻기 위한 전처리 단계다.
 
 이 프로젝트는 experiment driven development 방식으로 진행한다.
-따라서 PRD는 곧바로 production 구현을 고정하는 문서가 아니라, 실험에서 검증할 알고리즘 축과 그 결과를 library 설계로 승격시키는 기준을 정의한다.
+PRD는 production 구현을 한 번에 고정하는 문서가 아니라, 실험에서 확인된 판단을 public interface와 roadmap으로 승격시키는 기준 문서다.
 
 ---
 
 ## 2. 제품 목표
 
-`pdfbooktree`의 목표는 PDF book을 입력받아 다음 산출물을 만드는 것이다.
+`pdfbooktree`의 main goal은 PDF book을 입력받아 다음 산출물을 만드는 것이다.
 
 ```text
 input:
   book.pdf
 
 output:
-  book_bookmarked.pdf
-  book_markdown/
-  book_report.json
+  book_ocr.pdf              optional supportive output
+  book_bookmarked.pdf       core output
+  book_markdown/            core output
+  book_report.json          core output
+  artifacts/                reproducible intermediate artifacts
 ```
 
-최종 출력은 단순 JSON이 아니라 실제 bookmark가 삽입된 PDF 파일이어야 한다.
+최종 core output은 단순 JSON이 아니라 실제 bookmark가 삽입된 PDF 파일이어야 한다.
 
-생성해야 하는 구조는 다음과 같다.
+생성해야 하는 bookmark tree 예시는 다음과 같다.
 
 ```text
-Bookmark tree:
-  Chapter 1 Introduction -> PDF page 17
-    1.1 Motivation -> PDF page 19
-    1.2 Background -> PDF page 27
-  Chapter 2 Probability -> PDF page 43
+Chapter 1 Introduction -> PDF page 17
+  1.1 Motivation -> PDF page 19
+  1.2 Background -> PDF page 27
+Chapter 2 Probability -> PDF page 43
 ```
 
-Markdown export는 bookmark hierarchy를 directory tree로 반영한다.
+Markdown export는 bookmark hierarchy를 directory tree와 `toc.md`로 반영한다.
 
 ---
 
-## 3. 핵심 알고리즘 방향
+## 3. 제품 정체성
 
-이 프로젝트의 핵심 알고리즘은 크게 두 단계로 나눈다.
+`pdfbooktree`의 core 기능은 다음이다.
+
+1. book structure / heading hierarchy 추론
+2. bookmark plan 생성
+3. PDF bookmark embedding
+4. Markdown tree 생성
+5. 처리 결과와 중간 artifact 저장
+
+`pdfbooktree`의 supportive 기능은 다음이다.
+
+1. Upstage Document Parse 기반 text extraction
+2. Document Parse 결과 cache 저장
+3. scanned page image 위에 invisible text layer overlay
+4. searchable OCR PDF 생성
+5. overlay 결과 재추출 검증
+
+OCR 기능은 중요한 기능이지만 제품의 목적지가 아니다.
+OCR은 TOC detection, bookmark extraction, Markdown 생성이 GIGO에 빠지지 않도록 만드는 선행 조건이다.
+
+---
+
+## 4. 핵심 판단
+
+현재 TOC / bookmark 복원 접근은 fundamentally different한 두 방법으로 나뉜다.
+
+### 4.1 Approach A: TOC page를 찾지 않고 책 전체 hierarchy를 본다
 
 ```text
-PDF
+PDF or OCR PDF
+→ whole-book line extraction
+→ font size / bbox height tiering
+→ page-level tier distribution
+→ chapter / section heading candidate extraction
+→ hierarchy inference
+→ bookmark plan
+```
+
+이 접근은 책 전체에서 반복되는 시각적 계층을 이용한다.
+예를 들어 본문은 작은 font tier에 몰리고, section heading은 중간 tier, chapter heading은 큰 tier에 몰린다.
+
+최근 실험 결론은 다음이다.
+
+- clean text / geometry가 있으면 computer에게는 이 접근이 더 효과적일 가능성이 높다.
+- TOC page를 정확히 찾지 않아도 되므로 TOC page label noise에 덜 취약하다.
+- 책마다 `font_size`가 더 좋은 경우와 `bbox height`가 더 좋은 경우가 달라서 둘 다 계산해야 한다.
+- scanned OCR PDF에서는 수식 조각, 잘못 쪼개진 line, 깨진 reading order가 hierarchy inference를 망가뜨릴 수 있다.
+- 따라서 OCR / parse 품질 확보가 선행되어야 한다.
+
+이 접근을 현재 primary runtime strategy로 둔다.
+
+### 4.2 Approach B: TOC page를 찾고 TOC item을 정밀 parsing한다
+
+```text
+PDF or OCR PDF
 → TOC page detection
-→ TOC pages to TOC extraction
-→ page alignment
-→ bookmark insertion
-→ Markdown export
+→ pane-aware TOC line reconstruction
+→ TOC item extraction
+→ printed page to PDF page alignment
+→ bookmark plan
 ```
 
-현재 설계의 중심은 다음이다.
+이 접근은 human에게 자연스럽다.
+사람은 목차 페이지를 보고 title, level, printed page를 읽은 뒤 bookmark를 만든다.
 
-1. **TOC page detection**
-   - 기존 bookmark가 있는 PDF에서 TOC page pseudo label을 복원한다.
-   - pseudo label과 random non-TOC page를 1:1로 섞어 balanced page dataset을 만든다.
-   - per-page feature로 ML model을 학습한다.
-   - 학습된 model을 bookmark 없는 scanned PDF에 적용해 TOC page를 추론한다.
+하지만 computer에게는 다음 문제가 있었다.
 
-2. **TOC pages to TOC extraction**
-   - LLM-driven extraction을 우선 실험 축으로 둔다.
-   - 먼저 TOC page가 1-pane인지 2-pane인지 판정한다.
-   - pane-adjusted reading order와 pane-adjusted feature를 LLM에 제공해 hierarchical bookmark item을 추출한다.
-   - 별도 LLM 또는 deterministic validator로 추출 결과를 검증한다.
-   - 이후 ML/DL-driven extraction을 별도 연구 축으로 확장한다.
+- bookmark-guided TOC page label은 ground truth가 아니라 noisy pseudo label이다.
+- TOC page detection 자체가 실패하면 이후 extraction이 모두 실패한다.
+- 2-pane TOC의 reading order가 쉽게 깨진다.
+- OCR text가 나쁘면 printed page number와 title을 안정적으로 분리할 수 없다.
+- page alignment가 추가로 필요하다.
+
+따라서 Approach B는 버리지 않는다.
+다만 현재는 primary strategy가 아니라 fallback, evaluation aid, research track으로 둔다.
 
 ---
 
-## 4. 범위
+## 5. 최근 실험 근거
 
-### 4.1 포함
+`experiments/experiments.json`의 최근 실험에서 다음 판단을 얻었다.
+
+### 5.1 Document Parse feature와 TOC page 구분
+
+`051_parse_feature_toc_page_separation_zvi`는 Document Parse 기반 category, element 위치, numbering, trailing page feature가 TOC page와 non-TOC page를 구분하는 데 강한 신호가 될 수 있음을 보였다.
+
+중요 feature는 다음이었다.
+
+- `trailing_page_ratio`
+- `numbering_any_ratio`
+- `category_index_ratio`
+- `line_index_ratio`
+- `line_paragraph_ratio`
+
+이 결과는 TOC page 기반 접근을 완전히 폐기할 필요가 없음을 보여준다.
+다만 이 접근도 parse 품질에 의존한다.
+
+### 5.2 책 전체 font / height hierarchy
+
+`052_whole_book_line_font_height_kde`, `053_bookmark_depth_font_size_kde`, `054_tier_merge_and_scanned_font_check`, `055_page_tier_distribution_clustering`은 책 전체 line의 font size와 bbox height가 heading hierarchy를 추론하는 데 의미 있는 신호임을 확인했다.
+
+핵심 결론은 다음이다.
+
+- native PDF에서는 PDF font size 속성이 bbox height보다 깨끗한 경우가 많다.
+- bookmark depth와 font tier는 강하게 상관되지만 1:1 대응하지는 않는다.
+- level 1 안에도 chapter heading과 front matter heading이 섞일 수 있다.
+- scanned PDF에서는 OCR line fragmentation과 수식 OCR 조각이 tier를 오염시킨다.
+- `font_size`와 `height` 중 어느 신호가 우세한지는 책마다 다르다.
+- 따라서 runtime은 두 신호를 모두 계산하고, 책별로 더 신뢰할 수 있는 hierarchy candidate를 선택해야 한다.
+
+### 5.3 OCR 품질 병목
+
+`056_paddleocr_easyocr_scanned_ocr_compare`와 `057_document_parse_scanned_ocr_compare`는 scanned PDF에서 기존 OCR text layer 품질이 병목이라는 가설 아래 PaddleOCR, EasyOCR, Upstage Document Parse를 비교하기 위한 raw output을 만들었다.
+
+자동 정확도 판정은 아직 pending이지만, 이 실험군은 다음 방향을 만든다.
+
+- OCR 품질을 별도 단계로 다뤄야 한다.
+- 기존 PDF의 embedded OCR text를 무조건 신뢰하지 않는다.
+- Upstage Document Parse를 기본 provider 후보로 둔다.
+- provider 결과는 반드시 cache하고 재현 가능한 artifact로 남긴다.
+
+### 5.4 Document Parse overlay PDF
+
+`058_document_parse_pdf_overlay`는 Document Parse word 좌표와 text를 이용해 scanned page image 위에 invisible text layer를 overlay한 searchable PDF를 만들 수 있음을 확인했다.
+
+재작업된 `058_document_parse_pdf_overlay`는 더 중요한 구현 원칙을 제공한다.
+
+- word 단위 text와 `content.text`가 일치하는 일반 문단은 word-level overlay를 사용한다.
+- 표와 수식처럼 word join 결과가 `content.text`와 불일치하는 element는 row-level 또는 whole-element fallback을 사용한다.
+- 표에서는 markdown 구분선처럼 실제 page pixel에 대응하지 않는 문법 요소가 있으므로 검증에서 이를 구분해야 한다.
+- 수식은 word 좌표만 따라가면 LaTeX 구조가 깨질 수 있으므로 element 전체 text 보존이 더 중요할 수 있다.
+
+`059_document_parse_output_format_compare`는 output format 선택 기준을 제공한다.
+
+- 사람이 읽기 좋은 text / TOC류 processing에는 `text` 또는 `markdown`이 적합하다.
+- table 구조, 특히 colspan 같은 병합 셀을 보존하려면 `html`이 필요하다.
+- 같은 Document Parse 호출에서 `text`, `html`, `markdown`을 함께 받을 수 있다.
+
+---
+
+## 6. Scope
+
+### 6.1 포함
 
 다음 기능은 project scope에 포함한다.
 
-- PDF text, word, block, layout feature 추출
-- 기존 bookmark 추출
-- 기존 bookmark 기반 TOC page pseudo label 생성
-- TOC page feature dataset 생성
-- TOC page classifier 학습
-- bookmark 없는 scanned PDF의 TOC page inference
-- TOC page 1-pane / 2-pane 판정
-- pane-adjusted text order 생성
-- TOC item title / level / printed page 추출
-- 추출된 TOC item validation
-- printed page와 PDF page alignment
+- Upstage Document Parse 기반 OCR / text extraction
+- Document Parse response cache
+- page image 위 invisible text layer overlay
+- searchable OCR PDF 생성
+- overlay PDF 재추출 검증
+- PDF line / word / block / element feature 추출
+- 책 전체 font size / bbox height tiering
+- page별 tier distribution 생성
+- heading candidate extraction
+- hierarchy inference
+- bookmark plan 생성
 - PDF bookmark 삽입
 - Markdown directory export
+- 기존 bookmark 추출과 reference evaluation
+- TOC page detection 연구
+- TOC page parsing 연구
 - 모든 중간 artifact 저장
 
-### 4.2 제외
+### 6.2 제외
 
 다음 기능은 기본 scope에서 제외한다.
 
-- OCR text layer 자체를 PDF에 새로 입히는 기능
-- 수식 LaTeX 복원
-- table / figure 구조화 추출
+- 범용 OCR engine 자체 개발
+- OCR 결과를 사람이 직접 수정하는 visual editor
+- table / figure / equation을 완전한 semantic document model로 복원하는 기능
+- 출판 품질의 EPUB 변환
 - 기존 bookmark가 있는 PDF를 runtime에서 기본적으로 다시 bookmark하는 기능
 
-단, 실험 단계에서 외부 Document Parse 또는 OCR API를 feature source로 사용하는 것은 허용한다.
-이 경우 목적은 OCR layer를 생성하는 것이 아니라 TOC detection/extraction에 필요한 text, word box, html/category feature를 얻는 것이다.
+단, overlay PDF 생성 과정에서 표와 수식의 text 손실을 줄이기 위한 보존 전략은 scope에 포함한다.
+목적은 document understanding 제품을 만드는 것이 아니라 bookmark / Markdown 생성을 위한 clean text layer를 확보하는 것이다.
 
 ---
 
-## 5. Page Number Convention
+## 7. Page Number Convention
 
-library public interface와 저장 artifact는 모두 1-based PDF page number를 사용한다.
+public interface와 저장 artifact는 모두 1-based PDF page number를 사용한다.
 
-이유:
+이유는 다음이다.
 
-- 사용자가 보는 PDF page와 자연스럽게 대응된다.
-- TOC printed page number도 1-based다.
-- bookmark 삽입과 report 해석에서 off-by-one 오류를 줄인다.
+- 사용자가 PDF viewer에서 보는 page 번호와 맞추기 쉽다.
+- bookmark target page를 report에서 해석하기 쉽다.
+- printed page number와 PDF page number를 나란히 기록할 때 off-by-one 오류를 줄인다.
 
-예:
+예시는 다음과 같다.
 
 ```json
 {
+  "title": "2.3 Markov Chains",
+  "level": 2,
   "pdf_page": 105,
-  "printed_page": 87,
-  "title": "2.3 Markov Chains"
+  "printed_page": 87
 }
 ```
 
-내부 라이브러리가 사용하는 PDF engine이 0-based page index를 요구하더라도, public object와 intermediate artifact에는 1-based 값을 기록한다.
+내부 PDF engine이 0-based index를 요구하더라도 public object와 intermediate artifact에는 1-based 값을 기록한다.
 
 ---
 
-## 6. 기존 Bookmark와 TOC Page Label의 역할
+## 8. 전체 Pipeline
 
-기존 bookmark와 bookmark-guided TOC page label은 서로 다르게 취급한다.
+### 8.1 Supportive OCR Pipeline
 
-bookmark-embedded PDF에서 기존 bookmark tree는 다음 항목의 answer reference로 사용한다.
-
-- chapter / section title
-- target PDF page
-- hierarchy level
-
-즉, TOC extraction과 page alignment, hierarchy evaluation에서는 기존 bookmark를 정답 기준으로 볼 수 있다.
-다만 PDF 제작 도구나 출판사 bookmark 자체에 오류가 있을 수 있으므로, report에는 reference source와 matching confidence를 함께 남긴다.
-
-반대로 기존 bookmark가 직접 알려주지 않는 것은 다음이다.
-
-- PDF 내부 TOC page의 위치
-- TOC page range의 정확한 시작과 끝
-- TOC page text의 실제 reading order
-- TOC page에 표시된 printed page number의 OCR 품질
-
-따라서 bookmark를 page text와 matching해 복원한 TOC page range는 ground truth가 아니라 pseudo label이다.
-
-정리하면 다음과 같다.
+scanned PDF 또는 OCR 품질이 낮은 PDF를 처리한다.
 
 ```text
-기존 bookmark tree:
-  title / target PDF page / hierarchy level의 answer reference
-
-bookmark-guided TOC page range:
-  TOC page detector 학습 후보로 쓰는 pseudo label
+input PDF
+→ page rendering
+→ Upstage Document Parse call
+→ response cache 저장
+→ text/html/markdown/word coordinates 추출
+→ overlay strategy 결정
+→ image + invisible text layer PDF 생성
+→ 재추출 검증
+→ OCR report 저장
 ```
 
-기존 bookmark는 다음 용도로 사용한다.
+output은 다음이다.
 
 ```text
-1. TOC page pseudo label 후보 생성
-2. TOC extraction 결과의 title/page/hierarchy 평가
-3. page alignment 결과 평가
-4. generated bookmark와 answer bookmark tree 비교
+book_ocr.pdf
+document_parse_cache/
+ocr_overlay_report.json
+ocr_text_quality_report.json
 ```
 
-bookmark-guided TOC page range는 다음 용도로 사용하지 않는다.
+이 pipeline은 단독으로 실행할 수 있어야 하고, main processing pipeline 앞에서 자동으로 호출할 수도 있어야 한다.
 
-```text
-1. 검수 없는 TOC page ground truth
-2. 검수 없는 TOC page detector test label
-3. runtime 대상 PDF의 입력 조건
-```
+### 8.2 Primary Runtime Pipeline
 
-300study manual audit 결과, bookmark-guided TOC page label은 크게 틀릴 수 있음이 확인되었다.
-따라서 bookmark-guided TOC page label은 반드시 `label_source`, `confidence`, `detector_version`, `audit_status`를 함께 저장한다.
-
----
-
-## 7. 전체 Pipeline
-
-### 7.1 Training / Experiment Pipeline
-
-기존 bookmark가 있는 PDF를 사용해 TOC page detector와 TOC extraction 방식을 연구한다.
-
-```text
-bookmarked PDFs
-→ bookmark tree quality filter
-→ bookmark title/page/hierarchy extraction
-→ bookmark-guided TOC page candidate detection
-→ pseudo label confidence scoring
-→ manual audit queue
-→ clean or pseudo-clean TOC page label set
-→ per-page feature extraction
-→ balanced page dataset
-→ ML TOC page classifier training
-→ held-out PDF evaluation
-```
-
-이 pipeline의 목적은 runtime을 직접 처리하는 것이 아니라 detector와 extractor를 설계하는 것이다.
-
-### 7.2 Runtime Pipeline
-
-bookmark 없는 scanned PDF를 처리한다.
+clean OCR PDF 또는 native PDF를 대상으로 book-wide hierarchy를 추론한다.
 
 ```text
 PDF input
 → existing bookmark check
-→ TOC page feature extraction
-→ ML TOC page inference
-→ TOC range smoothing
-→ TOC page pane classification
-→ pane-adjusted text/feature construction
-→ TOC item extraction
-→ TOC item validation
-→ printed page to PDF page alignment
+→ OCR quality check
+→ optional OCR overlay
+→ whole-book line extraction
+→ font size / height tiering
+→ page tier distribution
+→ heading candidate extraction
+→ hierarchy inference
 → bookmark plan generation
-→ bookmarked PDF save
+→ bookmark insertion
 → Markdown export
 → report save
 ```
 
-기존 bookmark가 있는 PDF는 기본 runtime에서 skip한다.
-강제 재처리 옵션은 MVP 이후 기능으로 둔다.
+이 pipeline의 중심은 TOC page가 아니라 책 전체의 시각적 계층이다.
+
+### 8.3 Secondary TOC Pipeline
+
+TOC page 기반 접근은 fallback과 연구 축으로 유지한다.
+
+```text
+PDF input
+→ OCR quality check
+→ optional OCR overlay
+→ TOC page detection
+→ pane classification
+→ pane-adjusted line reconstruction
+→ TOC item extraction
+→ printed page to PDF page alignment
+→ bookmark plan generation
+```
+
+이 pipeline은 다음 상황에서 사용한다.
+
+- book-wide hierarchy inference confidence가 낮을 때
+- 목차 page가 매우 깨끗하고 heading style이 불규칙할 때
+- evaluation용 reference를 만들 때
+- 추후 LLM-driven TOC extraction 연구를 진행할 때
 
 ---
 
-## 8. TOC Page Detection
+## 9. Supportive OCR / Document Parse
 
-### 8.1 목표
+### 9.1 기본 provider
 
-PDF 앞부분에서 TOC page range를 찾는다.
+기본 provider는 Upstage Document Parse로 둔다.
 
-예:
-
-```text
-TOC pages = 7-16
-```
-
-TOC는 한 page일 수도 있고 여러 page일 수도 있다.
-runtime detector는 page-level probability와 최종 contiguous range를 모두 제공해야 한다.
-
-### 8.2 Bookmark-embedded PDF에서 pseudo label 만들기
-
-기존 bookmark가 있는 PDF에서는 answer bookmark tree를 기준으로 page text를 탐색해 TOC page 후보를 찾는다.
-
-사용할 수 있는 신호:
-
-- bookmark title이 page text에 밀집해 등장하는 정도
-- bookmark title 등장 순서가 bookmark order와 일치하는 정도
-- page text 안의 page number 후보와 bookmark target page 사이 offset이 일관적인 정도
-- TOC-like line-final number sequence
-- Contents / Table of Contents / 목차 / 차례 같은 lexical anchor
-- page range가 앞부분에 위치하는 정도
-
-중요한 정책:
-
-- 이 결과는 pseudo label이다.
-- confidence가 낮으면 학습에 사용하지 않는다.
-- 수동 검수 또는 별도 quality gate를 통과한 label만 detector evaluation에 사용한다.
-
-### 8.3 Per-page Feature Dataset
-
-TOC page detector 학습을 위해 page 단위 dataset을 만든다.
-
-positive sample:
-
-```text
-pseudo-clean 또는 manual audited TOC page
-```
-
-negative sample:
-
-```text
-같은 PDF 또는 다른 PDF에서 뽑은 non-TOC page
-```
-
-초기 dataset은 positive와 negative를 1:1로 섞어 balanced dataset으로 만든다.
-
-negative sampling은 두 단계로 둔다.
-
-1. random negative
-2. hard negative
-
-hard negative 후보:
-
-- front matter page
-- chapter start page
-- index page
-- bibliography page
-- dense table page
-- page number가 많이 등장하는 exercise page
-- list of figures / list of tables
-
-### 8.4 Feature Source
-
-feature source는 pluggable해야 한다.
-
-지원 후보:
-
-```text
-fitz_text:
-  PyMuPDF text extraction 기반 line/text feature
-
-fitz_geometry:
-  PyMuPDF word/block bbox 기반 layout feature
-
-document_parse_text:
-  외부 Document Parse text output
-
-document_parse_html:
-  html tag, font-size, element boundary, category feature
-
-document_parse_words:
-  word box coordinate 기반 line reconstruction
-
-hybrid:
-  fitz geometry와 Document Parse text/page-number 신호를 결합
-```
-
-모든 feature row에는 `feature_source`와 `feature_version`을 기록한다.
-
-### 8.5 Page-level Features
-
-초기 feature는 다음을 포함한다.
-
-텍스트 통계:
-
-- `line_count`
-- `word_count`
-- `mean_line_length`
-- `line_length_std`
-- `short_line_ratio`
-
-TOC 숫자 신호:
-
-- `line_final_number_count`
-- `line_final_number_ratio`
-- `line_final_number_monotonicity`
-- `line_final_number_gap_mean`
-- `line_final_number_gap_median`
-- `trailing_page_ratio`
-- `numbering_any_ratio`
-
-lexical 신호:
-
-- `toc_keyword_presence`
-- `contents_keyword_presence`
-- `index_keyword_presence`
-
-layout / parse 신호:
-
-- `category_index_ratio`
-- `category_table_ratio`
-- `category_footer_ratio`
-- `line_index_ratio`
-- `paragraph_ratio`
-- `element_count`
-- `mean_element_line_count`
-- `font_tier_count`
-- `indent_tier_count`
-- `pane_balance_score`
-- `gutter_score`
-
-page context:
-
-- `page_position`
-- `prev_page_feature_delta`
-- `next_page_feature_delta`
-
-### 8.6 ML Model
-
-TOC page detector의 기본 학습 문제는 page-level binary classification이다.
-
-출력:
-
-```text
-P(is_toc_page | page_features)
-```
-
-초기 후보 모델:
-
-- Logistic Regression
-- Random Forest
-- HistGradientBoosting
-- LightGBM 또는 CatBoost
-
-데이터가 작을 때는 shallow tree와 logistic baseline을 반드시 같이 둔다.
-고성능 모델만 보지 않고 feature leakage와 PDF layout memorization을 확인한다.
-
-### 8.7 Train / Test Split
-
-page 단위 random split은 금지한다.
-
-같은 PDF의 page가 train과 test에 동시에 들어가면 layout leakage가 발생한다.
-
-split 기준:
-
-```text
-GroupKFold by PDF
-```
-
-평가 지표:
-
-- page-level ROC-AUC
-- average precision
-- precision / recall / F1
-- range-level IoU
-- start page error
-- end page error
-
-### 8.8 Range Smoothing
-
-classifier는 page probability를 낸다.
-runtime에는 contiguous TOC range가 필요하다.
-
-따라서 후처리 단계가 필요하다.
-
-후처리 후보:
-
-- threshold 기반 contiguous segment 선택
-- hysteresis threshold
-- max segment score
-- segment length prior
-- 앞부분 page prior
-- HMM/CRF 스타일 smoothing
-
-최종 output:
+요청 기본값은 다음을 목표로 한다.
 
 ```json
 {
-  "toc_pages": [7, 8, 9, 10],
-  "start_page": 7,
-  "end_page": 10,
-  "page_scores": [
-    {"pdf_page": 7, "toc_probability": 0.98},
-    {"pdf_page": 8, "toc_probability": 0.96}
-  ],
-  "confidence": 0.93,
-  "method": "ml_classifier_v1+hysteresis"
+  "model": "document-parse",
+  "output_formats": ["text", "html", "markdown"],
+  "coordinates": true,
+  "words": true
 }
 ```
 
----
+provider-specific SDK는 core dependency에 직접 묶지 않고 optional extra 또는 adapter로 둔다.
 
-## 9. TOC Pages to TOC Extraction
+### 9.2 Cache 정책
 
-### 9.1 목표
+Document Parse 호출은 비용과 latency가 있으므로 반드시 cache한다.
 
-탐지된 TOC page에서 hierarchical bookmark item을 추출한다.
+cache key 후보는 다음이다.
 
-입력:
+- input PDF file hash
+- page number
+- render DPI
+- provider
+- provider model
+- request params
+- adapter version
+
+cache artifact는 원본 response를 가능한 한 보존한다.
+후처리된 text만 저장하면 나중에 overlay strategy를 바꿀 수 없다.
+
+### 9.3 Overlay 전략
+
+overlay는 page image 위에 invisible text layer를 얹는 방식으로 만든다.
+기존 PDF에 들어 있던 나쁜 OCR layer는 기본적으로 이어받지 않는다.
+
+Element별 전략은 다음이다.
 
 ```text
-TOC pages = 7-16
+word_join == normalized(content.text):
+  word-level overlay
+
+word_join != normalized(content.text) and row reconstruction succeeds:
+  row-level overlay
+
+word_join != normalized(content.text) and row reconstruction fails:
+  whole-element overlay
 ```
 
-출력:
+원칙은 다음이다.
+
+- 일반 문단과 heading은 word 좌표 정밀도를 우선한다.
+- 표와 수식은 좌표 정밀도보다 text 보존을 우선할 수 있다.
+- 화면에 대응하는 pixel이 없는 markdown 문법 요소는 overlay 대상에서 제외할 수 있다.
+- overlay report에는 어떤 element가 어떤 fallback을 탔는지 기록한다.
+
+### 9.4 OCR 품질 검증
+
+OCR / overlay 결과는 다음 기준으로 검증한다.
+
+- overlay PDF open 가능 여부
+- page count 유지 여부
+- 재추출 word / text count
+- element별 `content.text` 보존율
+- 빈 page 또는 비정상적으로 짧은 page 비율
+- 깨진 문자 / 숫자-only token 비율
+- heading candidate 추출 가능 여부
+
+검증 결과가 낮으면 main pipeline은 계속 진행할 수 있지만 report에 warning을 남긴다.
+
+---
+
+## 10. Primary Algorithm: Book-wide Hierarchy Inference
+
+### 10.1 목표
+
+책 전체에서 heading 후보를 찾고 bookmark tree를 만든다.
+
+입력은 다음 중 하나다.
+
+- native PDF
+- existing OCR PDF
+- `pdfbooktree`가 생성한 OCR overlay PDF
+
+출력은 다음이다.
 
 ```json
 [
   {
     "title": "Chapter 1 Introduction",
     "level": 1,
-    "printed_page": 3,
-    "source_pdf_page": 7,
-    "confidence": 0.94
+    "pdf_page": 17,
+    "source": "font_height_hierarchy",
+    "confidence": 0.93
   },
   {
     "title": "1.1 Motivation",
     "level": 2,
-    "printed_page": 7,
-    "source_pdf_page": 7,
-    "confidence": 0.91
+    "pdf_page": 19,
+    "source": "font_height_hierarchy",
+    "confidence": 0.88
   }
 ]
 ```
 
-### 9.2 Pane Classification
+### 10.2 Line extraction
 
-TOC extraction 전에 page 또는 range가 1-pane인지 2-pane인지 판정한다.
+line extraction은 PDF engine의 raw line boundary를 그대로 믿지 않는다.
+특히 OCR PDF에서는 같은 시각적 줄이 여러 조각으로 쪼개질 수 있다.
 
-이유:
+기본 원칙은 다음이다.
 
-- 2-pane TOC를 일반 y-order로 읽으면 왼쪽과 오른쪽 column 항목이 섞인다.
-- 잘못된 reading order는 hierarchy와 printed page monotonicity를 망가뜨린다.
+- page의 content span을 추출한다.
+- y 중심 좌표 기반으로 시각적 line을 재군집화한다.
+- line 대표 `font_size`와 `height`는 max가 아니라 median을 우선 사용한다.
+- 숫자만 있는 span도 chapter number일 수 있으므로 조건부로 포함한다.
+- 수식, footer, running header, page number 후보는 별도 feature로 표시한다.
 
-판정 방식 후보:
+### 10.3 Tiering
 
-1. deterministic feature
-   - page 중앙 gutter
-   - 좌우 content balance
-   - gutter straddle ratio
-   - word box x distribution
+책 전체 line에서 font size와 bbox height tier를 각각 만든다.
 
-2. LLM A/B 판정
-   - A: page 전체를 한 단으로 읽은 markdown
-   - B: 좌우 pane으로 나누어 왼쪽 먼저, 오른쪽 나중에 읽은 markdown
-   - LLM이 더 자연스러운 reading order를 선택한다.
+후보 방법은 다음이다.
 
-판정 output:
+- KDE peak / valley cut
+- 인접 tier peak gap 기반 merge
+- 최소 등장 횟수 기반 sparse tier merge
+- page position과 text pattern을 이용한 noise tier 제거
+
+`font_size`와 `height`는 어느 하나만 고정 선택하지 않는다.
+책마다 더 좋은 신호가 다르므로 두 signal을 병렬로 계산하고 비교한다.
+
+### 10.4 Heading candidate
+
+heading candidate는 다음 신호를 조합해 만든다.
+
+- font tier 또는 height tier
+- page 내 위치
+- 주변 body text와의 spacing
+- numbering pattern
+- text length
+- letter ratio
+- running header / footer 여부
+- repeated title 여부
+- page tier distribution cluster
+
+candidate에는 항상 source evidence를 남긴다.
 
 ```json
 {
-  "pdf_page": 7,
-  "pane_count": 2,
-  "reading_order": "left_then_right",
-  "confidence": 0.89,
-  "evidence": {
-    "gutter_score": 0.81,
-    "left_right_balance": 0.74
-  }
+  "pdf_page": 42,
+  "text": "Chapter 3 Fixed-Income Securities",
+  "font_tier": 1,
+  "height_tier": 1,
+  "y0": 126.4,
+  "numbering_depth": 1,
+  "evidence": ["large_font_tier", "top_page_position", "chapter_keyword"]
 }
 ```
 
-### 9.3 Pane-adjusted Feature Table
+### 10.5 Hierarchy inference
 
-TOC extraction 입력은 raw text만 주지 않는다.
-pane-adjusted text와 pane-adjusted feature를 함께 만든다.
+heading candidate sequence를 bookmark tree로 변환한다.
 
-line feature 후보:
+고려할 신호는 다음이다.
+
+- tier rank
+- numbering depth
+- text semantic cue
+- page order
+- repeated section pattern
+- appendix / glossary / index 같은 back matter cue
+- front matter cue
+- confidence
+
+level은 단순 font size rank로만 결정하지 않는다.
+실험에서 level 1 bookmark 안에도 chapter heading과 front matter heading이 섞이고, level 2 안에도 appendix heading처럼 더 큰 시각적 지위를 가진 항목이 있음을 확인했기 때문이다.
+
+---
+
+## 11. Secondary Algorithm: TOC Page Parsing
+
+### 11.1 역할
+
+TOC page parsing은 현재 secondary strategy다.
+다음 목적으로 유지한다.
+
+- primary hierarchy inference 실패 시 fallback
+- 책에 명확한 목차가 있고 body heading style이 불규칙한 경우
+- evaluation / debugging reference 생성
+- LLM-driven extraction 연구
+
+### 11.2 TOC page detection
+
+TOC page detection에는 다음 feature를 사용할 수 있다.
+
+- line-final number ratio
+- trailing page number pattern
+- numbering monotonicity
+- `contents`, `table of contents`, `목차`, `차례` keyword
+- Document Parse category
+- `category_index_ratio`
+- `line_index_ratio`
+- pane balance
+- page position prior
+
+주의할 점은 다음이다.
+
+- bookmark-guided TOC range는 ground truth가 아니라 pseudo label이다.
+- 수동 검수 없는 TOC label로 성능을 확정하지 않는다.
+- page-level random split은 layout leakage를 만들 수 있으므로 금지한다.
+- evaluation split은 PDF 단위로 한다.
+
+### 11.3 Pane-aware reconstruction
+
+TOC page가 2-pane이면 일반 y-order reading은 실패할 수 있다.
+따라서 TOC extraction 전에는 pane classification과 pane-adjusted reading order가 필요하다.
+
+line feature는 다음을 포함한다.
 
 - `source_pdf_page`
 - `pane_id`
 - `line_order`
 - `raw_text`
 - `normalized_text`
-- `x0`
-- `x1`
-- `y0`
-- `y1`
-- `pane_local_x0`
-- `pane_indent_tier`
+- `x0`, `x1`, `y0`, `y1`
 - `font_tier`
+- `indent_tier`
 - `category`
-- `element_id`
-- `element_position`
 - `numbering_depth`
 - `trailing_page`
-- `prev_line_delta_y`
-- `next_line_delta_y`
 
-이 feature table은 LLM-driven extraction과 ML/DL-driven extraction이 공유하는 중간 표현이다.
+### 11.4 TOC item extraction
 
-### 9.4 LLM-driven Extraction
+TOC item extraction은 deterministic rule, LLM, ML / DL sequence model을 모두 연구 후보로 둔다.
 
-LLM-driven extraction은 이 프로젝트의 핵심 실험 축이다.
-
-단계:
-
-```text
-1. pane classification
-2. pane-adjusted reading order 생성
-3. pane-adjusted line feature table 생성
-4. LLM에게 text + feature를 제공
-5. title / level / printed_page 구조화 출력
-6. validation call 또는 deterministic validator로 결과 검증
-```
-
-LLM에게 제공하는 정보:
-
-- pane-adjusted line order
-- line text
-- source page
-- pane id
-- indent tier
-- font tier
-- numbering depth
-- trailing page 후보
-- category / element hint
-
-LLM은 다음 역할을 한다.
+LLM-driven extraction은 다음 역할을 맡을 수 있다.
 
 - 여러 line에 걸친 item 병합
-- 깨진 OCR title 복원
+- 깨진 OCR title 보정
 - title과 printed page 분리
-- hierarchical level 추론
-- appendix, part, chapter, section 등 semantic cue 반영
+- hierarchy level 추론
+- appendix, part, chapter, section cue 반영
 
-LLM output schema:
-
-```json
-{
-  "items": [
-    {
-      "title": "Chapter 1 Introduction",
-      "level": 1,
-      "printed_page": 3,
-      "source_lines": [12, 13],
-      "source_pdf_page": 7,
-      "confidence": 0.94
-    }
-  ],
-  "warnings": []
-}
-```
-
-### 9.5 LLM Validation
-
-추출 LLM의 결과는 바로 bookmark로 쓰지 않는다.
-별도 validator를 통과해야 한다.
-
-validator는 LLM일 수도 있고 deterministic rule일 수도 있다.
-초기에는 둘을 모두 실험한다.
-
-검증 항목:
-
-- JSON schema validity
-- source line coverage
-- duplicate item 여부
-- printed page monotonicity
-- level jump 여부
-- parent 없는 child 여부
-- title이 너무 짧거나 숫자뿐인지 여부
-- TOC page text에 title 근거가 있는지 여부
-- printed page가 PDF page로 align 가능한지 여부
-
-validator output:
-
-```json
-{
-  "status": "accepted",
-  "confidence": 0.88,
-  "issues": [],
-  "repair_suggestions": []
-}
-```
-
-가능한 status:
-
-```text
-accepted
-accepted_with_warnings
-needs_repair
-manual_review
-failed
-```
-
-### 9.6 ML/DL-driven Extraction
-
-ML/DL-driven extraction은 LLM-driven extraction 이후의 연구 축이다.
-
-목표:
-
-```text
-extracted feature + text를 사용해 hierarchical bookmark tree를 직접 구성한다.
-```
-
-문제는 다음 하위 task로 나눌 수 있다.
-
-1. line이 TOC item인지 분류한다.
-2. 여러 line이 하나의 item인지 segment한다.
-3. title span과 printed page span을 분리한다.
-4. item level을 예측한다.
-5. item sequence를 tree로 변환한다.
-
-학습 label 후보:
-
-- 기존 bookmark와 TOC line fuzzy match로 만든 weak label
-- manual audited TOC item label
-- LLM extraction 결과 중 validator를 통과한 self-training label
-
-중요한 연구 질문:
-
-```text
-eval metric을 loss로 그대로 쓰지 않는다.
-ML/DL model이 학습하기 좋은 proper loss를 설계해야 한다.
-```
-
-loss 후보:
-
-- line item binary cross entropy
-- BIO sequence tagging loss
-- title span / page span token classification loss
-- level classification loss
-- level transition penalty
-- parent-before-child constraint loss
-- printed page monotonicity penalty
-- differentiable tree edit distance surrogate
-- contrastive loss for title/bookmark matching
-
-초기 목표는 production 승격이 아니라 small clean dataset에서 overfit 가능한지 확인하는 것이다.
+단, LLM output은 바로 bookmark로 쓰지 않는다.
+schema validation, source line coverage, printed page monotonicity, level jump, duplicate item 여부를 검증한다.
 
 ---
 
-## 10. Page Alignment
+## 12. Page Alignment
 
-TOC item의 `printed_page`는 실제 PDF page와 다를 수 있다.
-따라서 offset을 추정한다.
+primary hierarchy inference는 PDF page를 직접 target으로 삼으므로 page alignment 부담이 작다.
 
-예:
+반면 TOC page parsing 결과는 printed page number를 담기 때문에 PDF page로 align해야 한다.
 
-```text
-printed page 1 = PDF page 18
-offset = 17
+alignment 신호는 다음이다.
 
-TOC item printed page 87
-→ estimated PDF page 104
-```
+- body footer / header의 printed page number
+- TOC item printed page sequence
+- heading title fuzzy match
+- existing bookmark answer reference
+- front matter roman numeral pattern
 
-offset 추정 신호:
-
-- 본문 footer/header의 printed page number
-- TOC item의 printed page sequence
-- 기존 bookmark answer reference가 있는 실험 PDF의 target page
-- estimated page 주변 heading title fuzzy match
-
-runtime에서는 기존 bookmark를 사용할 수 없으므로, printed page number와 body heading matching을 우선 사용한다.
-
-alignment output:
+alignment output 예시는 다음이다.
 
 ```json
 {
@@ -742,11 +625,9 @@ alignment output:
 
 ---
 
-## 11. Bookmark Generation
+## 13. Bookmark Generation
 
-validated TOC item과 aligned page를 사용해 bookmark plan을 만든다.
-
-bookmark plan:
+validated hierarchy item을 사용해 bookmark plan을 만든다.
 
 ```json
 [
@@ -772,21 +653,22 @@ book.pdf
 
 bookmark insertion 이후에는 roundtrip 검증을 수행한다.
 
-검증 항목:
+검증 항목은 다음이다.
 
-- bookmark count
-- level sequence
-- target page range
 - output PDF open 가능 여부
 - 원본 page count 유지 여부
+- bookmark count
+- level sequence validity
+- target page range
+- roundtrip bookmark extraction 결과 일치 여부
 
 ---
 
-## 12. Markdown Export
+## 14. Markdown Export
 
-Markdown export는 bookmark hierarchy를 directory tree로 변환한다.
+Markdown export는 bookmark hierarchy를 directory tree와 문서 metadata로 변환한다.
 
-예:
+예시는 다음이다.
 
 ```text
 book_markdown/
@@ -806,61 +688,136 @@ title: 1.1 Motivation
 level: 2
 pdf_start_page: 19
 pdf_end_page: 26
-printed_page: 7
-alignment_confidence: 0.91
+source_method: font_height_hierarchy
+confidence: 0.88
 ```
 
 본문 text extraction 품질이 낮으면 Markdown export는 warning을 기록하고 가능한 범위만 저장한다.
 
 ---
 
-## 13. Intermediate Artifacts
+## 15. Intermediate Artifacts
 
 모든 단계는 재현 가능한 artifact를 저장한다.
 
-예:
+예시는 다음이다.
 
 ```text
 existing_bookmarks.json
-bookmark_quality_report.json
-toc_page_candidates.json
-toc_page_labels.json
-page_features.csv
-toc_page_model_report.json
-toc_page_predictions.json
-toc_range.json
-pane_classification.json
-pane_adjusted_lines.csv
-toc_items_raw.json
-toc_items_validated.json
-page_alignment.json
+ocr_quality_report.json
+document_parse_cache/
+document_parse_pages.jsonl
+ocr_overlay_report.json
+overlay_reextract_report.json
+whole_book_lines.parquet
+font_size_tiers.json
+height_tiers.json
+page_tier_distribution.parquet
+heading_candidates.json
+hierarchy_candidates.json
 bookmark_plan.json
 bookmark_roundtrip_report.json
 markdown_export_log.json
 book_report.json
 ```
 
+TOC fallback 또는 연구 pipeline을 실행한 경우 다음 artifact를 추가한다.
+
+```text
+toc_page_candidates.json
+toc_page_predictions.json
+toc_range.json
+pane_classification.json
+pane_adjusted_lines.parquet
+toc_items_raw.json
+toc_items_validated.json
+page_alignment.json
+```
+
 artifact에는 최소한 다음 metadata를 포함한다.
 
 - input PDF path
+- input file hash
 - page number convention
+- OCR provider
+- parse model
+- render DPI
 - feature source
-- model version
+- algorithm version
 - prompt version
-- detector version
 - created_at
 - confidence
-- warning
+- warnings
 
 ---
 
-## 14. Evaluation
+## 16. Existing Bookmark의 역할
 
-### 14.1 TOC Page Detection Evaluation
+기존 bookmark가 있는 PDF는 runtime 처리 대상이라기보다 evaluation reference로 사용한다.
 
-TOC page detector 평가는 manual audited label 또는 confidence gate를 통과한 pseudo-clean label에서만 수행한다.
+기존 bookmark tree는 다음 항목의 answer reference가 될 수 있다.
 
-지표:
+- title
+- target PDF page
+- hierarchy level
+
+단, 기존 bookmark 자체도 오류가 있을 수 있으므로 reference source와 matching confidence를 함께 기록한다.
+
+기존 bookmark에서 역추정한 TOC page range는 ground truth가 아니다.
+300study manual audit에서 bookmark-guided TOC label이 크게 틀릴 수 있음이 확인되었다.
+
+따라서 기존 bookmark는 다음 용도로 사용한다.
+
+- hierarchy inference 결과 평가
+- heading candidate matching 평가
+- page alignment 평가
+- generated bookmark와 answer bookmark tree 비교
+- TOC page 후보 생성
+
+기존 bookmark를 다음 용도로 사용하지 않는다.
+
+- 수동 검수 없는 TOC page ground truth
+- runtime 대상 PDF의 필수 입력 조건
+- OCR 품질 판단의 정답
+
+---
+
+## 17. Evaluation
+
+### 17.1 OCR / Overlay Evaluation
+
+지표는 다음이다.
+
+- Document Parse call success rate
+- overlay PDF creation success rate
+- overlay PDF open success rate
+- page count preservation
+- re-extracted text preservation ratio
+- element-level text match ratio
+- fallback strategy count
+- cost / latency per page
+
+### 17.2 Book-wide Hierarchy Evaluation
+
+기존 bookmark answer reference 또는 manual label 기준으로 평가한다.
+
+지표는 다음이다.
+
+- heading candidate precision
+- heading candidate recall
+- title match rate
+- level accuracy
+- relative depth transition accuracy
+- parent match accuracy
+- target page exact accuracy
+- target page ±1 accuracy
+- tree edit distance
+
+### 17.3 TOC Pipeline Evaluation
+
+TOC page detection은 manual audited label 또는 confidence gate를 통과한 pseudo-clean label에서만 평가한다.
+
+지표는 다음이다.
 
 - page precision
 - page recall
@@ -868,73 +825,61 @@ TOC page detector 평가는 manual audited label 또는 confidence gate를 통�
 - range IoU
 - start page error
 - end page error
-- false positive page count
-- false negative page count
-
-기존 bookmark-guided range를 수동 검수 없이 GT로 쓰지 않는다.
-
-### 14.2 TOC Item Extraction Evaluation
-
-bookmark가 있는 PDF에서는 generated TOC item을 기존 bookmark answer reference와 비교할 수 있다.
-
-지표:
-
-- title match rate
-- item precision
-- item recall
-- item F1
+- TOC item F1
 - printed page extraction accuracy
-- source line coverage
+- page alignment accuracy
 
-title matching은 exact match뿐 아니라 normalized fuzzy match를 같이 기록한다.
+### 17.4 End-to-end Evaluation
 
-### 14.3 Page Alignment Evaluation
+최종 평가는 다음을 포함한다.
 
-item title이 match된 pair에 대해 page alignment를 평가한다.
-
-지표:
-
-- exact page accuracy
-- ±1 page accuracy
-- ±2 page accuracy
-- mean absolute page error
-- median absolute page error
-- missing page count
-
-### 14.4 Hierarchy Evaluation
-
-hierarchy는 level과 parent relation을 모두 본다.
-
-지표:
-
-- absolute level accuracy
-- relative depth transition accuracy
-- parent match accuracy
-- tree edit distance
-
-기존 bookmark의 hierarchy는 answer reference로 사용한다.
-다만 bookmark 자체가 잘못 제작된 예외 사례를 추적하기 위해 reference source와 manual override 여부를 구분한다.
-
-### 14.5 End-to-end Evaluation
-
-최종 end-to-end 평가는 다음을 모두 포함한다.
-
-- TOC range 탐지 성공 여부
-- TOC item 추출 품질
-- page alignment 품질
-- hierarchy 품질
-- bookmark 삽입 성공 여부
+- OCR / overlay 필요 여부 판단
+- bookmark plan 품질
+- PDF bookmark insertion 성공 여부
 - Markdown export 성공 여부
-- cost / latency
+- book report 완성 여부
 - manual review 필요 비율
+- cost / latency
 
 ---
 
-## 15. Public Interface
+## 18. Public Interface
 
-### 15.1 단일 PDF 처리
+### 18.1 OCR Overlay
 
-사용 흐름:
+사용 흐름은 다음이다.
+
+```python
+from pdfbooktree.ocr import OcrOverlayBuilder
+
+builder = OcrOverlayBuilder(
+    input_pdf="book.pdf",
+    output_pdf="outputs/book_ocr.pdf",
+    output_dir="outputs/book_ocr_artifacts",
+    provider="upstage_document_parse",
+    render_dpi=300,
+)
+
+result = builder.run()
+```
+
+반환 객체는 다음 정보를 포함한다.
+
+```text
+status
+input_pdf
+output_pdf
+page_count
+provider
+model
+cache_dir
+overlay_report_path
+warnings
+```
+
+### 18.2 단일 PDF 처리
+
+사용 흐름은 다음이다.
 
 ```python
 from pdfbooktree import Processor
@@ -942,32 +887,48 @@ from pdfbooktree import Processor
 processor = Processor(
     input_pdf="book.pdf",
     output_dir="outputs/book",
-    use_llm=True,
+    ocr_policy="auto",
+    strategy="book_hierarchy",
     skip_existing_bookmarks=True,
 )
 
 result = processor.run()
 ```
 
-반환 객체:
+`ocr_policy` 후보는 다음이다.
 
 ```text
-status:
-  processed / skipped / failed / manual_review_required
+never
+auto
+always
+```
 
+`strategy` 후보는 다음이다.
+
+```text
+book_hierarchy
+toc_pages
+auto
+```
+
+반환 객체는 다음 정보를 포함한다.
+
+```text
+status
 input_pdf
+ocr_pdf
 output_pdf
 output_markdown_dir
-toc_pages
 bookmark_count
+strategy_used
 confidence_summary
 warnings
 artifact_paths
 ```
 
-### 15.2 Batch Processing
+### 18.3 Batch Processing
 
-사용 흐름:
+사용 흐름은 다음이다.
 
 ```python
 from pdfbooktree import BatchProcessor
@@ -976,17 +937,19 @@ batch = BatchProcessor(
     input_dir="pdfs",
     output_dir="outputs",
     recursive=True,
-    use_llm=False,
+    ocr_policy="auto",
+    strategy="auto",
 )
 
 summary = batch.run()
 ```
 
-summary:
+summary는 다음 정보를 포함한다.
 
 ```text
 total_pdf_count
 processed_count
+ocr_overlay_count
 skipped_existing_bookmark_count
 failed_count
 manual_review_required_count
@@ -994,65 +957,14 @@ created_bookmarked_pdf_paths
 created_markdown_dirs
 ```
 
-### 15.3 Dataset Builder
-
-TOC page detector 학습용 dataset을 만든다.
-
-```python
-from pdfbooktree.training import TocPageDatasetBuilder
-
-builder = TocPageDatasetBuilder(
-    pdf_paths=[...],
-    output_path="toc_page_dataset.parquet",
-)
-
-dataset = builder.build()
-```
-
-dataset row:
-
-```text
-pdf_id
-pdf_path
-pdf_page
-is_toc_page
-label_source
-label_confidence
-audit_status
-feature_source
-features...
-```
-
-### 15.4 Trainer
-
-```python
-from pdfbooktree.training import TocPageTrainer
-
-trainer = TocPageTrainer(
-    dataset_path="toc_page_dataset.parquet",
-    model_type="lightgbm",
-)
-
-report = trainer.train_group_kfold()
-```
-
-결과:
-
-```text
-trained_model_path
-cv_report
-feature_importance
-range_iou_report
-```
-
-### 15.5 Evaluator
+### 18.4 Evaluator
 
 ```python
 from pdfbooktree.evaluation import Evaluator
 
 evaluator = Evaluator(
     reference_pdf="book_with_bookmarks.pdf",
-    prediction_path="bookmark_plan.json",
+    prediction_path="outputs/book/bookmark_plan.json",
 )
 
 report = evaluator.run()
@@ -1060,43 +972,43 @@ report = evaluator.run()
 
 ---
 
-## 16. CLI
+## 19. CLI
+
+OCR overlay:
+
+```powershell
+uv run pdfbooktree ocr-overlay .\book.pdf --output .\outputs\book_ocr.pdf
+```
 
 단일 PDF 처리:
 
 ```powershell
-uv run pdfbooktree process book.pdf --output outputs/book
+uv run pdfbooktree process .\book.pdf --output .\outputs\book --ocr-policy auto --strategy book-hierarchy
+```
+
+TOC fallback 사용:
+
+```powershell
+uv run pdfbooktree process .\book.pdf --output .\outputs\book --ocr-policy auto --strategy toc-pages
 ```
 
 batch 처리:
 
 ```powershell
-uv run pdfbooktree batch .\pdfs --output .\outputs
-```
-
-TOC page dataset 생성:
-
-```powershell
-uv run pdfbooktree build-toc-page-dataset .\pdfs --output .\outputs\toc_page_dataset.parquet
-```
-
-TOC page detector 학습:
-
-```powershell
-uv run pdfbooktree train-toc-page-detector .\outputs\toc_page_dataset.parquet
+uv run pdfbooktree batch .\pdfs --output .\outputs --ocr-policy auto --strategy auto
 ```
 
 평가:
 
 ```powershell
-uv run pdfbooktree evaluate .\book_with_bookmarks.pdf .\prediction\bookmark_plan.json
+uv run pdfbooktree evaluate .\book_with_bookmarks.pdf .\outputs\book\bookmark_plan.json
 ```
 
 ---
 
-## 17. Dependency
+## 20. Dependency
 
-### 17.1 Core
+### 20.1 Core
 
 ```text
 pymupdf
@@ -1108,7 +1020,17 @@ typer
 rich
 ```
 
-### 17.2 Data / Experiment
+### 20.2 PDF / OCR Overlay
+
+```text
+pillow
+ocrmypdf
+fpdf2
+```
+
+`ocrmypdf` 내부 renderer를 재사용하는 경우 version과 adapter version을 artifact에 기록한다.
+
+### 20.3 Data / Experiment
 
 ```text
 pandas
@@ -1116,220 +1038,214 @@ matplotlib
 pyarrow
 ```
 
-### 17.3 Optional ML
+### 20.4 Optional ML
 
 ```text
 lightgbm
 catboost
 ```
 
-### 17.4 Optional LLM / Parse Provider
+### 20.5 Optional Provider / LLM
 
 ```text
 openai
-pillow
+httpx
 ```
 
-provider-specific SDK는 core dependency에 넣지 않고 adapter 또는 optional extra로 둔다.
-LLM과 Document Parse 호출은 반드시 provider, model, prompt version, input hash, output hash를 artifact에 기록한다.
+Upstage Document Parse와 LLM 호출은 반드시 provider, model, request params, input hash, output hash를 artifact에 기록한다.
 
 ---
 
-## 18. Experiment Roadmap
+## 21. Experiment Roadmap
 
-### 18.1 TOC Page Detection
+### 21.1 OCR / Overlay
 
-다음 실험을 우선 진행한다.
-
-```text
-052_bookmark_to_toc_label_quality_benchmark
-053_pseudo_label_confidence_filter
-054_manual_audit_queue_for_toc_ranges
-055_parse_page_feature_dataset_v1
-056_negative_sampling_strategy
-057_toc_page_classifier_v2
-058_toc_range_sequence_smoothing
-059_scanned_no_bookmark_toc_detection_eval
-060_feature_source_cost_ablation
-```
-
-목표:
-
-- bookmark-guided TOC label의 신뢰 조건을 찾는다.
-- balanced page dataset을 만든다.
-- runtime-compatible ML detector를 학습한다.
-- bookmark 없는 scanned PDF에서 TOC page를 찾는다.
-
-### 18.2 Pane-aware TOC Extraction
-
-다음 실험을 진행한다.
+우선순위가 가장 높다.
 
 ```text
-061_pane_classifier_generalization
-062_pane_adjusted_line_order_quality
-063_minimal_feature_table_multibook
-064_llm_pane_adjusted_toc_extraction
-065_llm_bookmark_validation_pass
-066_llm_extraction_prompt_ablation
+060_document_parse_overlay_multibook
+061_overlay_text_quality_metrics
+062_document_parse_cache_adapter
+063_ocr_policy_auto_decision
+064_overlay_searchability_showcase
 ```
 
-목표:
+목표는 다음이다.
 
-- 1-pane / 2-pane 판정을 일반화한다.
-- pane-adjusted reading order가 실제 TOC item 순서를 보존하는지 검증한다.
-- LLM이 pane-adjusted text와 feature를 이용해 bookmark tree를 추출할 수 있는지 확인한다.
-- validation call이 오류를 줄이는지 확인한다.
+- 여러 책에서 overlay PDF 생성이 안정적으로 되는지 확인한다.
+- word-level, row-level, whole-element fallback이 어떤 element에서 발생하는지 기록한다.
+- overlay 재추출 검증 기준을 만든다.
+- OCR 품질이 낮은 PDF를 자동 감지하는 policy를 만든다.
 
-### 18.3 ML/DL TOC Extraction
+### 21.2 Book-wide Hierarchy
 
-다음 실험을 연구 축으로 둔다.
+primary algorithm 연구 축이다.
 
 ```text
-067_toc_line_label_dataset_from_bookmarks
-068_toc_line_sequence_tagging_baseline
-069_hierarchy_loss_design_probe
-070_neural_toc_parser_smallset_overfit
+065_whole_book_hierarchy_multibook
+066_font_size_height_signal_selection
+067_heading_candidate_filtering
+068_hierarchy_inference_from_tiers
+069_bookmark_plan_generation_showcase
 ```
 
-목표:
+목표는 다음이다.
 
-- line-level weak label dataset을 만든다.
-- sequence tagging baseline을 만든다.
-- hierarchy-aware loss 후보를 검증한다.
-- 작은 clean set에서 neural parser가 overfit 가능한지 확인한다.
+- font size와 height signal을 책별로 비교한다.
+- 수식 조각, footer, running header noise를 줄인다.
+- heading candidate에서 bookmark tree를 만든다.
+- 기존 bookmark reference와 비교한다.
 
-### 18.4 End-to-end
+### 21.3 TOC Fallback
 
-다음 실험을 진행한다.
+secondary algorithm 연구 축이다.
 
 ```text
-071_detection_to_extraction_end_to_end_v2
-072_public_api_shape_showcase_precheck
+070_document_parse_toc_page_detector
+071_pane_adjusted_toc_line_reconstruction
+072_llm_toc_item_extraction_with_clean_ocr
+073_toc_pipeline_as_fallback
 ```
 
-목표:
+목표는 다음이다.
 
-- detector, pane classifier, extractor, validator, alignment, bookmark insertion을 하나의 flow로 연결한다.
-- public API에 필요한 object shape를 확정한다.
+- clean OCR 위에서 TOC page approach가 얼마나 회복되는지 확인한다.
+- TOC page 기반 결과와 book-wide hierarchy 결과를 비교한다.
+- fallback 조건을 정한다.
+
+### 21.4 End-to-end
+
+```text
+074_ocr_to_bookmark_end_to_end
+075_markdown_export_from_bookmark_plan
+076_batch_runtime_report
+```
+
+목표는 다음이다.
+
+- OCR overlay부터 bookmark embedding까지 하나의 flow로 연결한다.
+- Markdown export를 포함한 runtime output shape를 확정한다.
+- public API와 CLI shape를 showcase로 검증한다.
 
 ---
 
-## 19. Development Roadmap
+## 22. Development Roadmap
 
-### v0.1: Experiment-backed TOC Page Detector
+### v0.1: Document Parse OCR Overlay
 
-포함:
+포함한다.
 
-- bookmark quality filter
-- pseudo label confidence scoring
-- page feature dataset builder
-- balanced dataset generation
-- ML page classifier
-- range smoothing
-- detector report
+- Upstage Document Parse adapter
+- response cache
+- page rendering
+- word / element coordinate parsing
+- overlay PDF builder
+- overlay 재추출 검증
+- OCR report
 
-### v0.2: Pane-aware LLM TOC Extractor
+### v0.2: Book-wide Hierarchy Inference
 
-포함:
+포함한다.
 
-- pane classifier
-- pane-adjusted line reconstruction
-- minimal feature table
-- LLM structured extraction
-- LLM/deterministic validation
-- extraction report
+- whole-book line extraction
+- y-coordinate line regrouping
+- font size / height tiering
+- heading candidate extraction
+- hierarchy inference
+- confidence report
 
-### v0.3: Page Alignment and Bookmark Output
+### v0.3: Bookmark Output
 
-포함:
+포함한다.
 
-- printed page offset estimation
-- heading fuzzy grounding
-- bookmark plan generation
+- bookmark plan schema
 - PDF bookmark insertion
-- bookmark roundtrip validation
+- roundtrip validation
+- existing bookmark reference evaluation
 
 ### v0.4: Markdown Export and Batch Runtime
 
-포함:
+포함한다.
 
 - Markdown tree export
 - batch processor
 - runtime report
 - skipped existing bookmark report
+- OCR policy auto mode
 
-### v0.5: ML/DL Extraction Research
+### v0.5: TOC Fallback Research
 
-포함:
+포함한다.
 
-- line-level dataset
-- sequence tagging baseline
-- hierarchy-aware loss experiments
-- neural parser overfit probe
+- TOC page detector
+- pane-aware line reconstruction
+- TOC item extraction
+- page alignment
+- fallback strategy selection
 
 ---
 
-## 20. Success Criteria
+## 23. Success Criteria
 
-### 20.1 TOC Page Detection
-
-수동 검수 label 또는 pseudo-clean label 기준:
+### 23.1 OCR Overlay
 
 ```text
-range IoU >= 0.8
-page F1 >= 0.85
-start page absolute error <= 1 median
-end page absolute error <= 1 median
+overlay PDF 생성 성공률 >= 0.95
+page count preservation = 1.0
+overlay 재추출 text preservation ratio >= 0.9
+평균 처리 시간이 실험적으로 허용 가능한 범위일 것
 ```
 
-### 20.2 TOC Extraction
+### 23.2 Book-wide Hierarchy
 
-기존 bookmark answer reference 또는 manual item label 기준:
+기존 bookmark reference 또는 manual label 기준:
 
 ```text
-item F1 >= 0.85
-printed page extraction accuracy >= 0.9
-hierarchy relative depth accuracy >= 0.85
+heading candidate recall >= 0.85
+bookmark title F1 >= 0.8
+target page ±1 accuracy >= 0.9
+relative depth transition accuracy >= 0.85
 ```
 
-### 20.3 Page Alignment
-
-title matched item 기준:
+### 23.3 Bookmark Output
 
 ```text
-page ±1 accuracy >= 0.9
-median absolute page error <= 1
-```
-
-### 20.4 Runtime Output
-
-```text
-_bookmarked.pdf 생성 성공
+bookmarked PDF 생성 성공
 bookmark roundtrip 검증 성공
+원본 page count 유지
+bookmark target page가 유효 범위 안에 있음
+```
+
+### 23.4 Markdown Export
+
+```text
 Markdown tree 생성 성공
-book_report.json 생성 성공
-모든 중간 artifact 저장
+toc.json 생성 성공
+toc.md 생성 성공
+source metadata 보존
+품질 warning 기록
 ```
 
 ---
 
-## 21. 최종 요약
+## 24. 최종 요약
 
-`pdfbooktree`는 scanned PDF book에서 TOC page를 찾고, TOC page를 hierarchical bookmark tree로 변환해 실제 PDF bookmark와 Markdown directory를 생성하는 library다.
+`pdfbooktree`는 scanned PDF book에서 clean OCR / parse text를 확보한 뒤, 책 전체의 시각적 hierarchy를 이용해 bookmark tree를 만들고, 이를 PDF bookmark와 Markdown tree로 내보내는 library다.
 
-현재 구현 방향은 다음 순서다.
+현재 primary direction은 다음이다.
 
 ```text
-1. 기존 bookmark가 있는 PDF에서 TOC page pseudo label 생성 알고리즘을 찾는다.
-2. pseudo-clean TOC page와 random/hard negative page를 1:1로 섞어 balanced page dataset을 만든다.
-3. per-page feature로 ML TOC page detector를 학습한다.
-4. 학습된 detector를 bookmark 없는 scanned PDF에 적용한다.
-5. 탐지된 TOC page를 1-pane / 2-pane으로 판정한다.
-6. pane-adjusted order와 feature를 만들어 LLM이 hierarchical bookmark item을 추출한다.
-7. 별도 validation 단계로 LLM output을 검증한다.
-8. printed page를 PDF page에 align한다.
-9. bookmark가 삽입된 PDF와 Markdown tree를 생성한다.
+1. OCR 품질을 먼저 확인한다.
+2. 필요하면 Upstage Document Parse로 text / coordinates를 얻는다.
+3. Document Parse 결과를 scanned page image 위에 overlay해 searchable OCR PDF를 만든다.
+4. 책 전체 line의 font size와 bbox height tier를 계산한다.
+5. heading candidate를 추출한다.
+6. heading sequence를 hierarchy로 변환한다.
+7. bookmark plan을 만든다.
+8. PDF bookmark를 삽입한다.
+9. Markdown tree를 생성한다.
 ```
 
-ML/DL-driven TOC extraction은 별도 연구 축이다.
-이 축에서는 text와 feature로 hierarchical bookmark를 직접 구성하되, 단순 evaluation metric이 아니라 model이 학습하기 좋은 hierarchy-aware loss를 설계하는 것을 핵심 문제로 둔다.
+TOC page를 찾아 정밀 parsing하는 접근은 여전히 중요하다.
+다만 현재 결론은, clean OCR이 있다는 전제에서는 computer에게 book-wide font / height hierarchy approach가 더 유망하다는 것이다.
+TOC page approach는 fallback, evaluation aid, research track으로 유지한다.
