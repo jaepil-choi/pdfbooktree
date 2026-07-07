@@ -10,6 +10,7 @@ from rich import print as rich_print
 
 from pdfbooktree.batch import BatchProcessor
 from pdfbooktree.config import ProcessingConfig, TocMlDetectionConfig
+from pdfbooktree.ocr import OcrOverlayBuilder, OcrOverlayConfig
 from pdfbooktree.processor import Processor
 from pdfbooktree.toc.bookmark_batch import (
     BookmarkTocBatchDetector,
@@ -24,6 +25,126 @@ from pdfbooktree.utils.jsonio import write_json
 
 
 app = typer.Typer(help="PDF 책의 TOC를 bookmark와 Markdown tree로 구조화한다.")
+
+def parse_page_ranges(value: str | None) -> list[int] | None:
+    """CLI의 1-3,42 형태 page range 문자열을 1-based page 목록으로 바꾼다."""
+
+    if value is None or not value.strip():
+        return None
+    pages: list[int] = []
+    for part in value.split(","):
+        token = part.strip()
+        if not token:
+            continue
+        if "-" in token:
+            start_text, end_text = token.split("-", 1)
+            start = int(start_text)
+            end = int(end_text)
+            if start > end:
+                raise typer.BadParameter(f"page range 시작이 끝보다 크다: {token}")
+            pages.extend(range(start, end + 1))
+        else:
+            pages.append(int(token))
+    if any(page < 1 for page in pages):
+        raise typer.BadParameter("PDF page는 1 이상이어야 한다.")
+    return sorted(dict.fromkeys(pages))
+
+
+def parse_engine_options(values: list[str]) -> dict[str, object]:
+    """--engine-option key=value 목록을 dict로 변환한다."""
+
+    options: dict[str, object] = {}
+    for value in values:
+        if "=" not in value:
+            raise typer.BadParameter("--engine-option은 key=value 형식이어야 한다.")
+        key, raw = value.split("=", 1)
+        key = key.strip()
+        if not key:
+            raise typer.BadParameter("--engine-option key가 비어 있다.")
+        options[key] = _coerce_engine_option_value(raw.strip())
+    return options
+
+
+def _coerce_engine_option_value(value: str) -> object:
+    if "," in value:
+        return [
+            _coerce_engine_option_value(part.strip())
+            for part in value.split(",")
+            if part.strip()
+        ]
+    lowered = value.lower()
+    if lowered == "true":
+        return True
+    if lowered == "false":
+        return False
+    try:
+        return int(value)
+    except ValueError:
+        pass
+    try:
+        return float(value)
+    except ValueError:
+        return value
+
+
+@app.command()
+def ocr_overlay(
+    pdf: Path = typer.Argument(..., help="OCR overlay를 만들 PDF 파일이다."),
+    output_pdf: Path = typer.Option(
+        ...,
+        "--output",
+        "-o",
+        help="생성할 searchable OCR PDF 경로다.",
+    ),
+    output_dir: Path = typer.Option(
+        ...,
+        "--output-dir",
+        help="OCR cache와 stats artifact를 저장할 디렉터리다.",
+    ),
+    engine: str = typer.Option("upstage", "--engine", help="OCR engine 이름이다."),
+    render_dpi: int = typer.Option(300, "--render-dpi", min=72, help="렌더링 DPI다."),
+    pages: str | None = typer.Option(
+        None,
+        "--pages",
+        help="처리할 1-based page 목록이다. 예: 1-3,42",
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="출력 PDF가 이미 있어도 덮어쓴다.",
+    ),
+    confirm_bookmark_ocr_overwrite: bool = typer.Option(
+        False,
+        "--confirm-bookmark-ocr-overwrite",
+        help="기존 bookmark가 있는 PDF의 OCR text layer 교체를 명시적으로 확인한다.",
+    ),
+    stats_word_level: bool = typer.Option(
+        False,
+        "--stats-word-level",
+        help="word 단위 stats artifact도 저장한다.",
+    ),
+    engine_option: list[str] = typer.Option(
+        [],
+        "--engine-option",
+        help="OCR engine option이다. key=value 형식이며 여러 번 줄 수 있다.",
+    ),
+) -> None:
+    """PDF 모든 page를 OCR parse한 뒤 invisible text layer를 다시 입힌다."""
+
+    config = OcrOverlayConfig(
+        input_pdf=pdf,
+        output_pdf=output_pdf,
+        output_dir=output_dir,
+        engine=engine,
+        engine_options=parse_engine_options(engine_option),
+        render_dpi=render_dpi,
+        pages=parse_page_ranges(pages),
+        force=force,
+        confirm_bookmark_ocr_overwrite=confirm_bookmark_ocr_overwrite,
+        stats_word_level=stats_word_level,
+    )
+    result = OcrOverlayBuilder(config).run()
+    rich_print(to_jsonable(result))
 
 
 @app.command()
@@ -234,3 +355,5 @@ def main() -> None:
     """콘솔 script entrypoint다."""
 
     app()
+
+
