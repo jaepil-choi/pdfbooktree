@@ -137,10 +137,16 @@ def test_upstage_adapter_selects_word_row_and_element_overlay_modes() -> None:
 
     page = UpstageOcrEngine().to_insertable_page(raw, rendered_page())
 
-    assert [element.overlay_mode for element in page.elements] == ["word", "row", "element"]
+    assert [element.overlay_mode for element in page.elements] == [
+        "word",
+        "row",
+        "element",
+    ]
     assert page.elements[0].lines[0].words[0].bbox.x0 == 100.0
     assert page.elements[1].lines[0].text == "| A | B |"
-    assert page.elements[2].lines[0].text == "\\operatorname*{lim}_{m\\rightarrow\\infty}"
+    assert (
+        page.elements[2].lines[0].text == "\\operatorname*{lim}_{m\\rightarrow\\infty}"
+    )
 
 
 def test_upstage_engine_loads_api_key_from_dotenv(

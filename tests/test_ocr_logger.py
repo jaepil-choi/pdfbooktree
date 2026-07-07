@@ -26,7 +26,9 @@ def make_event(event: str, completed_pages: int = 0) -> OcrLogEvent:
     )
 
 
-def test_json_file_ocr_logger_writes_event_log_and_progress_snapshot(tmp_path: Path) -> None:
+def test_json_file_ocr_logger_writes_event_log_and_progress_snapshot(
+    tmp_path: Path,
+) -> None:
     logger = JsonFileOcrLogger(tmp_path)
 
     logger.emit(make_event("start", 0))
@@ -34,7 +36,9 @@ def test_json_file_ocr_logger_writes_event_log_and_progress_snapshot(tmp_path: P
 
     log_rows = [
         json.loads(line)
-        for line in (tmp_path / "ocr_log.jsonl").read_text(encoding="utf-8").splitlines()
+        for line in (tmp_path / "ocr_log.jsonl")
+        .read_text(encoding="utf-8")
+        .splitlines()
     ]
     progress = json.loads((tmp_path / "ocr_progress.json").read_text(encoding="utf-8"))
 

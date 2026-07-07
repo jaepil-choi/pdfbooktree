@@ -26,7 +26,9 @@ def test_raw_cache_key_changes_when_request_params_change(tmp_path: Path) -> Non
     assert first != second
 
 
-def test_insertable_cache_key_changes_when_adapter_version_changes(tmp_path: Path) -> None:
+def test_insertable_cache_key_changes_when_adapter_version_changes(
+    tmp_path: Path,
+) -> None:
     cache = OcrCache(tmp_path)
     raw = {"elements": [{"id": "1", "content": {"text": "Hello"}}]}
 

@@ -63,7 +63,9 @@ def _render_overlay_page(
     )
     for element in page.elements:
         for line in element.lines:
-            ocr_page.children.append(_to_ocr_line(line, BoundingBox, OcrClass, OcrElement))
+            ocr_page.children.append(
+                _to_ocr_line(line, BoundingBox, OcrClass, OcrElement)
+            )
 
     renderer = Fpdf2PdfRenderer(
         page=ocr_page,

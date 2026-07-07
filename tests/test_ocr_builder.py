@@ -108,8 +108,12 @@ def test_ocr_overlay_builder_emits_runtime_log_events(
                 ],
             )
 
-    monkeypatch.setattr("pdfbooktree.ocr.builder.extract_existing_bookmarks", lambda _path: [])
-    monkeypatch.setattr("pdfbooktree.ocr.builder.create_ocr_engine", lambda *_args: FakeEngine())
+    monkeypatch.setattr(
+        "pdfbooktree.ocr.builder.extract_existing_bookmarks", lambda _path: []
+    )
+    monkeypatch.setattr(
+        "pdfbooktree.ocr.builder.create_ocr_engine", lambda *_args: FakeEngine()
+    )
     monkeypatch.setattr(
         "pdfbooktree.ocr.builder.render_pdf_page",
         lambda *_args: RenderedPage(1, b"png", "sha", 100, 100, 100, 100),
@@ -118,7 +122,9 @@ def test_ocr_overlay_builder_emits_runtime_log_events(
         "pdfbooktree.ocr.builder.write_rendered_page_image",
         lambda _rendered, out_dir: out_dir / "page_0001.png",
     )
-    monkeypatch.setattr("pdfbooktree.ocr.builder.write_overlay_pdf", lambda *_args: None)
+    monkeypatch.setattr(
+        "pdfbooktree.ocr.builder.write_overlay_pdf", lambda *_args: None
+    )
     monkeypatch.setattr(
         "pdfbooktree.ocr.builder.write_ocr_stats",
         lambda *_args, **_kwargs: OcrStatsResult(

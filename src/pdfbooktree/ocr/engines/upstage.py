@@ -231,7 +231,9 @@ def _element_bbox(
         return _coords_to_box(coords, rendered_page)
     if words:
         return _union_word_bbox(words)
-    return OcrBox(0.0, 0.0, float(rendered_page.width_px), float(rendered_page.height_px))
+    return OcrBox(
+        0.0, 0.0, float(rendered_page.width_px), float(rendered_page.height_px)
+    )
 
 
 def _coords_to_box(coords: list[dict[str, Any]], rendered_page: RenderedPage) -> OcrBox:

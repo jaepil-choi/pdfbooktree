@@ -67,7 +67,9 @@ def read_jsonl(path: Path) -> list[dict[str, object]]:
 
 
 def test_write_ocr_stats_exports_line_and_page_height_features(tmp_path: Path) -> None:
-    result = write_ocr_stats([make_insertable_page()], tmp_path, include_word_stats=True)
+    result = write_ocr_stats(
+        [make_insertable_page()], tmp_path, include_word_stats=True
+    )
 
     line_rows = read_jsonl(result.line_stats_path)
     page_rows = read_jsonl(result.page_stats_path)

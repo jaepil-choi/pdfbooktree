@@ -14,6 +14,4 @@ def create_ocr_engine(engine: str, options: dict[str, Any] | None = None) -> Ocr
     normalized = engine.strip().lower()
     if normalized == "upstage":
         return UpstageOcrEngine(options)
-    if normalized in {"paddle", "paddleocr", "easyocr"}:
-        raise NotImplementedError(f"{engine} engine은 아직 placeholder다.")
     raise ValueError(f"지원하지 않는 OCR engine이다: {engine}")

@@ -185,7 +185,11 @@ def format_ocr_log_event(event: OcrLogEvent) -> str:
     """plain text logger가 출력할 한 줄 메시지를 만든다."""
 
     page = "-" if event.pdf_page is None else str(event.pdf_page)
-    eta = "?" if event.estimated_remaining_sec is None else _format_duration(event.estimated_remaining_sec)
+    eta = (
+        "?"
+        if event.estimated_remaining_sec is None
+        else _format_duration(event.estimated_remaining_sec)
+    )
     return (
         f"[{event.completed_pages}/{event.total_pages}] page={page} "
         f"event={event.event} elapsed={_format_duration(event.elapsed_sec)} "
@@ -199,7 +203,13 @@ def _event_to_jsonable(event: OcrLogEvent) -> dict[str, object]:
 
 
 def _progress_snapshot(payload: dict[str, object]) -> dict[str, object]:
-    status = "failed" if payload["event"] == "failed" else "done" if payload["event"] == "done" else "running"
+    status = (
+        "failed"
+        if payload["event"] == "failed"
+        else "done"
+        if payload["event"] == "done"
+        else "running"
+    )
     return {
         "status": status,
         "event": payload["event"],
@@ -218,7 +228,11 @@ def _progress_snapshot(payload: dict[str, object]) -> dict[str, object]:
 
 def _rich_status(event: OcrLogEvent) -> str:
     page = "-" if event.pdf_page is None else str(event.pdf_page)
-    eta = "?" if event.estimated_remaining_sec is None else _format_duration(event.estimated_remaining_sec)
+    eta = (
+        "?"
+        if event.estimated_remaining_sec is None
+        else _format_duration(event.estimated_remaining_sec)
+    )
     return (
         f"page {page} | {event.event} | eta {eta} | "
         f"hit {event.cache_hit_count} miss {event.cache_miss_count}"

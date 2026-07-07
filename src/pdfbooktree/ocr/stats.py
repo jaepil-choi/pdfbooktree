@@ -85,10 +85,18 @@ def _build_line_rows(
                         "word_height_median_pt": (
                             float(median(word_heights)) if word_heights else None
                         ),
-                        "word_height_max_pt": max(word_heights) if word_heights else None,
-                        "inserted_font_size_median_pt": inserted_font_sizes.get(line_id),
-                        "y_center_ratio": _center_ratio(box_pt.y0, box_pt.y1, page.height_pt),
-                        "x_center_ratio": _center_ratio(box_pt.x0, box_pt.x1, page.width_pt),
+                        "word_height_max_pt": max(word_heights)
+                        if word_heights
+                        else None,
+                        "inserted_font_size_median_pt": inserted_font_sizes.get(
+                            line_id
+                        ),
+                        "y_center_ratio": _center_ratio(
+                            box_pt.y0, box_pt.y1, page.height_pt
+                        ),
+                        "x_center_ratio": _center_ratio(
+                            box_pt.x0, box_pt.x1, page.width_pt
+                        ),
                         "numbering_depth": infer_numbering_depth(text),
                         "is_numeric_only": _is_numeric_only(text),
                     }
@@ -96,14 +104,18 @@ def _build_line_rows(
     return rows
 
 
-def _build_element_rows(insertable_pages: list[InsertableOcrPage]) -> list[dict[str, Any]]:
+def _build_element_rows(
+    insertable_pages: list[InsertableOcrPage],
+) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for page in insertable_pages:
         sx = page.width_pt / page.width_px
         sy = page.height_pt / page.height_px
         for element in page.elements:
             box_pt = _scale_box(element.bbox, sx, sy)
-            line_heights = [_scale_box(line.bbox, sx, sy).height for line in element.lines]
+            line_heights = [
+                _scale_box(line.bbox, sx, sy).height for line in element.lines
+            ]
             rows.append(
                 {
                     "pdf_page": page.pdf_page,
@@ -111,7 +123,9 @@ def _build_element_rows(insertable_pages: list[InsertableOcrPage]) -> list[dict[
                     "category": element.category,
                     "overlay_mode": element.overlay_mode,
                     "line_count": len(element.lines),
-                    "word_count": sum(len(_tokens(line.text)) for line in element.lines),
+                    "word_count": sum(
+                        len(_tokens(line.text)) for line in element.lines
+                    ),
                     "char_count": len(element.content_text),
                     "bbox_height_pt": box_pt.height,
                     "bbox_width_pt": box_pt.width,
@@ -312,4 +326,3 @@ def _write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
         ),
         encoding="utf-8",
     )
-

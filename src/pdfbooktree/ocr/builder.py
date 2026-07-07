@@ -74,9 +74,15 @@ class OcrOverlayBuilder:
 
             for pdf_page in pages:
                 self._emit("page_start", pdf_page, f"page {pdf_page} 처리 시작")
-                self._emit("page_render_start", pdf_page, f"page {pdf_page} 렌더링 시작")
-                rendered = render_pdf_page(self.input_pdf, pdf_page, self.config.render_dpi)
-                image_paths[pdf_page] = write_rendered_page_image(rendered, rendered_dir)
+                self._emit(
+                    "page_render_start", pdf_page, f"page {pdf_page} 렌더링 시작"
+                )
+                rendered = render_pdf_page(
+                    self.input_pdf, pdf_page, self.config.render_dpi
+                )
+                image_paths[pdf_page] = write_rendered_page_image(
+                    rendered, rendered_dir
+                )
                 self._emit("page_render_done", pdf_page, f"page {pdf_page} 렌더링 완료")
 
                 raw_key = cache.raw_cache_key(
@@ -91,15 +97,23 @@ class OcrOverlayBuilder:
                     raw_response = cache.read_raw(raw_key)
                 if raw_response is None:
                     if self.config.cache_policy == "only":
-                        raise FileNotFoundError(f"OCR raw cache가 없다: page={pdf_page}")
-                    self._emit("ocr_call_start", pdf_page, f"page {pdf_page} OCR API 호출 시작")
+                        raise FileNotFoundError(
+                            f"OCR raw cache가 없다: page={pdf_page}"
+                        )
+                    self._emit(
+                        "ocr_call_start", pdf_page, f"page {pdf_page} OCR API 호출 시작"
+                    )
                     raw_response = engine.recognize_page(rendered)
                     cache.write_raw(raw_key, raw_response)
                     self._cache_miss_count += 1
-                    self._emit("ocr_call_done", pdf_page, f"page {pdf_page} OCR API 호출 완료")
+                    self._emit(
+                        "ocr_call_done", pdf_page, f"page {pdf_page} OCR API 호출 완료"
+                    )
                 else:
                     self._cache_hit_count += 1
-                    self._emit("raw_cache_hit", pdf_page, f"page {pdf_page} raw OCR cache hit")
+                    self._emit(
+                        "raw_cache_hit", pdf_page, f"page {pdf_page} raw OCR cache hit"
+                    )
 
                 insertable_key = cache.insertable_cache_key(
                     raw_response=raw_response,
@@ -109,12 +123,24 @@ class OcrOverlayBuilder:
                 if self.config.cache_policy != "refresh":
                     insertable = cache.read_insertable(insertable_key)
                 if insertable is None:
-                    self._emit("insertable_build_start", pdf_page, f"page {pdf_page} 표준 삽입 모델 생성 시작")
+                    self._emit(
+                        "insertable_build_start",
+                        pdf_page,
+                        f"page {pdf_page} 표준 삽입 모델 생성 시작",
+                    )
                     insertable = engine.to_insertable_page(raw_response, rendered)
                     cache.write_insertable(insertable_key, insertable)
-                    self._emit("insertable_build_done", pdf_page, f"page {pdf_page} 표준 삽입 모델 생성 완료")
+                    self._emit(
+                        "insertable_build_done",
+                        pdf_page,
+                        f"page {pdf_page} 표준 삽입 모델 생성 완료",
+                    )
                 else:
-                    self._emit("insertable_cache_hit", pdf_page, f"page {pdf_page} 표준 삽입 모델 cache hit")
+                    self._emit(
+                        "insertable_cache_hit",
+                        pdf_page,
+                        f"page {pdf_page} 표준 삽입 모델 cache hit",
+                    )
                 insertable_pages.append(insertable)
                 self._completed_pages += 1
                 self._emit("page_done", pdf_page, f"page {pdf_page} 처리 완료")
@@ -220,4 +246,3 @@ class OcrOverlayBuilder:
             return None
         remaining_pages = max(0, self._total_pages - self._completed_pages)
         return (elapsed / self._completed_pages) * remaining_pages
-
