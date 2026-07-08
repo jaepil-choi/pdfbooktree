@@ -1,111 +1,162 @@
-"""표준 OCR 삽입 모델을 invisible text layer PDF로 렌더링한다."""
+"""표준 OCR 삽입 모델을 원본 PDF 위 invisible text layer로 삽입한다."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
 import fitz
+import pikepdf
 
 from pdfbooktree.ocr.models import InsertableOcrLine, InsertableOcrPage, OcrBox
+
+TEXT_OBJECT_BEGIN = "BT"
+TEXT_OBJECT_END = "ET"
+DEFAULT_FONT_CANDIDATES = [
+    Path(r"C:\Windows\Fonts\malgun.ttf"),
+    Path(r"C:\Windows\Fonts\arial.ttf"),
+]
 
 
 def write_overlay_pdf(
     insertable_pages: list[InsertableOcrPage],
-    page_images: dict[int, Path],
+    source_pdf: Path,
     output_pdf: Path,
     temp_dir: Path,
-    dpi: int,
 ) -> None:
-    """page image와 invisible text layer를 합쳐 searchable OCR PDF를 만든다."""
+    """원본 PDF의 기존 text object를 제거하고 새 invisible OCR layer를 삽입한다."""
 
     if output_pdf.exists():
         output_pdf.unlink()
     temp_dir.mkdir(parents=True, exist_ok=True)
-    page_pdf_paths: list[Path] = []
-    for page in insertable_pages:
-        page_pdf = temp_dir / f"overlay_page_{page.pdf_page:04d}.pdf"
-        _render_overlay_page(page, page_images[page.pdf_page], page_pdf, dpi)
-        page_pdf_paths.append(page_pdf)
+    stripped_pdf = temp_dir / "source_text_stripped.pdf"
 
-    output = fitz.open()
+    target_pages = {page.pdf_page for page in insertable_pages}
+    _strip_text_objects(source_pdf, stripped_pdf, target_pages)
+    document = fitz.open(stripped_pdf)
     try:
-        for page_pdf in page_pdf_paths:
-            source = fitz.open(page_pdf)
-            try:
-                output.insert_pdf(source)
-            finally:
-                source.close()
+        _insert_invisible_lines(document, insertable_pages)
         output_pdf.parent.mkdir(parents=True, exist_ok=True)
-        output.save(output_pdf)
+        document.save(
+            output_pdf,
+            garbage=4,
+            deflate=True,
+            deflate_fonts=True,
+            use_objstms=1,
+            compression_effort=100,
+        )
     finally:
-        output.close()
+        document.close()
 
 
-def _render_overlay_page(
-    page: InsertableOcrPage,
-    image_path: Path,
+def _strip_text_objects(
+    input_pdf: Path,
     output_pdf: Path,
-    dpi: int,
+    target_pages: set[int],
 ) -> None:
-    try:
-        from ocrmypdf.font import MultiFontManager
-        from ocrmypdf.fpdf_renderer.renderer import Fpdf2PdfRenderer
-        from ocrmypdf.models.ocr_element import BoundingBox, OcrClass, OcrElement
-    except ImportError as exc:
-        raise RuntimeError(
-            "OCR overlay PDF 생성을 위해 ocrmypdf가 필요하다. "
-            "`uv sync` 또는 `uv add ocrmypdf`로 의존성을 설치해야 한다."
-        ) from exc
+    """overwrite 대상 page content stream에서 BT...ET text object를 통째로 제거한다."""
 
-    ocr_page = OcrElement(
-        ocr_class=OcrClass.PAGE,
-        bbox=BoundingBox(0, 0, page.width_px, page.height_px),
-    )
-    for element in page.elements:
-        for line in element.lines:
-            ocr_page.children.append(
-                _to_ocr_line(line, BoundingBox, OcrClass, OcrElement)
+    output_pdf.parent.mkdir(parents=True, exist_ok=True)
+    with pikepdf.open(input_pdf) as pdf:
+        for page_index, page in enumerate(pdf.pages, start=1):
+            if page_index not in target_pages:
+                continue
+            try:
+                instructions = pikepdf.parse_content_stream(page)
+            except Exception:  # noqa: BLE001
+                continue
+
+            stripped = []
+            in_text_object = False
+            changed = False
+            for operands, operator in instructions:
+                op = str(operator)
+                if op == TEXT_OBJECT_BEGIN:
+                    in_text_object = True
+                    changed = True
+                    continue
+                if in_text_object:
+                    changed = True
+                    if op == TEXT_OBJECT_END:
+                        in_text_object = False
+                    continue
+                stripped.append((operands, operator))
+
+            if changed:
+                page.Contents = pdf.make_stream(
+                    pikepdf.unparse_content_stream(stripped)
+                )
+
+        pdf.save(
+            output_pdf,
+            compress_streams=True,
+            object_stream_mode=pikepdf.ObjectStreamMode.generate,
+        )
+
+
+def _insert_invisible_lines(
+    document: fitz.Document,
+    insertable_pages: list[InsertableOcrPage],
+) -> None:
+    font = _load_overlay_font()
+    for page_model in insertable_pages:
+        if page_model.pdf_page < 1 or page_model.pdf_page > document.page_count:
+            continue
+
+        page = document[page_model.pdf_page - 1]
+        writer = fitz.TextWriter(page.rect)
+        inserted_on_page = 0
+        for line in _iter_insertable_lines(page_model):
+            text = " ".join(line.text.split())
+            if not text:
+                continue
+
+            rect = _scale_rect(
+                line.bbox,
+                page_rect=page.rect,
+                width_px=page_model.width_px,
+                height_px=page_model.height_px,
             )
-
-    renderer = Fpdf2PdfRenderer(
-        page=ocr_page,
-        dpi=dpi,
-        multi_font_manager=MultiFontManager(),
-        invisible_text=True,
-        image=image_path,
-    )
-    renderer.render(output_pdf)
-
-
-def _to_ocr_line(
-    line: InsertableOcrLine,
-    bounding_box_type: type,
-    ocr_class_type: type,
-    ocr_element_type: type,
-) -> object:
-    if line.words:
-        children = [
-            ocr_element_type(
-                ocr_class=ocr_class_type.WORD,
-                bbox=_to_bounding_box(word.bbox, bounding_box_type),
-                text=word.text,
+            font_size = max(3.0, min(18.0, rect.height * 0.88))
+            writer.append(
+                (rect.x0, rect.y1),
+                text,
+                font=font,
+                fontsize=font_size,
             )
-            for word in line.words
-        ]
-    else:
-        children = [
-            ocr_element_type(
-                ocr_class=ocr_class_type.WORD,
-                bbox=_to_bounding_box(line.bbox, bounding_box_type),
-                text=line.text,
-            )
-        ]
-    return ocr_element_type(
-        ocr_class=ocr_class_type.LINE,
-        bbox=_to_bounding_box(line.bbox, bounding_box_type),
-        children=children,
+            inserted_on_page += 1
+
+        if inserted_on_page:
+            writer.write_text(page, overlay=True, render_mode=3)
+
+
+def _iter_insertable_lines(page: InsertableOcrPage) -> list[InsertableOcrLine]:
+    return [line for element in page.elements for line in element.lines]
+
+
+def _scale_rect(
+    box: OcrBox,
+    *,
+    page_rect: fitz.Rect,
+    width_px: int,
+    height_px: int,
+) -> fitz.Rect:
+    sx = page_rect.width / width_px
+    sy = page_rect.height / height_px
+    rect = fitz.Rect(
+        box.x0 * sx,
+        box.y0 * sy,
+        box.x1 * sx,
+        box.y1 * sy,
     )
+    if rect.height < 2:
+        rect.y1 = rect.y0 + 2
+    if rect.width < 2:
+        rect.x1 = rect.x0 + 2
+    return rect
 
 
-def _to_bounding_box(box: OcrBox, bounding_box_type: type) -> object:
-    return bounding_box_type(box.x0, box.y0, box.x1, box.y1)
+def _load_overlay_font() -> fitz.Font:
+    for font_path in DEFAULT_FONT_CANDIDATES:
+        if font_path.exists():
+            return fitz.Font(fontfile=str(font_path))
+    return fitz.Font("helv")
