@@ -16,6 +16,16 @@ DEFAULT_FONT_CANDIDATES = [
     Path(r"C:\Windows\Fonts\arial.ttf"),
 ]
 
+# invisible text font_size의 절대 clamp 하한/상한이다. page 세로 길이가
+# REFERENCE_PAGE_HEIGHT_PT(US Letter 세로 길이) 이하인 정상 판형 책에는 그대로
+# 적용되고, 그보다 큰 book(예: 스캔 도구가 page MediaBox를 픽셀 크기 그대로 잘못
+# 잡은 경우)에서는 page 크기에 비례해 함께 커진다. 실측(300STUDY 정상 판형 책 대비
+# page_rect가 2.5~3배 큰 책)에서 절대 clamp만 쓰면 본문 문단까지 18pt 벽에
+# 부딪혀 heading/본문 구분 신호가 통째로 사라지는 문제를 이렇게 고쳤다.
+MIN_FONT_SIZE_PT = 3.0
+MAX_FONT_SIZE_PT = 18.0
+REFERENCE_PAGE_HEIGHT_PT = 792.0
+
 
 def write_overlay_pdf(
     insertable_pages: list[InsertableOcrPage],
@@ -104,6 +114,7 @@ def _insert_invisible_lines(
 
         page = document[page_model.pdf_page - 1]
         writer = fitz.TextWriter(page.rect)
+        min_font_size, max_font_size = _page_relative_font_size_bounds(page.rect.height)
         inserted_on_page = 0
         for line in _iter_insertable_lines(page_model):
             text = " ".join(line.text.split())
@@ -116,7 +127,7 @@ def _insert_invisible_lines(
                 width_px=page_model.width_px,
                 height_px=page_model.height_px,
             )
-            font_size = max(3.0, min(18.0, rect.height * 0.88))
+            font_size = max(min_font_size, min(max_font_size, rect.height * 0.88))
             writer.append(
                 (rect.x0, rect.y1),
                 text,
@@ -131,6 +142,19 @@ def _insert_invisible_lines(
 
 def _iter_insertable_lines(page: InsertableOcrPage) -> list[InsertableOcrLine]:
     return [line for element in page.elements for line in element.lines]
+
+
+def _page_relative_font_size_bounds(page_height_pt: float) -> tuple[float, float]:
+    """page 세로 길이에 비례한 font_size clamp 하한/상한을 계산한다.
+
+    REFERENCE_PAGE_HEIGHT_PT 이하 정상 판형은 scale=1.0이라 기존 절대 clamp
+    [3.0, 18.0]과 동일하게 동작한다. page가 그보다 크면(예: source PDF의
+    MediaBox가 실제 판형과 무관하게 커진 경우) 상한/하한이 함께 커져서, 본문
+    line까지 절대 상한에 부딪혀 heading 신호가 사라지는 것을 막는다.
+    """
+
+    scale = max(1.0, page_height_pt / REFERENCE_PAGE_HEIGHT_PT)
+    return MIN_FONT_SIZE_PT * scale, MAX_FONT_SIZE_PT * scale
 
 
 def _scale_rect(

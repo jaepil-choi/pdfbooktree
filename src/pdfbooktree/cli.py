@@ -23,6 +23,7 @@ from pdfbooktree.ocr import (
     OcrOverlayBuilder,
     OcrOverlayConfig,
 )
+from pdfbooktree.ocr.config import CachePolicy
 from pdfbooktree.ocr.logger import OcrLogMode, build_ocr_logger, default_ocr_log_mode
 from pdfbooktree.pdf.scan_signals import DEFAULT_MAX_SAMPLE_PAGES
 from pdfbooktree.processor import Processor
@@ -116,6 +117,15 @@ def ocr_overlay(
         "--confirm-bookmark-ocr-overwrite",
         help="기존 bookmark가 있는 PDF의 OCR text layer 교체를 명시적으로 확인한다.",
     ),
+    cache_policy: str = typer.Option(
+        "reuse",
+        "--cache-policy",
+        help=(
+            "OCR raw/insertable cache 사용 방식이다. reuse(있으면 재사용, 없으면 "
+            "호출), refresh(항상 새로 호출), only(cache만 쓰고 없으면 실패, API "
+            "호출 안 함) 중 하나다."
+        ),
+    ),
     stats_word_level: bool = typer.Option(
         False, "--stats-word-level", help="word 단위 stats artifact도 저장한다."
     ),
@@ -142,6 +152,10 @@ def ocr_overlay(
         raise typer.BadParameter(
             "log-mode은 auto, rich, plain, json, none 중 하나여야 한다."
         )
+    if cache_policy not in {"reuse", "refresh", "only"}:
+        raise typer.BadParameter(
+            "cache-policy는 reuse, refresh, only 중 하나여야 한다."
+        )
     logger = build_ocr_logger(
         cast(OcrLogMode, resolved_log_mode), output_dir, enable_file=not no_log_file
     )
@@ -155,6 +169,7 @@ def ocr_overlay(
         pages=parse_page_ranges(pages),
         force=force,
         confirm_bookmark_ocr_overwrite=confirm_bookmark_ocr_overwrite,
+        cache_policy=cast(CachePolicy, cache_policy),
         stats_word_level=stats_word_level,
     )
     result = OcrOverlayBuilder(config, logger=logger).run()
