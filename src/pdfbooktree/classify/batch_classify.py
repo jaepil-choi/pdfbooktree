@@ -1,11 +1,10 @@
 """디렉터리를 recursive로 순회하며 scan/bookmark 배치 분류를 실행한다.
 
-- 실행 자체는 PDF를 전혀 수정하지 않는 읽기 전용 report 생성 단계다.
-- `dry_run=True`면 report 파일(CSV/JSONL/summary)을 디스크에 쓰지 않고
-  진행 로그와 최종 집계만 보여준다. 1000개가 넘는 배치를 돌리기 전에 빠르게
-  훑어보는 용도다.
-- `dry_run=False`(기본값)면 파일마다 CSV row와 JSONL detail을 즉시 flush한다.
-  중간에 실패해도 이미 처리한 결과는 남는다.
+- 실행 자체는 PDF를 전혀 수정하지 않는 읽기 전용 분류 단계다.
+- `dry_run`은 후속 OCR overwrite 같은 변경 작업을 하지 않는다는 의미다.
+- `write_report=True`면 CSV/JSONL/summary를 저장하고, 파일마다 CSV row와 JSONL
+  detail을 즉시 flush한다. 중간에 실패해도 이미 처리한 결과는 남는다.
+- `write_report=False`면 디스크 report 없이 진행 로그와 최종 집계만 남긴다.
 - 파일 하나가 corrupt/encrypted 등으로 열리지 않아도 배치 전체를 멈추지 않고
   해당 행에 error를 남긴 채 계속 진행한다.
 """
@@ -29,6 +28,7 @@ from pdfbooktree.pdf.bookmarks import (
     has_meaningful_bookmark,
 )
 from pdfbooktree.pdf.scan_classification import classify_scan
+from pdfbooktree.pdf.scan_signals import DEFAULT_MAX_SAMPLE_PAGES
 from pdfbooktree.utils.jsonio import to_jsonable
 
 
@@ -60,7 +60,8 @@ class ClassifyBatchConfig:
     output_dir: Path | str
     recursive: bool = False
     dry_run: bool = False
-    max_sample_pages: int = 20
+    write_report: bool = True
+    max_sample_pages: int = DEFAULT_MAX_SAMPLE_PAGES
 
 
 class ScanBookmarkClassifier:
@@ -86,7 +87,7 @@ class ScanBookmarkClassifier:
         csv_writer = None
         detail_file = None
 
-        if not self.config.dry_run:
+        if self.config.write_report:
             self.output_dir.mkdir(parents=True, exist_ok=True)
             report_csv_path = self.output_dir / "classification_report.csv"
             detail_jsonl_path = self.output_dir / "classification_detail.jsonl"
@@ -152,7 +153,7 @@ class ScanBookmarkClassifier:
             results=results,
         )
 
-        if not self.config.dry_run:
+        if self.config.write_report:
             self._write_summary(batch_result)
 
         return batch_result

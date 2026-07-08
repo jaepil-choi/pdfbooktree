@@ -51,6 +51,7 @@ def test_classify_scan_cli_parses_options(monkeypatch, tmp_path: Path) -> None:
             str(tmp_path / "out"),
             "--recursive",
             "--dry-run",
+            "--no-write-report",
             "--max-sample-pages",
             "10",
             "--log-mode",
@@ -64,6 +65,7 @@ def test_classify_scan_cli_parses_options(monkeypatch, tmp_path: Path) -> None:
     assert config.output_dir == tmp_path / "out"
     assert config.recursive is True
     assert config.dry_run is True
+    assert config.write_report is False
     assert config.max_sample_pages == 10
     assert captured["log_mode"] == "plain"
 
@@ -109,4 +111,6 @@ def test_classify_scan_cli_defaults_to_non_dry_run(monkeypatch, tmp_path: Path) 
 
     assert result.exit_code == 0
     assert captured["config"].dry_run is False
+    assert captured["config"].write_report is True
+    assert captured["config"].max_sample_pages == 50
     assert captured["config"].recursive is False

@@ -17,8 +17,14 @@ from pdfbooktree.classify import (
     default_classify_log_mode,
 )
 from pdfbooktree.config import ProcessingConfig, TypographyConfig
-from pdfbooktree.ocr import OcrOverlayBuilder, OcrOverlayConfig
+from pdfbooktree.ocr import (
+    OcrOverlayBatchConfig,
+    OcrOverlayBatchRunner,
+    OcrOverlayBuilder,
+    OcrOverlayConfig,
+)
 from pdfbooktree.ocr.logger import OcrLogMode, build_ocr_logger, default_ocr_log_mode
+from pdfbooktree.pdf.scan_signals import DEFAULT_MAX_SAMPLE_PAGES
 from pdfbooktree.processor import Processor
 from pdfbooktree.utils.jsonio import to_jsonable
 
@@ -155,6 +161,102 @@ def ocr_overlay(
     rich_print(to_jsonable(result))
 
 
+@app.command("ocr-overlay-batch")
+def ocr_overlay_batch_cmd(
+    input_dir: Path = typer.Argument(..., help="PDF를 찾을 입력 디렉터리다."),
+    output_dir: Path = typer.Option(
+        ..., "--output-dir", "-o", help="OCR batch 산출물을 저장할 디렉터리다."
+    ),
+    recursive: bool = typer.Option(
+        False, "--recursive", "-r", help="하위 디렉터리까지 찾는다."
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="target 판정과 report만 만들고 OCR API 호출과 PDF 생성을 하지 않는다.",
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="출력 PDF가 이미 있어도 덮어쓴다. 기본값은 기존 output을 skip한다.",
+    ),
+    confirm_bookmark_ocr_overwrite: bool = typer.Option(
+        False,
+        "--confirm-bookmark-ocr-overwrite",
+        help="기존 bookmark가 있는 target PDF의 OCR text layer 교체를 명시적으로 확인한다.",
+    ),
+    engine: str = typer.Option("upstage", "--engine", help="OCR engine 이름이다."),
+    render_dpi: int = typer.Option(300, "--render-dpi", min=72, help="렌더링 DPI다."),
+    max_sample_pages: int = typer.Option(
+        DEFAULT_MAX_SAMPLE_PAGES,
+        "--max-sample-pages",
+        min=1,
+        help="target 판정을 위해 문서당 sampling할 최대 page 수다.",
+    ),
+    stats_word_level: bool = typer.Option(
+        False, "--stats-word-level", help="word 단위 stats artifact도 저장한다."
+    ),
+    engine_option: list[str] = typer.Option(
+        [],
+        "--engine-option",
+        help="OCR engine option이다. key=value 형식이며 여러 번 줄 수 있다.",
+    ),
+    log_mode: str = typer.Option(
+        "auto",
+        "--log-mode",
+        help="파일별 OCR runtime 로그 출력 방식이다. auto, rich, plain, json, none 중 하나다.",
+    ),
+    no_log_file: bool = typer.Option(
+        False,
+        "--no-log-file",
+        help="파일별 ocr_log.jsonl과 ocr_progress.json 기록을 끈다.",
+    ),
+) -> None:
+    """디렉터리 안 target PDF만 골라 OCR overlay를 batch 실행한다."""
+
+    resolved_log_mode = default_ocr_log_mode() if log_mode == "auto" else log_mode
+    if resolved_log_mode not in {"rich", "plain", "json", "none"}:
+        raise typer.BadParameter(
+            "log-mode은 auto, rich, plain, json, none 중 하나여야 한다."
+        )
+    config = OcrOverlayBatchConfig(
+        input_dir=input_dir,
+        output_dir=output_dir,
+        recursive=recursive,
+        dry_run=dry_run,
+        force=force,
+        confirm_bookmark_ocr_overwrite=confirm_bookmark_ocr_overwrite,
+        engine=engine,
+        engine_options=parse_engine_options(engine_option),
+        render_dpi=render_dpi,
+        max_sample_pages=max_sample_pages,
+        stats_word_level=stats_word_level,
+    )
+    runner = OcrOverlayBatchRunner(
+        config,
+        ocr_logger_factory=lambda path: build_ocr_logger(
+            cast(OcrLogMode, resolved_log_mode), path, enable_file=not no_log_file
+        ),
+    )
+    result = runner.run()
+    rich_print(
+        to_jsonable(
+            {
+                "total_pdf_count": result.total_pdf_count,
+                "target_count": result.target_count,
+                "processed_count": result.processed_count,
+                "dry_run_count": result.dry_run_count,
+                "skipped_count": result.skipped_count,
+                "failed_count": result.failed_count,
+                "elapsed_sec": result.elapsed_sec,
+                "report_csv_path": result.report_csv_path,
+                "detail_jsonl_path": result.detail_jsonl_path,
+                "summary_path": result.summary_path,
+            }
+        )
+    )
+
+
 @app.command()
 def process(
     pdf: Path = typer.Argument(..., help="처리할 PDF 파일이다."),
@@ -216,10 +318,18 @@ def classify_scan_cmd(
     dry_run: bool = typer.Option(
         False,
         "--dry-run",
-        help="report 파일(CSV/JSONL/summary)을 저장하지 않고 콘솔 집계만 출력한다.",
+        help="후속 변경 작업 없이 scan/bookmark 분류만 실행한다.",
+    ),
+    write_report: bool = typer.Option(
+        True,
+        "--write-report/--no-write-report",
+        help="분류 CSV/JSONL/summary report를 저장할지 정한다.",
     ),
     max_sample_pages: int = typer.Option(
-        20, "--max-sample-pages", min=1, help="문서당 sampling할 최대 page 수다."
+        DEFAULT_MAX_SAMPLE_PAGES,
+        "--max-sample-pages",
+        min=1,
+        help="문서당 sampling할 최대 page 수다.",
     ),
     log_mode: str = typer.Option(
         "auto",
@@ -240,6 +350,7 @@ def classify_scan_cmd(
         output_dir=output_dir,
         recursive=recursive,
         dry_run=dry_run,
+        write_report=write_report,
         max_sample_pages=max_sample_pages,
     )
     result = ScanBookmarkClassifier(config, logger=logger).run()
@@ -253,6 +364,7 @@ def classify_scan_cmd(
                 "error_count": result.error_count,
                 "elapsed_sec": result.elapsed_sec,
                 "dry_run": dry_run,
+                "write_report": write_report,
                 "report_csv_path": result.report_csv_path,
                 "detail_jsonl_path": result.detail_jsonl_path,
             }

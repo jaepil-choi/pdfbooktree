@@ -61,7 +61,7 @@ class PlainTextClassifyLogger:
     """터미널에 한 줄씩 classify 진행 로그를 출력한다."""
 
     def emit(self, event: ClassifyLogEvent) -> None:
-        print(format_classify_log_event(event), flush=True)
+        _safe_print_line(format_classify_log_event(event))
 
     def close(self) -> None:
         return None
@@ -71,7 +71,7 @@ class JsonStdoutClassifyLogger:
     """stdout에 JSONL event를 출력한다."""
 
     def emit(self, event: ClassifyLogEvent) -> None:
-        print(json.dumps(_event_to_jsonable(event), ensure_ascii=False), flush=True)
+        _safe_print_line(json.dumps(_event_to_jsonable(event), ensure_ascii=False))
 
     def close(self) -> None:
         return None
@@ -155,6 +155,14 @@ def format_classify_log_event(event: ClassifyLogEvent) -> str:
         f"elapsed={_format_duration(event.elapsed_sec)} "
         f"{event.input_pdf} {event.message}"
     )
+
+
+def _safe_print_line(text: str) -> None:
+    """현재 stdout 인코딩에서 출력 가능한 형태로 한 줄 로그를 쓴다."""
+
+    encoding = sys.stdout.encoding or "utf-8"
+    safe_text = text.encode(encoding, errors="replace").decode(encoding)
+    print(safe_text, flush=True)
 
 
 def _event_to_jsonable(event: ClassifyLogEvent) -> dict[str, object]:

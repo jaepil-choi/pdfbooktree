@@ -114,7 +114,7 @@ def test_batch_writes_csv_and_jsonl_reports_with_correct_targets(
     assert summary["error_count"] == 1
 
 
-def test_batch_dry_run_skips_writing_report_files(tmp_path: Path) -> None:
+def test_batch_dry_run_writes_report_files_when_enabled(tmp_path: Path) -> None:
     input_dir = tmp_path / "pdfs"
     input_dir.mkdir()
     _write_scanned_pdf_without_bookmark(input_dir / "scanned_no_bookmark.pdf")
@@ -122,6 +122,29 @@ def test_batch_dry_run_skips_writing_report_files(tmp_path: Path) -> None:
     output_dir = tmp_path / "out"
     config = ClassifyBatchConfig(
         input_dir=input_dir, output_dir=output_dir, dry_run=True
+    )
+    result = ScanBookmarkClassifier(config).run()
+
+    assert result.total_pdf_count == 1
+    assert result.target_count == 1
+    assert result.report_csv_path == output_dir / "classification_report.csv"
+    assert result.detail_jsonl_path == output_dir / "classification_detail.jsonl"
+    assert (output_dir / "classification_report.csv").exists()
+    assert (output_dir / "classification_detail.jsonl").exists()
+    assert (output_dir / "classification_summary.json").exists()
+
+
+def test_batch_skips_report_files_when_disabled(tmp_path: Path) -> None:
+    input_dir = tmp_path / "pdfs"
+    input_dir.mkdir()
+    _write_scanned_pdf_without_bookmark(input_dir / "scanned_no_bookmark.pdf")
+
+    output_dir = tmp_path / "out"
+    config = ClassifyBatchConfig(
+        input_dir=input_dir,
+        output_dir=output_dir,
+        dry_run=True,
+        write_report=False,
     )
     result = ScanBookmarkClassifier(config).run()
 

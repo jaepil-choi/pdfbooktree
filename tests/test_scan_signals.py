@@ -6,7 +6,11 @@ from pathlib import Path
 
 import fitz
 
-from pdfbooktree.pdf.scan_signals import analyze_page, sample_page_indices
+from pdfbooktree.pdf.scan_signals import (
+    DEFAULT_MAX_SAMPLE_PAGES,
+    analyze_page,
+    sample_page_indices,
+)
 
 
 def _new_page(
@@ -23,6 +27,10 @@ def _insert_full_page_image(page: fitz.Page) -> None:
 
 def test_sample_page_indices_returns_full_range_when_within_limit() -> None:
     assert sample_page_indices(5, max_pages=20) == [0, 1, 2, 3, 4]
+
+
+def test_default_max_sample_pages_is_50() -> None:
+    assert DEFAULT_MAX_SAMPLE_PAGES == 50
 
 
 def test_sample_page_indices_downsamples_evenly_across_document() -> None:

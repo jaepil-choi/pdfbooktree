@@ -34,6 +34,28 @@ def test_classify_scan_true_when_all_pages_are_scan_like(tmp_path: Path) -> None
     assert result.reject_reasons == ()
 
 
+def test_classify_scan_true_when_scan_like_fraction_meets_threshold(
+    tmp_path: Path,
+) -> None:
+    pdf = tmp_path / "mostly_scanned.pdf"
+    document = fitz.open()
+    try:
+        for _ in range(9):
+            page = document.new_page(width=200, height=200)
+            _insert_full_page_image(page)
+        document.new_page(width=200, height=200)
+        document.save(pdf)
+    finally:
+        document.close()
+
+    result = classify_scan(pdf, max_sample_pages=10)
+
+    assert result.is_scanned is True
+    assert result.scanned_page_fraction == 0.9
+    assert result.total_visible_chars_sampled == 0
+    assert result.reject_reasons == ()
+
+
 def test_classify_scan_false_for_native_pdf_with_reasons(tmp_path: Path) -> None:
     pdf = tmp_path / "native.pdf"
     document = fitz.open()

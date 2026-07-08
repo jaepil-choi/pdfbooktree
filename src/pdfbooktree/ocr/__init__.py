@@ -1,5 +1,11 @@
 """OCR overlay 전처리 공개 API다."""
 
+from pdfbooktree.ocr.batch import (
+    OcrOverlayBatchConfig,
+    OcrOverlayBatchFileResult,
+    OcrOverlayBatchResult,
+    OcrOverlayBatchRunner,
+)
 from pdfbooktree.ocr.builder import (
     ExistingBookmarkConfirmationRequired,
     OcrOverlayBuilder,
@@ -21,6 +27,10 @@ __all__ = [
     "InsertableOcrPage",
     "InsertableOcrWord",
     "OcrBox",
+    "OcrOverlayBatchConfig",
+    "OcrOverlayBatchFileResult",
+    "OcrOverlayBatchResult",
+    "OcrOverlayBatchRunner",
     "OcrOverlayBuilder",
     "OcrOverlayConfig",
     "OcrOverlayResult",

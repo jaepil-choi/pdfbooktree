@@ -1,7 +1,7 @@
 """문서 전체 단위로 native/scanned를 판정한다.
 
-핵심 정의: scanned pdf는 표본 page 전부가 사실상 image이고
-(scanned_page_fraction == 1.0), 그 위에 실제로 화면에 그려지는(visible) 문자가
+핵심 정의: scanned pdf는 표본 page 중 충분한 비율이 사실상 image이고
+(scanned_page_fraction >= 0.9), 그 위에 실제로 화면에 그려지는(visible) 문자가
 전혀 없는(total_visible_chars_sampled == 0) 문서다. 문자가 추출되더라도
 invisible render mode(OCR 검색용 overlay)라면 이 조건을 깨지 않는다.
 
@@ -23,6 +23,9 @@ from pdfbooktree.pdf.scan_signals import (
     analyze_page,
     sample_page_indices,
 )
+
+
+SCANNED_PAGE_FRACTION_THRESHOLD = 0.9
 
 
 @dataclass(frozen=True)
@@ -60,7 +63,7 @@ def classify_scan(
         feature.invisible_char_count for feature in page_features
     )
 
-    fraction_ok = scanned_page_fraction == 1.0
+    fraction_ok = scanned_page_fraction >= SCANNED_PAGE_FRACTION_THRESHOLD
     visible_chars_ok = total_visible_chars == 0
     is_scanned = fraction_ok and visible_chars_ok
 
@@ -68,7 +71,8 @@ def classify_scan(
     if not fraction_ok:
         non_scan_like_count = len(page_features) - scan_like_count
         reject_reasons.append(
-            f"scanned_page_fraction={scanned_page_fraction:.4f} != 1.0 "
+            f"scanned_page_fraction={scanned_page_fraction:.4f} "
+            f"< {SCANNED_PAGE_FRACTION_THRESHOLD:.4f} "
             f"(non_scan_like_page_count={non_scan_like_count}/{len(page_features)})"
         )
     if not visible_chars_ok:

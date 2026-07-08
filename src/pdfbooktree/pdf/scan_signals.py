@@ -15,7 +15,7 @@ VISIBLE_RENDER_MODES = frozenset({0, 1, 2, 4, 5, 6})
 IMAGE_COVERAGE_THRESHOLD = 0.85
 # 이 문자 수 이상이 visible mode로 그려지면 page에 실제 시각적 문자가 있다고 본다.
 VISIBLE_CHAR_THRESHOLD = 10
-DEFAULT_MAX_SAMPLE_PAGES = 20
+DEFAULT_MAX_SAMPLE_PAGES = 50
 
 
 @dataclass(frozen=True)
