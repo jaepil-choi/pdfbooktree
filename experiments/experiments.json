@@ -4864,6 +4864,161 @@
         }
       },
       "ran_at": "2026-07-08T19:30:27"
+    },
+    {
+      "id": "070_ocr_overlay_font_size_clamp_check",
+      "purpose": "src/pdfbooktree/ocr/insertion.py의 invisible text 삽입이 font_size를 [3.0, 18.0]pt로 clamp한다(rect.height*0.88 기반). 069에서 검증한 stack hierarchy 알고리즘은 font_size 차이로 계층을 구분하므로, 실제 300STUDY OCR overlay 결과물에서 18.0pt clamp가 제목 크기 다양성을 뭉개는지 빠르게 확인한다.",
+      "inputs": [
+        "AB테스트_무작정따라하_-_오서준",
+        "부동산대출의기술_-_주지현"
+      ],
+      "outputs": "experiments\\outputs\\070_ocr_overlay_font_size_clamp_check",
+      "source_experiments": [
+        "069_page_order_stack_hierarchy"
+      ],
+      "clamp_max": 18.0,
+      "finding": "18.0pt clamp 자체보다 원인이 더 심각했다: clamp_share가 책마다 극단적으로 다르다(AB테스트_무작정따라하_-_오서준=72.7% vs 부동산대출의기술_-_주지현=1.4%). 원인은 source PDF의 page MediaBox가 실제 인쇄 판형과 무관하게 비정상적으로 큰 경우(예: AB테스트 책 page_rect=1080x1865pt, 일반 책 판형의 2.5~3배)다. ocr_line_stats.jsonl을 직접 대조한 결과 이런 책은 진짜 제목뿐 아니라 평범한 본문 문단까지(word_height_median_pt~20pt) 18pt 벽에 부딪혀 본문/제목 구분 신호 자체가 사라진다(clamp_share 72.7%, 본문 line 대부분 포함). page 크기가 정상 범위인 책(부동산대출의기술, page_rect=409x648pt)은 clamp_share 1.4%로 실제 큰 제목 몇 개만 걸려 hierarchy 신호가 대체로 보존된다. 결론: insertion.py의 font_size = rect.height*0.88을 [3,18]pt로 절대값 clamp하는 방식은 page 물리 크기에 비례하지 않아, page MediaBox가 과도하게 큰 source PDF에서 hierarchy 신호를 통째로 파괴한다 — 069 stack 알고리즘을 실제 300STUDY OCR overlay 산출물에 적용하기 전에 반드시 고쳐야 한다. | AB테스트_무작정따라하_-_오서준: page_rect=1080.0x1865.0pt total_lines=1141 distinct_font_sizes=29 max_font_size=18.0 clamp_share=72.66% | 부동산대출의기술_-_주지현: page_rect=409.0x647.5pt total_lines=4671 distinct_font_sizes=452 max_font_size=18.0 clamp_share=1.37%",
+      "books": [
+        {
+          "book_id": "AB테스트_무작정따라하_-_오서준",
+          "page_width_pt": 1080.0,
+          "page_height_pt": 1865.0,
+          "total_lines": 1141,
+          "distinct_font_sizes": 29,
+          "max_font_size": 18.0,
+          "clamp_line_count": 829,
+          "clamp_share": 0.7266,
+          "top10_histogram": [
+            [
+              18.0,
+              829
+            ],
+            [
+              17.89,
+              61
+            ],
+            [
+              17.72,
+              58
+            ],
+            [
+              17.56,
+              39
+            ],
+            [
+              14.77,
+              31
+            ],
+            [
+              14.61,
+              25
+            ],
+            [
+              17.4,
+              21
+            ],
+            [
+              17.23,
+              19
+            ],
+            [
+              14.93,
+              14
+            ],
+            [
+              17.07,
+              6
+            ]
+          ],
+          "clamp_sample_head": [
+            "| ![image](/image/placeholder) o o o o ○ A B 터 | | --- | | 무작정 따라하기 | | <table><thead></thead><tbody><tr><td rows",
+            "차례",
+            "머리말 4",
+            "A/B 테스트란? 5",
+            "A/B 테스트를 해야 하는 이유 7",
+            "■ 가설을 검증하기 위해서 7",
+            "■ 인과 관계를 추론하기 위해서 9",
+            "■ 예상치 못한 영향까지 감지하기 위해서 11",
+            "A/B 테스트를 하기 위한 조건 12",
+            "■ 가설 수립 12",
+            "■ 지표 정의 14",
+            "방어 지표 16",
+            "실험 환경 구축 16",
+            "실험 단위들을 실험안에 무작위로 할당할 수 있어야 함 18",
+            "필요 데이터를 수집할 수 있음 20"
+          ]
+        },
+        {
+          "book_id": "부동산대출의기술_-_주지현",
+          "page_width_pt": 409.0,
+          "page_height_pt": 647.5,
+          "total_lines": 4671,
+          "distinct_font_sizes": 452,
+          "max_font_size": 18.0,
+          "clamp_line_count": 64,
+          "clamp_share": 0.0137,
+          "top10_histogram": [
+            [
+              10.12,
+              109
+            ],
+            [
+              10.17,
+              92
+            ],
+            [
+              10.14,
+              91
+            ],
+            [
+              10.11,
+              83
+            ],
+            [
+              10.34,
+              81
+            ],
+            [
+              10.16,
+              78
+            ],
+            [
+              9.93,
+              76
+            ],
+            [
+              10.15,
+              75
+            ],
+            [
+              10.36,
+              68
+            ],
+            [
+              10.35,
+              68
+            ]
+          ],
+          "clamp_sample_head": [
+            "![image](/image/placeholder) $ 투자 초보자도 쉽",
+            "월급쟁이도",
+            "| 단계 | 분야 | 분야 | 분야 | 분야 | 분야 | 분야",
+            "| 구분 | 대출을 활용했을 때의 투자 성과 | 대",
+            "![image](/image/placeholde",
+            "| 시기 | 전월세 전환율 | 한국은행 기준금리 |",
+            "좋은 대출의 왕도를 향한",
+            "준비 운동",
+            "![image](/image/placehold",
+            "![image](/image/placeholde",
+            "![image](/image/placeholde",
+            "| 금융기관 | 대출명 | 금리 | 만기 | 상환방식",
+            "좋은 대출, 이건 몰랐지?",
+            "![image](/image/placeholde",
+            "![image](/image/placeholde"
+          ]
+        }
+      ],
+      "ran_at": "2026-07-09T03:28:10"
     }
   ]
 }
