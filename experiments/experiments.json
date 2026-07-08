@@ -4670,6 +4670,200 @@
       "outputs": "experiments\\outputs\\068_strict_scanned_criteria_reason_log",
       "finding": "엄격 기준(scanned_page_fraction==1.0 AND total_visible_chars_sampled==0)으로 labeled 샘플 6개 중 6개가 is_scanned/has_meaningful_bookmark 모두 기대값과 일치했다. CSV summary(pdf_id, folder, path, page_count, sampled_page_count, scanned_page_fraction, total_visible_chars_sampled, total_invisible_chars_sampled, is_scanned, reject_reasons, bookmark_count, toc_level_count, has_meaningful_bookmark, is_ocr_overwrite_target, target_reject_reason)와 사유 문자열(reject_reasons, target_reject_reason)을 함께 저장해 300STUDY 배치 실행 시 어떤 파일이 왜 대상/비대상인지 바로 확인할 수 있게 했다. Zvi Bodie, Alex Kane, Alan Marcus - Investments-McGraw Hill (2021)[finance](폴더=native-pdf-indexed): is_scanned=False, reject_reasons=[scanned_page_fraction=0.0500 != 1.0 (non_scan_like_page_count=19/20); total_visible_chars_sampled=54424 != 0 (pages_with_visible_text_count=19)]. 퀀트의 세계 - 홍창수(폴더=native-pdf-indexed): is_scanned=False, reject_reasons=[scanned_page_fraction=0.0000 != 1.0 (non_scan_like_page_count=20/20); total_visible_chars_sampled=16291 != 0 (pages_with_visible_text_count=20)]. 고려대_계량경제학노트1_김창진-compressed-indexed[econ stats book](폴더=scanned-pdf-indexed): is_scanned=True, reject_reasons=[없음]. 고려대_계량경제학노트2_김창진-compressed-indexed[econ stats book](폴더=scanned-pdf-indexed): is_scanned=True, reject_reasons=[없음]. 금리의_경제학_-_홍완표(폴더=scanned-pdf-not-indexed): is_scanned=True, reject_reasons=[없음]. 한경_읽는법_-_한국경제신문-compressed[econ macro book](폴더=scanned-pdf-not-indexed): is_scanned=True, reject_reasons=[없음].",
       "ran_at": "2026-07-08T14:15:18"
+    },
+    {
+      "id": "069_page_order_stack_hierarchy",
+      "purpose": "font size hierarchy가 global 크기 정렬이 아니라 page order상의 nesting pattern(stack)으로 정해진다는 가설을 검증한다. 가장 많이 등장하는 tier를 본문/각주로 제외한 뒤 남은 heading candidate를 stack 알고리즘으로 level 부여하고, level 개수가 깊어질수록 줄지 않는다는 구조 제약(count monotonicity)과 level jump 없음을 함께 검증한다. John Hull(native, 기존 bookmark 정답)에서 recall/level-accuracy를 최대화한 뒤, 같은 파라미터를 Shreve Binomial(scanned-indexed)에 재튜닝 없이 그대로 적용해 일반화를 본다.",
+      "inputs": [
+        "data\\native-pdf-indexed\\John Hull - Options, Futures, and Other Derivatives, Global Edition-Pearson (2021).pdf",
+        "data\\scanned-pdf-indexed\\(Springer Finance) Steven E. Shreve - Stochastic Calculus for Finance I The Binomial Asset Pricing Model-Springer (2005)-indexed.pdf"
+      ],
+      "outputs": "experiments\\outputs\\069_page_order_stack_hierarchy",
+      "source_experiments": [
+        "052_whole_book_line_font_height_kde",
+        "053_bookmark_depth_font_size_kde",
+        "054_tier_merge_and_scanned_font_check",
+        "055_page_tier_distribution_clustering"
+      ],
+      "min_tier_count": 5,
+      "body_share_threshold": 0.15,
+      "title_match_threshold": 70,
+      "finding": "john_hull/mode_only: candidates=3202 recall=0.9936(467/470) level_accuracy=0.9679 level_jumps=0 monotonic=False level_off_by={'-1': 7, '0': 452, '1': 5, '2': 2, '3': 1} | john_hull/mode_and_smaller: candidates=1039 recall=0.9915(466/470) level_accuracy=0.97 level_jumps=0 monotonic=False level_off_by={'-1': 7, '0': 452, '1': 5, '2': 2} | shreve_binomial/mode_only: candidates=1791 recall=0.937(223/238) level_accuracy=0.9821 level_jumps=0 monotonic=False level_off_by={'-1': 4, '0': 219} | shreve_binomial/mode_and_smaller: candidates=278 recall=0.937(223/238) level_accuracy=0.9821 level_jumps=0 monotonic=True level_off_by={'-1': 4, '0': 219}",
+      "books": {
+        "john_hull": {
+          "tiers": {
+            "raw_tier_count": 15,
+            "final_tier_count": 10,
+            "final_peaks": [
+              27.0,
+              14.0,
+              12.0,
+              11.0,
+              10.0,
+              9.01,
+              8.0,
+              7.01,
+              6.02,
+              5.28
+            ]
+          },
+          "ground_truth_count": 470,
+          "body_mode_results": {
+            "mode_only": {
+              "candidate_count": 3202,
+              "monotonicity": {
+                "level_counts": {
+                  "1": 96,
+                  "2": 892,
+                  "3": 1988,
+                  "4": 209,
+                  "5": 17
+                },
+                "max_level": 5,
+                "violations": [
+                  {
+                    "level": 3,
+                    "count": 1988,
+                    "next_level": 4,
+                    "next_count": 209
+                  },
+                  {
+                    "level": 4,
+                    "count": 209,
+                    "next_level": 5,
+                    "next_count": 17
+                  }
+                ],
+                "is_monotonic": false
+              },
+              "level_jumps": 0,
+              "eval_vs_truth": {
+                "truth_count": 470,
+                "matched_count": 467,
+                "recall": 0.9936,
+                "level_correct_count": 452,
+                "level_accuracy": 0.9679,
+                "level_off_by_histogram": {
+                  "-1": 7,
+                  "0": 452,
+                  "1": 5,
+                  "2": 2,
+                  "3": 1
+                }
+              }
+            },
+            "mode_and_smaller": {
+              "candidate_count": 1039,
+              "monotonicity": {
+                "level_counts": {
+                  "1": 96,
+                  "2": 862,
+                  "3": 81
+                },
+                "max_level": 3,
+                "violations": [
+                  {
+                    "level": 2,
+                    "count": 862,
+                    "next_level": 3,
+                    "next_count": 81
+                  }
+                ],
+                "is_monotonic": false
+              },
+              "level_jumps": 0,
+              "eval_vs_truth": {
+                "truth_count": 470,
+                "matched_count": 466,
+                "recall": 0.9915,
+                "level_correct_count": 452,
+                "level_accuracy": 0.97,
+                "level_off_by_histogram": {
+                  "-1": 7,
+                  "0": 452,
+                  "1": 5,
+                  "2": 2
+                }
+              }
+            }
+          }
+        },
+        "shreve_binomial": {
+          "tiers": {
+            "raw_tier_count": 6,
+            "final_tier_count": 6,
+            "final_peaks": [
+              24.88,
+              20.74,
+              14.37,
+              10.92,
+              5.91,
+              0.24
+            ]
+          },
+          "ground_truth_count": 238,
+          "body_mode_results": {
+            "mode_only": {
+              "candidate_count": 1791,
+              "monotonicity": {
+                "level_counts": {
+                  "1": 40,
+                  "2": 375,
+                  "3": 1223,
+                  "4": 153
+                },
+                "max_level": 4,
+                "violations": [
+                  {
+                    "level": 3,
+                    "count": 1223,
+                    "next_level": 4,
+                    "next_count": 153
+                  }
+                ],
+                "is_monotonic": false
+              },
+              "level_jumps": 0,
+              "eval_vs_truth": {
+                "truth_count": 238,
+                "matched_count": 223,
+                "recall": 0.937,
+                "level_correct_count": 219,
+                "level_accuracy": 0.9821,
+                "level_off_by_histogram": {
+                  "-1": 4,
+                  "0": 219
+                }
+              }
+            },
+            "mode_and_smaller": {
+              "candidate_count": 278,
+              "monotonicity": {
+                "level_counts": {
+                  "1": 40,
+                  "2": 238
+                },
+                "max_level": 2,
+                "violations": [],
+                "is_monotonic": true
+              },
+              "level_jumps": 0,
+              "eval_vs_truth": {
+                "truth_count": 238,
+                "matched_count": 223,
+                "recall": 0.937,
+                "level_correct_count": 219,
+                "level_accuracy": 0.9821,
+                "level_off_by_histogram": {
+                  "-1": 4,
+                  "0": 219
+                }
+              }
+            }
+          }
+        }
+      },
+      "ran_at": "2026-07-08T19:30:27"
     }
   ]
 }
