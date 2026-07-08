@@ -4670,6 +4670,105 @@
       "outputs": "experiments\\outputs\\068_strict_scanned_criteria_reason_log",
       "finding": "엄격 기준(scanned_page_fraction==1.0 AND total_visible_chars_sampled==0)으로 labeled 샘플 6개 중 6개가 is_scanned/has_meaningful_bookmark 모두 기대값과 일치했다. CSV summary(pdf_id, folder, path, page_count, sampled_page_count, scanned_page_fraction, total_visible_chars_sampled, total_invisible_chars_sampled, is_scanned, reject_reasons, bookmark_count, toc_level_count, has_meaningful_bookmark, is_ocr_overwrite_target, target_reject_reason)와 사유 문자열(reject_reasons, target_reject_reason)을 함께 저장해 300STUDY 배치 실행 시 어떤 파일이 왜 대상/비대상인지 바로 확인할 수 있게 했다. Zvi Bodie, Alex Kane, Alan Marcus - Investments-McGraw Hill (2021)[finance](폴더=native-pdf-indexed): is_scanned=False, reject_reasons=[scanned_page_fraction=0.0500 != 1.0 (non_scan_like_page_count=19/20); total_visible_chars_sampled=54424 != 0 (pages_with_visible_text_count=19)]. 퀀트의 세계 - 홍창수(폴더=native-pdf-indexed): is_scanned=False, reject_reasons=[scanned_page_fraction=0.0000 != 1.0 (non_scan_like_page_count=20/20); total_visible_chars_sampled=16291 != 0 (pages_with_visible_text_count=20)]. 고려대_계량경제학노트1_김창진-compressed-indexed[econ stats book](폴더=scanned-pdf-indexed): is_scanned=True, reject_reasons=[없음]. 고려대_계량경제학노트2_김창진-compressed-indexed[econ stats book](폴더=scanned-pdf-indexed): is_scanned=True, reject_reasons=[없음]. 금리의_경제학_-_홍완표(폴더=scanned-pdf-not-indexed): is_scanned=True, reject_reasons=[없음]. 한경_읽는법_-_한국경제신문-compressed[econ macro book](폴더=scanned-pdf-not-indexed): is_scanned=True, reject_reasons=[없음].",
       "ran_at": "2026-07-08T14:15:18"
+    },
+    {
+      "id": "071_relative_clamp_stack_hierarchy_verification",
+      "purpose": "070에서 발견한 page-size 의존 font_size clamp 문제를 insertion.py에서 page 세로 길이 비례 clamp로 고친 뒤(cache-policy only로 API 재호출 없이 재생성), clamp_share가 정상화됐는지 확인하고 069의 stack hierarchy 알고리즘을 실제 OCR overlay 산출물 2권에 다시 적용해 사람이 육안 검토할 inferred_bookmark_tree를 만든다.",
+      "inputs": [
+        "data\\300STUDY\\pdfs\\a_books\\normalbook\\AB테스트_무작정따라하_-_오서준.pdf",
+        "data\\300STUDY\\pdfs\\a_books\\normalbook\\부동산대출의기술_-_주지현.pdf"
+      ],
+      "outputs": "experiments\\outputs\\071_relative_clamp_stack_hierarchy_verification",
+      "source_experiments": [
+        "069_page_order_stack_hierarchy",
+        "070_ocr_overlay_font_size_clamp_check"
+      ],
+      "min_tier_count": 5,
+      "finding": "AB테스트_무작정따라하_-_오서준: page_rect=1080.0x1865.0pt clamp_18_share=0.00%(070 이전 대비) candidates=34 tree_nodes=34 level_jumps=0 monotonic=True | 부동산대출의기술_-_주지현: page_rect=409.0x647.5pt clamp_18_share=1.37%(070 이전 대비) candidates=142 tree_nodes=142 level_jumps=0 monotonic=False",
+      "books": [
+        {
+          "book_id": "AB테스트_무작정따라하_-_오서준",
+          "page_width_pt": 1080.0,
+          "page_height_pt": 1865.0,
+          "total_lines": 1140,
+          "clamp": {
+            "distinct_font_sizes": 70,
+            "max_font_size": 42.39,
+            "clamp_18_share": 0.0
+          },
+          "tiers": {
+            "raw_tier_count": 4,
+            "final_tier_count": 3,
+            "final_peaks": [
+              42.34,
+              24.6,
+              7.7
+            ]
+          },
+          "candidate_count": 34,
+          "monotonicity": {
+            "level_counts": {
+              "1": 34
+            },
+            "max_level": 1,
+            "violations": [],
+            "is_monotonic": true
+          },
+          "level_jumps": 0,
+          "inferred_bookmark_tree_nodes": 34,
+          "inferred_bookmark_tree_path": "experiments\\outputs\\071_relative_clamp_stack_hierarchy_verification\\AB테스트_무작정따라하_-_오서준\\inferred_bookmark_tree.txt"
+        },
+        {
+          "book_id": "부동산대출의기술_-_주지현",
+          "page_width_pt": 409.0,
+          "page_height_pt": 647.5,
+          "total_lines": 4671,
+          "clamp": {
+            "distinct_font_sizes": 452,
+            "max_font_size": 18.0,
+            "clamp_18_share": 0.0137
+          },
+          "tiers": {
+            "raw_tier_count": 6,
+            "final_tier_count": 5,
+            "final_peaks": [
+              18.0,
+              16.07,
+              13.72,
+              10.26,
+              7.17
+            ]
+          },
+          "candidate_count": 142,
+          "monotonicity": {
+            "level_counts": {
+              "1": 66,
+              "2": 60,
+              "3": 16
+            },
+            "max_level": 3,
+            "violations": [
+              {
+                "level": 1,
+                "count": 66,
+                "next_level": 2,
+                "next_count": 60
+              },
+              {
+                "level": 2,
+                "count": 60,
+                "next_level": 3,
+                "next_count": 16
+              }
+            ],
+            "is_monotonic": false
+          },
+          "level_jumps": 0,
+          "inferred_bookmark_tree_nodes": 142,
+          "inferred_bookmark_tree_path": "experiments\\outputs\\071_relative_clamp_stack_hierarchy_verification\\부동산대출의기술_-_주지현\\inferred_bookmark_tree.txt"
+        }
+      ],
+      "ran_at": "2026-07-09T03:43:50"
     }
   ]
 }
