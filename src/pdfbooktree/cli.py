@@ -9,6 +9,13 @@ import typer
 from rich import print as rich_print
 
 from pdfbooktree.batch import BatchProcessor
+from pdfbooktree.classify import (
+    ClassifyBatchConfig,
+    ClassifyLogMode,
+    ScanBookmarkClassifier,
+    build_classify_logger,
+    default_classify_log_mode,
+)
 from pdfbooktree.config import ProcessingConfig, TypographyConfig
 from pdfbooktree.ocr import OcrOverlayBuilder, OcrOverlayConfig
 from pdfbooktree.ocr.logger import OcrLogMode, build_ocr_logger, default_ocr_log_mode
@@ -195,6 +202,62 @@ def batch(
 
     result = BatchProcessor(input_dir, output_dir, recursive=recursive).run()
     rich_print(to_jsonable(result))
+
+
+@app.command("classify-scan")
+def classify_scan_cmd(
+    input_dir: Path = typer.Argument(..., help="PDF를 찾을 입력 디렉터리다."),
+    output_dir: Path = typer.Option(
+        Path("."), "--output-dir", "-o", help="분류 report를 저장할 디렉터리다."
+    ),
+    recursive: bool = typer.Option(
+        False, "--recursive", "-r", help="하위 디렉터리까지 찾는다."
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="report 파일(CSV/JSONL/summary)을 저장하지 않고 콘솔 집계만 출력한다.",
+    ),
+    max_sample_pages: int = typer.Option(
+        20, "--max-sample-pages", min=1, help="문서당 sampling할 최대 page 수다."
+    ),
+    log_mode: str = typer.Option(
+        "auto",
+        "--log-mode",
+        help="classify 진행 로그 출력 방식이다. auto, rich, plain, json, none 중 하나다.",
+    ),
+) -> None:
+    """디렉터리 안 PDF를 scan 여부와 bookmark 유무로 분류해 report를 만든다."""
+
+    resolved_log_mode = default_classify_log_mode() if log_mode == "auto" else log_mode
+    if resolved_log_mode not in {"rich", "plain", "json", "none"}:
+        raise typer.BadParameter(
+            "log-mode은 auto, rich, plain, json, none 중 하나여야 한다."
+        )
+    logger = build_classify_logger(cast(ClassifyLogMode, resolved_log_mode))
+    config = ClassifyBatchConfig(
+        input_dir=input_dir,
+        output_dir=output_dir,
+        recursive=recursive,
+        dry_run=dry_run,
+        max_sample_pages=max_sample_pages,
+    )
+    result = ScanBookmarkClassifier(config, logger=logger).run()
+    rich_print(
+        to_jsonable(
+            {
+                "total_pdf_count": result.total_pdf_count,
+                "scanned_count": result.scanned_count,
+                "native_count": result.native_count,
+                "target_count": result.target_count,
+                "error_count": result.error_count,
+                "elapsed_sec": result.elapsed_sec,
+                "dry_run": dry_run,
+                "report_csv_path": result.report_csv_path,
+                "detail_jsonl_path": result.detail_jsonl_path,
+            }
+        )
+    )
 
 
 def main() -> None:

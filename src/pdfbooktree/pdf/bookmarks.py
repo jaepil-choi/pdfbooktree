@@ -36,6 +36,22 @@ def has_letter_bookmark(bookmarks: list[dict[str, Any]]) -> bool:
     return any(title_has_letter(bookmark["title"]) for bookmark in bookmarks)
 
 
+def has_meaningful_bookmark(bookmarks: list[dict[str, Any]]) -> bool:
+    """진짜 목차로 볼 만한 level 구조가 있는지 판단한다.
+
+    병합/분할 도구가 파일명을 그대로 옮겨 만든 bookmark는 전부 level 1인 flat
+    목록이라 실제 목차가 아니다. `is_clean_bookmark_set`은 훈련용 gold label
+    후보를 고르는 훨씬 엄격한 기준(>=10개, 페이지 단조 증가, keyword 존재 등)
+    이라 짧지만 진짜인 목차를 걸러낼 수 있다. 이 함수는 "OCR overwrite로 기존
+    bookmark를 지워도 되는가"라는 다른 질문에 쓰는 완화된 기준이다.
+    """
+
+    if not bookmarks:
+        return False
+    level_count = len({bookmark["level"] for bookmark in bookmarks})
+    return level_count >= 2
+
+
 def is_clean_bookmark_set(bookmarks: list[dict[str, Any]]) -> bool:
     """평가 reference로 쓸 만큼 bookmark가 깔끔한지 판단한다."""
 
