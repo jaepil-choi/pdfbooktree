@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import httpx
+
 from pdfbooktree.ocr.engines.upstage import UpstageOcrEngine
 from pdfbooktree.ocr.models import RenderedPage
 
@@ -189,3 +191,51 @@ def test_upstage_engine_loads_api_key_from_dotenv(
 
     assert response == {"elements": []}
     assert captured["headers"] == {"Authorization": "Bearer dotenv-key"}
+
+
+def test_upstage_engine_retries_transport_errors_with_exponential_wait(
+    monkeypatch,
+) -> None:
+    attempts = {"count": 0}
+    sleeps: list[float] = []
+
+    class FakeResponse:
+        status_code = 200
+        headers: dict[str, str] = {}
+
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> dict[str, object]:
+            return {"elements": [{"id": "ok"}]}
+
+    class FakeClient:
+        def __init__(self, **kwargs: object) -> None:
+            pass
+
+        def __enter__(self) -> "FakeClient":
+            return self
+
+        def __exit__(self, *args: object) -> None:
+            return None
+
+        def post(self, url: str, **kwargs: object) -> FakeResponse:
+            attempts["count"] += 1
+            if attempts["count"] <= 3:
+                raise httpx.RemoteProtocolError(
+                    "Server disconnected without sending a response."
+                )
+            return FakeResponse()
+
+    monkeypatch.setenv("UPSTAGE_API_KEY", "test-key")
+    monkeypatch.setattr("pdfbooktree.ocr.engines.upstage.httpx.Client", FakeClient)
+    monkeypatch.setattr(
+        "pdfbooktree.ocr.engines.upstage.time.sleep",
+        lambda seconds: sleeps.append(seconds),
+    )
+
+    response = UpstageOcrEngine({"max_retries": 3}).recognize_page(rendered_page())
+
+    assert response == {"elements": [{"id": "ok"}]}
+    assert attempts["count"] == 4
+    assert sleeps == [2.0, 4.0, 8.0]

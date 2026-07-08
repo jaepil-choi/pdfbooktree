@@ -43,7 +43,8 @@ class UpstageOcrEngine:
         self.base_url = str(options.get("base_url", "https://api.upstage.ai/v1"))
         self.api_key_env = str(options.get("api_key_env", "UPSTAGE_API_KEY"))
         self.timeout = float(options.get("timeout", 180.0))
-        self.max_retries = int(options.get("max_retries", 7))
+        self.max_retries = int(options.get("max_retries", 3))
+        self.retry_initial_wait_sec = float(options.get("retry_initial_wait_sec", 2.0))
 
     def request_params(self) -> dict[str, Any]:
         """Upstage 호출 결과를 바꾸는 요청 파라미터를 반환한다."""
@@ -70,38 +71,38 @@ class UpstageOcrEngine:
             "coordinates": str(self.coordinates).lower(),
             "words": str(self.words).lower(),
         }
-        delay = 6.0
         last_exc: Exception | None = None
-        for attempt in range(self.max_retries):
-            with httpx.Client(timeout=self.timeout, verify=_ssl_context()) as client:
-                response = client.post(
-                    url,
-                    headers={"Authorization": f"Bearer {api_key}"},
-                    files={
-                        "document": (
-                            f"page_{rendered_page.pdf_page}.png",
-                            io.BytesIO(rendered_page.png_bytes),
-                            "image/png",
-                        )
-                    },
-                    data=data,
-                )
-            if response.status_code == 429:
-                wait = float(response.headers.get("Retry-After", delay))
-                time.sleep(wait)
-                delay = min(delay * 1.6, 60.0)
-                continue
+        for attempt in range(self.max_retries + 1):
             try:
+                with httpx.Client(
+                    timeout=self.timeout, verify=_ssl_context()
+                ) as client:
+                    response = client.post(
+                        url,
+                        headers={"Authorization": f"Bearer {api_key}"},
+                        files={
+                            "document": (
+                                f"page_{rendered_page.pdf_page}.png",
+                                io.BytesIO(rendered_page.png_bytes),
+                                "image/png",
+                            )
+                        },
+                        data=data,
+                    )
                 response.raise_for_status()
             except Exception as exc:  # noqa: BLE001
                 last_exc = exc
-                if attempt == self.max_retries - 1:
+                if attempt == self.max_retries:
                     break
-                time.sleep(delay)
-                delay = min(delay * 1.6, 60.0)
+                time.sleep(self._retry_wait_sec(attempt))
                 continue
             return response.json()
         raise last_exc or RuntimeError("Upstage Document Parse 호출에 실패했다.")
+
+    def _retry_wait_sec(self, attempt: int) -> float:
+        """실패 뒤 재시도 전 대기 시간을 2, 4, 8초처럼 계산한다."""
+
+        return self.retry_initial_wait_sec * (2**attempt)
 
     def to_insertable_page(
         self,
