@@ -25,7 +25,7 @@ class ExistingBookmarkConfirmationRequired(RuntimeError):
 
 
 class OcrOverlayBuilder:
-    """OCR 결과를 이미지 PDF 위 invisible text layer로 다시 입힌다."""
+    """OCR 결과를 원본 PDF 위 invisible text layer로 다시 입힌다."""
 
     def __init__(
         self,
@@ -69,7 +69,6 @@ class OcrOverlayBuilder:
             input_hash = file_sha256(self.input_pdf)
 
             insertable_pages: list[InsertableOcrPage] = []
-            image_paths: dict[int, Path] = {}
             rendered_dir = self.output_dir / "rendered_pages"
 
             for pdf_page in pages:
@@ -80,9 +79,7 @@ class OcrOverlayBuilder:
                 rendered = render_pdf_page(
                     self.input_pdf, pdf_page, self.config.render_dpi
                 )
-                image_paths[pdf_page] = write_rendered_page_image(
-                    rendered, rendered_dir
-                )
+                write_rendered_page_image(rendered, rendered_dir)
                 self._emit("page_render_done", pdf_page, f"page {pdf_page} 렌더링 완료")
 
                 raw_key = cache.raw_cache_key(
@@ -148,10 +145,9 @@ class OcrOverlayBuilder:
             self._emit("overlay_write_start", None, "overlay PDF 생성 시작")
             write_overlay_pdf(
                 insertable_pages,
-                image_paths,
+                self.input_pdf,
                 self.output_pdf,
                 self.output_dir / "_overlay_pages",
-                self.config.render_dpi,
             )
             self._emit("overlay_write_done", None, "overlay PDF 생성 완료")
             self._emit("stats_write_start", None, "OCR stats 저장 시작")

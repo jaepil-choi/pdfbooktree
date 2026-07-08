@@ -4360,6 +4360,257 @@
       },
       "finding": "element 10개 중 9개가 overlay pdf 재추출 텍스트와 content.text가(공백 정규화 후) 완전히 일치했다. 유일한 불일치(id=8, table)는 실제 데이터 손실이 아니다 - content.text의 markdown 표에만 있는 \"| --- | --- |\" 구분줄은 페이지 이미지에 대응하는 픽셀이 없는 순수 markdown 문법이라 애초에 심을 위치가 없고, 검증 스크립트는 이 구분줄이 빠졌다는 이유만으로 match=False를 매겼다. 실제 헤더 행(\"Interest rate (%)\" x8)과 두 데이터 행(Nominal/Effective) 셀 값은 lossless_check.txt에서 보듯 파이프 구분자까지 포함해 content.text와 완전히 동일하다. 수식(id=4, whole_element_fallback)은 위첨자 m과 아래첨자 m\\rightarrow\\infty가 시각적으로 2줄로 분리돼 있어 행 매칭이 안 됐지만, element 전체를 한 span으로 심어 \\operatorname*{lim}_{m\\rightarrow\\infty}[1+(r/m)]^{m}\\equiv e^{r} LaTeX 원문이 그대로 보존됐다(058 최초 버전은 이 자리에 'lim [1 + (r/m)]m = er / m→oo'처럼 깨진 word를 심었었다). build_stats: lossless_word_level=8(문단/제목/머리말 - 기존 word 단위 유지), row_level_fallback=1(표 - 행 단위로 content.text 원문 삽입), whole_element_fallback=1(수식 - element 전체를 한 span으로 삽입). 결론: 060에서 확인된 두 손실(표 구조, 수식 LaTeX)이 모두 해소됐다.",
       "ran_at": "2026-07-05T21:36:05"
+    },
+    {
+      "id": "060_preserve_original_pdf_ocr_layer",
+      "purpose": "퀀트의 세계 PDF에 대해 원본 page content stream과 이미지 압축을 보존한 채 Document Parse 기반 invisible OCR text layer만 추가할 수 있는지 검증한다.",
+      "inputs": [
+        "data\\scanned-pdf-not-indexed\\퀀트의 세계 - 홍창수.pdf",
+        "outputs\\quant_world_ocr\\document_parse_cache\\insertable"
+      ],
+      "outputs": "experiments\\outputs\\060_preserve_original_pdf_ocr_layer",
+      "method": "PyMuPDF TextWriter(render_mode=3)로 line 단위 invisible text를 추가했다. insert_textbox(render_mode=3)는 한글이 ???로 재추출되어 제외했다.",
+      "output_pdf_size": 23285313,
+      "previous_sandwich_pdf_size": 190644190,
+      "input_pdf_size": 16653419,
+      "insert_stats": {
+        "pages_seen": 375,
+        "pages_inserted": 374,
+        "lines_inserted": 7933,
+        "lines_failed": 0,
+        "failed_samples": []
+      },
+      "visual_sample": [
+        {
+          "pdf_page": 1,
+          "input_png": "experiments\\outputs\\060_preserve_original_pdf_ocr_layer\\sample_page_001_input.png",
+          "output_png": "experiments\\outputs\\060_preserve_original_pdf_ocr_layer\\sample_page_001_output.png",
+          "input_sha256": "5ea439d67e51330a9cf5d263c6f8d9a899824bc28944c5583ce0afe571395c9d",
+          "output_sha256": "5ea439d67e51330a9cf5d263c6f8d9a899824bc28944c5583ce0afe571395c9d",
+          "render_identical": true
+        },
+        {
+          "pdf_page": 42,
+          "input_png": "experiments\\outputs\\060_preserve_original_pdf_ocr_layer\\sample_page_042_input.png",
+          "output_png": "experiments\\outputs\\060_preserve_original_pdf_ocr_layer\\sample_page_042_output.png",
+          "input_sha256": "3a9c3165937ea4ee276b8ec08d8a4e37160efa646f18a3feca613595195ae336",
+          "output_sha256": "3a9c3165937ea4ee276b8ec08d8a4e37160efa646f18a3feca613595195ae336",
+          "render_identical": true
+        },
+        {
+          "pdf_page": 378,
+          "input_png": "experiments\\outputs\\060_preserve_original_pdf_ocr_layer\\sample_page_378_input.png",
+          "output_png": "experiments\\outputs\\060_preserve_original_pdf_ocr_layer\\sample_page_378_output.png",
+          "input_sha256": "a34e419a69154b18f90d5219004bdef0ad16a8b5e979fa0038f6aea6e201cf38",
+          "output_sha256": "a34e419a69154b18f90d5219004bdef0ad16a8b5e979fa0038f6aea6e201cf38",
+          "render_identical": true
+        }
+      ],
+      "text_extract_sample": {
+        "sample_before_chars": 2099,
+        "sample_after_chars": 4197,
+        "sample_pages": [
+          {
+            "pdf_page": 1,
+            "before_chars": 183,
+            "after_chars": 354,
+            "after_preview": "퀀트의 세계 금융 데이터 과학자를 위한 퀀트 실무·취업 가이드 홍창수 지음 금융 인공지능, 퀀트 투자, 금융공학 전문가의 삶과 미래 퀀트 인터뷰 수록 퀀트는 어떻게 금융권 취업과 승진에 무기가 되는가 금융 인공지능, 퀀트 투자, 금융공학 전문가의 삶과 미래 금융 데이터 사이언티스트를 위한 학습법과 취업법 금융 인공지능, 퀀트 투자, 금융공학 전문가의 삶과 미래 퀀트의 세계 퀀트 인터뷰 수록 금융 데이터 과학자를 위한 퀀트 실무·취업 가이드 홍창수 지음 퀀트는 어떻게 금융권 취업과 승진에 무기가 되는가 금융 인공지능, 퀀트 투자, 금"
+          },
+          {
+            "pdf_page": 42,
+            "before_chars": 662,
+            "after_chars": 1350,
+            "after_preview": "Part 1 퀀트 가이드 - 퀀트 1.0에서 퀀트 3.0까지 41 백서 White Paper를 발간한다. 이 백서는 탈중앙 분산 응용 프로그램인 디앱 DApp 을 만들기 위한 새로운 오픈소스 기반 블록체인 플랫폼의 개념을 정립했다. 부 테린은 캐나다에서 싱가포르로 건너가 거주하다가 현재는 스위스에 거주 중 이다. 퀀트 1.0과 2.0에서 퀀트 3.0으로의 패러다임 변화 확률 모형 Quant 1.0 Quant 2.0 Quant 3.0 실시간분석 요인 모형 예측분석 최적화 머신러닝 리스크 요인 로봇프로세스자동화 민감도 계산 자연어 처리"
+          },
+          {
+            "pdf_page": 378,
+            "before_chars": 1254,
+            "after_chars": 2493,
+            "after_preview": "퀀트를 모르는 일반인부터 퀀트를 꿈꾸는 학생, 현직 퀀트로 있으면서 자신의 나아갈 길을 고민하는 사람, 퀀트와 함께 일하게 될 미래의 동료에게 도움이 될 것이다. 4차 산업혁명을 거치며 점점 분야를 확장해 나아가 바야흐로 ‘퀀트의 시대’를 살고 있는 요즘, 시대를 선도하 는 금융 퀀트에 대한 이해를 돕고, 퀀트로서 여러 산업에 자리매김할 수 있도록 커리어 가이 드를 제공한다. “퀀트의 자질은 수학과 통계에 대한 이해와 프로그래밍 기술, 금융시장에 대한 이해가 결합돼야 한다. 퀀트는 숨겨진 세상의 이치를 찾으려는 도전자다. 저자의 치"
+          }
+        ]
+      },
+      "finding": "원본 보존+새 invisible layer 삽입만으로는 production 반영하면 안 된다. 출력 PDF는 23,285,313 bytes로 기존 sandwich PDF의 12.21%까지 줄고 샘플 렌더도 원본과 동일하지만, 원본 PDF에 이미 추출 가능한 visible text가 있어 샘플 추출 텍스트가 2,099자에서 4,197자로 거의 2배가 됐다. 사용자가 지적한 대로 이는 잘못된 결과다. 기존 text block(BT...ET)을 모두 제거하는 probe도 실행했지만, 원본 텍스트가 Tr=0 visible text라서 sample text는 0자가 되는 대신 렌더 픽셀이 크게 바뀌었다. 결론: 이 PDF에서는 원본 page content를 그대로 보존하면서 기존 텍스트를 모두 지우고 새 OCR layer만 남기는 것은 불가능하다. 가능한 다음 방향은 (1) invisible OCR layer만 있는 scanned PDF에서만 strip+preserve를 허용하거나, (2) visible text가 있는 PDF는 압축된 raster sandwich로 다시 만드는 것이다. 추가 확인용으로 quant_world_text_blocks_removed_probe.pdf를 생성했다. 이 probe는 PDF content stream의 BT...ET text object를 제거하며, sample pages 1/42/378 모두 추출 텍스트가 0자가 됐고 렌더가 원본과 달라졌다.",
+      "ran_at": "2026-07-08T08:16:41",
+      "existing_text_problem": {
+        "sample_before_chars": 2099,
+        "sample_after_chars": 4197,
+        "is_duplicate_text_failure": true
+      },
+      "strip_all_text_probe": {
+        "method": "pikepdf content stream에서 BT...ET text object 전체 제거 probe",
+        "removed_ops": 136088,
+        "output_size": 14376190,
+        "sample_chars_after_strip": 0,
+        "sample_visual_identical": false,
+        "text_rendering_mode_sample": {
+          "Tr=0_visible": 331
+        },
+        "pixel_diff_summary": {
+          "page_1_bbox": [
+            7,
+            61,
+            541,
+            808
+          ],
+          "page_42_bbox": [
+            75,
+            75,
+            473,
+            774
+          ],
+          "page_378_bbox": [
+            53,
+            70,
+            507,
+            805
+          ]
+        }
+      },
+      "production_decision": "보류: 기존 visible text 제거 시 화면이 깨져 production 반영하지 않는다.",
+      "text_removed_probe_output": {
+        "probe_pdf": "experiments\\outputs\\060_preserve_original_pdf_ocr_layer\\quant_world_text_blocks_removed_probe.pdf",
+        "source_pdf": "data\\scanned-pdf-not-indexed\\퀀트의 세계 - 홍창수.pdf",
+        "removed_content_stream_ops": 136088,
+        "source_size": 16653419,
+        "probe_size": 14376190,
+        "sample_pages": [
+          {
+            "pdf_page": 1,
+            "original_text_chars": 183,
+            "stripped_text_chars": 0,
+            "original_png": "experiments\\outputs\\060_preserve_original_pdf_ocr_layer\\text_removed_probe_page_001_original.png",
+            "stripped_png": "experiments\\outputs\\060_preserve_original_pdf_ocr_layer\\text_removed_probe_page_001_stripped.png",
+            "original_sha256": "4331ea8e951e4f6a32ec385884c025f3fb1e719a2cb42cc314290ed7f3499abb",
+            "stripped_sha256": "2b4ab15cd27e6a9c890d25acbb58fb33b566562ef961b44d0157169736f6ddb7",
+            "render_identical": false
+          },
+          {
+            "pdf_page": 42,
+            "original_text_chars": 662,
+            "stripped_text_chars": 0,
+            "original_png": "experiments\\outputs\\060_preserve_original_pdf_ocr_layer\\text_removed_probe_page_042_original.png",
+            "stripped_png": "experiments\\outputs\\060_preserve_original_pdf_ocr_layer\\text_removed_probe_page_042_stripped.png",
+            "original_sha256": "e4cae8f3d222a8d9f3965517355188537eacd44a69d62bced39c89bcc88d9533",
+            "stripped_sha256": "41b4d790e5e1f33b4f5875c56344e047257cf5c89eac5aecb582434f410284b7",
+            "render_identical": false
+          },
+          {
+            "pdf_page": 378,
+            "original_text_chars": 1254,
+            "stripped_text_chars": 0,
+            "original_png": "experiments\\outputs\\060_preserve_original_pdf_ocr_layer\\text_removed_probe_page_378_original.png",
+            "stripped_png": "experiments\\outputs\\060_preserve_original_pdf_ocr_layer\\text_removed_probe_page_378_stripped.png",
+            "original_sha256": "722e4ac14f75d8ba698ad6a81a7b192ecb6d1856d7cba0bb1875cfadfeea2a5d",
+            "stripped_sha256": "708af2b38a5ed08bd96ea707778b15a3520b97dfa510569d1197d3e8da8ea7c1",
+            "render_identical": false
+          }
+        ],
+        "finding": "BT...ET text object를 제거한 probe PDF다. 샘플 페이지의 추출 텍스트는 0자가 되었고, 렌더 해시도 원본과 달라져 보이는 글자까지 지워졌는지 직접 확인할 수 있다."
+      }
+    },
+    {
+      "id": "064_interest_economics_strip_text_overlay",
+      "purpose": "금리의 경제학 원본 PDF의 이미지와 압축을 가능한 보존한 채 기존 text object를 지우고 Document Parse 기반 invisible OCR layer만 다시 얹을 수 있는지 검증한다.",
+      "inputs": [
+        "data\\scanned-pdf-not-indexed\\금리의_경제학_-_홍완표.pdf",
+        "outputs\\interest_economics_ocr\\document_parse_cache\\insertable",
+        "outputs\\interest_economics_ocr\\interest_economics_ocr.pdf"
+      ],
+      "outputs": "experiments\\outputs\\064_interest_economics_strip_text_overlay",
+      "method": "pikepdf parse_content_stream으로 page content의 BT...ET text object를 제거한 뒤, PyMuPDF TextWriter(render_mode=3)로 line 단위 invisible text를 추가했다.",
+      "sizes": {
+        "input_pdf": 41946404,
+        "stripped_pdf": 41894083,
+        "overlay_pdf": 51485435,
+        "sandwich_ocr_pdf": 260107247
+      },
+      "size_ratios": {
+        "overlay_vs_input": 1.22741,
+        "overlay_vs_sandwich": 0.197939,
+        "stripped_vs_input": 0.998753
+      },
+      "strip_stats": {
+        "pages_seen": 264,
+        "pages_changed": 0,
+        "removed_ops": 0,
+        "parse_failed_pages": []
+      },
+      "insert_stats": {
+        "pages_seen": 263,
+        "pages_inserted": 262,
+        "lines_inserted": 5076,
+        "lines_failed": 0,
+        "failed_samples": []
+      },
+      "visual_sample": [
+        {
+          "pdf_page": 1,
+          "original_png": "experiments\\outputs\\064_interest_economics_strip_text_overlay\\sample_page_001_original.png",
+          "stripped_png": "experiments\\outputs\\064_interest_economics_strip_text_overlay\\sample_page_001_stripped.png",
+          "overlay_png": "experiments\\outputs\\064_interest_economics_strip_text_overlay\\sample_page_001_overlay.png",
+          "original_sha256": "f7d4ecc05e2e8a943e3d11c75197a212019bd391532912b7748ea1f3c0b7d504",
+          "stripped_sha256": "f7d4ecc05e2e8a943e3d11c75197a212019bd391532912b7748ea1f3c0b7d504",
+          "overlay_sha256": "f7d4ecc05e2e8a943e3d11c75197a212019bd391532912b7748ea1f3c0b7d504",
+          "stripped_visual_identical": true,
+          "overlay_visual_identical": true
+        },
+        {
+          "pdf_page": 42,
+          "original_png": "experiments\\outputs\\064_interest_economics_strip_text_overlay\\sample_page_042_original.png",
+          "stripped_png": "experiments\\outputs\\064_interest_economics_strip_text_overlay\\sample_page_042_stripped.png",
+          "overlay_png": "experiments\\outputs\\064_interest_economics_strip_text_overlay\\sample_page_042_overlay.png",
+          "original_sha256": "1437c5052f2bb958fd116828340b26f82bd9d788343203bbcdc9b5daf2ade9b6",
+          "stripped_sha256": "1437c5052f2bb958fd116828340b26f82bd9d788343203bbcdc9b5daf2ade9b6",
+          "overlay_sha256": "1437c5052f2bb958fd116828340b26f82bd9d788343203bbcdc9b5daf2ade9b6",
+          "stripped_visual_identical": true,
+          "overlay_visual_identical": true
+        },
+        {
+          "pdf_page": 264,
+          "original_png": "experiments\\outputs\\064_interest_economics_strip_text_overlay\\sample_page_264_original.png",
+          "stripped_png": "experiments\\outputs\\064_interest_economics_strip_text_overlay\\sample_page_264_stripped.png",
+          "overlay_png": "experiments\\outputs\\064_interest_economics_strip_text_overlay\\sample_page_264_overlay.png",
+          "original_sha256": "61330b4e1e67bad6180ef53cb4ba1829078dc67337ce9c4c3f39dc7694e0d9d0",
+          "stripped_sha256": "61330b4e1e67bad6180ef53cb4ba1829078dc67337ce9c4c3f39dc7694e0d9d0",
+          "overlay_sha256": "61330b4e1e67bad6180ef53cb4ba1829078dc67337ce9c4c3f39dc7694e0d9d0",
+          "stripped_visual_identical": true,
+          "overlay_visual_identical": true
+        }
+      ],
+      "text_extract_sample": {
+        "sample_totals": {
+          "original_chars": 0,
+          "stripped_chars": 0,
+          "overlay_chars": 782
+        },
+        "sample_pages": [
+          {
+            "pdf_page": 1,
+            "original_chars": 0,
+            "stripped_chars": 0,
+            "overlay_chars": 38,
+            "overlay_preview": "![image](/image/placeholder) E C O N"
+          },
+          {
+            "pdf_page": 42,
+            "original_chars": 0,
+            "stripped_chars": 0,
+            "overlay_chars": 744,
+            "overlay_preview": "11 금리규제 ![image](/image/placeholder) 금리규제는 시장금리보다 낮은 수준으로 금 리가 억제되는 것을 말한다. 이 점에서 중앙은행이 할인율정책과 공개시장조 작을 통해서 시장금리를 간접적으로 낮게 유도하는 것과 구별된다. 금리를 규제하는 이유는 금융시장에서 자유로이 결정되는 시장금리가 사회적으로 바람직한 적정금리와 일치하지 않는다는 데 있다. 금리규제의 유형으로는 모든 자금대차거래에 적용하는 금리상한제 (이자제한법), 금융기관의 예금금리와 대출금리에 대한 상한설정(미국의 Regulation Q) 또는 직접규제"
+          },
+          {
+            "pdf_page": 264,
+            "original_chars": 0,
+            "stripped_chars": 0,
+            "overlay_chars": 0,
+            "overlay_preview": ""
+          }
+        ]
+      },
+      "finding": "성공: 원본 PDF에서 text object 제거 후 새 invisible OCR layer를 얹어도 샘플 렌더가 원본과 동일했고, 추출 텍스트는 overlay 후 생겼다. 출력 PDF는 51,485,435 bytes로 sandwich OCR PDF 260,107,247 bytes의 19.79%다. 원본/strip 샘플 텍스트 길이 동일 여부=True, 제거된 text op=0, 삽입 line=5076.",
+      "ran_at": "2026-07-08T10:42:18"
     }
   ]
 }
+
