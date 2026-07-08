@@ -4610,7 +4610,66 @@
       },
       "finding": "성공: 원본 PDF에서 text object 제거 후 새 invisible OCR layer를 얹어도 샘플 렌더가 원본과 동일했고, 추출 텍스트는 overlay 후 생겼다. 출력 PDF는 51,485,435 bytes로 sandwich OCR PDF 260,107,247 bytes의 19.79%다. 원본/strip 샘플 텍스트 길이 동일 여부=True, 제거된 text op=0, 삽입 line=5076.",
       "ran_at": "2026-07-08T10:42:18"
+    },
+    {
+      "id": "065_bookmark_native_scanned_labeled_check",
+      "purpose": "300STUDY 전체를 건드리기 전에, 이미 폴더명으로 라벨이 붙은 6개 샘플 PDF(native-pdf-indexed/scanned-pdf-indexed/scanned-pdf-not-indexed)로 bookmark 유무 판정과 image-coverage 기반 native/scanned 판정이 정확한지 확인한다.",
+      "inputs": [
+        "data\\native-pdf-indexed\\Zvi Bodie, Alex Kane, Alan Marcus - Investments-McGraw Hill (2021)[finance].pdf",
+        "data\\native-pdf-indexed\\퀀트의 세계 - 홍창수.pdf",
+        "data\\scanned-pdf-indexed\\고려대_계량경제학노트1_김창진-compressed-indexed[econ stats book].pdf",
+        "data\\scanned-pdf-indexed\\고려대_계량경제학노트2_김창진-compressed-indexed[econ stats book].pdf",
+        "data\\scanned-pdf-not-indexed\\금리의_경제학_-_홍완표.pdf",
+        "data\\scanned-pdf-not-indexed\\한경_읽는법_-_한국경제신문-compressed[econ macro book].pdf"
+      ],
+      "outputs": "experiments\\outputs\\065_bookmark_native_scanned_labeled_check",
+      "finding": "labeled 샘플 6개 중 5개에서 raw bookmark 유무와 native/scanned 판정이 모두 기대값과 일치했다. image-coverage 기반 native/scanned 판정은 6개 전부 정확했다. 한경_읽는법_-_한국경제신문-compressed[econ macro book](폴더=scanned-pdf-not-indexed)는 기대값 has_bookmark=False였지만 raw 판정은 has_bookmark=True (bookmark 16개, level_count=1)였다. 이 PDF의 bookmark는 전부 level 1이고 제목이 '부분1, 부분2...'식 기계적 분할 마커라 실제 목차가 아니었다. toc_level_count>=2 조건을 추가한 has_meaningful_bookmark 기준으로는 False로 기대값과 일치했다. production ocr/builder.py의 bookmark confirm gate는 raw 존재만 보므로 이 PDF에서는 여전히 --confirm-bookmark-ocr-overwrite가 필요하지만, 'bookmark 없는 scanned PDF만 골라 OCR overwrite'라는 이번 목적에는 has_meaningful_bookmark 기준이 더 적합해 보인다.",
+      "ran_at": "2026-07-08T13:49:28"
+    },
+    {
+      "id": "066_font_subset_native_scanned_classification",
+      "purpose": "065의 image-coverage 기반 native/scanned 판정을 대체할 수 있는 metadata/field 기반 판정이 있는지 확인한다. PDF font resource의 subset embed 접두어(`ABCDEF+FontName`) 유무로 native/scanned를 구분하는 가설을 6개 labeled 샘플로 검증한다.",
+      "inputs": [
+        "data\\native-pdf-indexed\\Zvi Bodie, Alex Kane, Alan Marcus - Investments-McGraw Hill (2021)[finance].pdf",
+        "data\\native-pdf-indexed\\퀀트의 세계 - 홍창수.pdf",
+        "data\\scanned-pdf-indexed\\고려대_계량경제학노트1_김창진-compressed-indexed[econ stats book].pdf",
+        "data\\scanned-pdf-indexed\\고려대_계량경제학노트2_김창진-compressed-indexed[econ stats book].pdf",
+        "data\\scanned-pdf-not-indexed\\금리의_경제학_-_홍완표.pdf",
+        "data\\scanned-pdf-not-indexed\\한경_읽는법_-_한국경제신문-compressed[econ macro book].pdf"
+      ],
+      "outputs": "experiments\\outputs\\066_font_subset_native_scanned_classification",
+      "finding": "labeled 샘플 6개에서 subset embed font 유무만으로 판정한 is_scanned는 6/6개가 정확했다(문서 전체 페이지의 font resource를 훑어 6글자대문자+'+'접두어 subset font가 하나라도 있으면 native, 전혀 없으면 scanned로 판정). 065의 image-coverage 방식과 결과가 동일했고, 이번엔 이미지 분석 없이 font 이름 문자열만 봐서 훨씬 가벼웠다. has_meaningful_bookmark(toc_level_count>=2) 기준 bookmark 판정도 6/6개가 정확했다. 두 기준을 합치면 6/6개가 완전히 일치했다. Zvi Bodie, Alex Kane, Alan Marcus - Investments-McGraw Hill (2021)[finance](폴더=native-pdf-indexed): distinct_font=51, subset_font=28, creator='Adobe InDesign CS6 (Macintosh)', scan_tool_signature=False, is_scanned=False. 퀀트의 세계 - 홍창수(폴더=native-pdf-indexed): distinct_font=94, subset_font=94, creator='Adobe InDesign CC 14.0 (Windows)', scan_tool_signature=False, is_scanned=False. 고려대_계량경제학노트1_김창진-compressed-indexed[econ stats book](폴더=scanned-pdf-indexed): distinct_font=2, subset_font=0, creator='PFU ScanSnap Manager 6.5.61 #iX500', scan_tool_signature=True, is_scanned=True. 고려대_계량경제학노트2_김창진-compressed-indexed[econ stats book](폴더=scanned-pdf-indexed): distinct_font=4, subset_font=0, creator='PFU ScanSnap Manager 6.5.61 #iX500', scan_tool_signature=True, is_scanned=True. 금리의_경제학_-_홍완표(폴더=scanned-pdf-not-indexed): distinct_font=0, subset_font=0, creator='PFU ScanSnap Home 2.22.2 #iX500(W)', scan_tool_signature=True, is_scanned=True. 한경_읽는법_-_한국경제신문-compressed[econ macro book](폴더=scanned-pdf-not-indexed): distinct_font=3, subset_font=0, creator='Adobe Acrobat 11.0.23', scan_tool_signature=False, is_scanned=True.",
+      "ran_at": "2026-07-08T14:00:45"
+    },
+    {
+      "id": "067_image_page_visible_text_scanned_classification",
+      "purpose": "066의 font subset 판정이 도구별 이름 관행에 기댄 overfit 기준이라는 지적에 따라, 'scanned page는 본질적으로 image고 그 위의 문자는 invisible overlay일 뿐 실제 시각적 내용이 아니다'라는 일반 정의로 native/scanned 판정을 다시 만든다. image coverage와 PDF text rendering mode(Tr, get_texttrace의 type)를 함께 써서 6개 labeled 샘플로 검증한다.",
+      "inputs": [
+        "data\\native-pdf-indexed\\Zvi Bodie, Alex Kane, Alan Marcus - Investments-McGraw Hill (2021)[finance].pdf",
+        "data\\native-pdf-indexed\\퀀트의 세계 - 홍창수.pdf",
+        "data\\scanned-pdf-indexed\\고려대_계량경제학노트1_김창진-compressed-indexed[econ stats book].pdf",
+        "data\\scanned-pdf-indexed\\고려대_계량경제학노트2_김창진-compressed-indexed[econ stats book].pdf",
+        "data\\scanned-pdf-not-indexed\\금리의_경제학_-_홍완표.pdf",
+        "data\\scanned-pdf-not-indexed\\한경_읽는법_-_한국경제신문-compressed[econ macro book].pdf"
+      ],
+      "outputs": "experiments\\outputs\\067_image_page_visible_text_scanned_classification",
+      "finding": "labeled 샘플 6개에서 'page가 image로 뒤덮여 있고 그 위에 visible text가 없으면 scan-like page'라는 정의만으로 is_scanned를 판정하니 6/6개가 정확했다. has_meaningful_bookmark까지 합친 all_correct는 6/6개였다. 066의 font subset 판정과 결과는 동일하지만, 이번엔 도구별 font 이름 관행이 아니라 PDF rendering mode(Tr)라는 구조적 정의를 썼다. Zvi Bodie, Alex Kane, Alan Marcus - Investments-McGraw Hill (2021)[finance](폴더=native-pdf-indexed): scanned_page_fraction=0.05, visible_chars(sampled)=54424, invisible_chars(sampled)=0, is_scanned=False. 퀀트의 세계 - 홍창수(폴더=native-pdf-indexed): scanned_page_fraction=0.00, visible_chars(sampled)=16291, invisible_chars(sampled)=0, is_scanned=False. 고려대_계량경제학노트1_김창진-compressed-indexed[econ stats book](폴더=scanned-pdf-indexed): scanned_page_fraction=1.00, visible_chars(sampled)=0, invisible_chars(sampled)=15578, is_scanned=True. 고려대_계량경제학노트2_김창진-compressed-indexed[econ stats book](폴더=scanned-pdf-indexed): scanned_page_fraction=1.00, visible_chars(sampled)=0, invisible_chars(sampled)=15597, is_scanned=True. 금리의_경제학_-_홍완표(폴더=scanned-pdf-not-indexed): scanned_page_fraction=1.00, visible_chars(sampled)=0, invisible_chars(sampled)=0, is_scanned=True. 한경_읽는법_-_한국경제신문-compressed[econ macro book](폴더=scanned-pdf-not-indexed): scanned_page_fraction=1.00, visible_chars(sampled)=0, invisible_chars(sampled)=25405, is_scanned=True.",
+      "ran_at": "2026-07-08T14:06:20"
+    },
+    {
+      "id": "068_strict_scanned_criteria_reason_log",
+      "purpose": "scanned pdf 판정 기준을 scanned_page_fraction==1.0 AND total_visible_chars_sampled==0으로 엄격화하고, 불충족 시 어떤 조건이 왜 실패했는지 reason과 수치를 함께 남기는 CSV/JSON 스키마를 6개 labeled 샘플로 검증한다. src 배치 classify 기능에 올릴 필드 구성을 이 실험에서 먼저 정한다.",
+      "inputs": [
+        "data\\native-pdf-indexed\\Zvi Bodie, Alex Kane, Alan Marcus - Investments-McGraw Hill (2021)[finance].pdf",
+        "data\\native-pdf-indexed\\퀀트의 세계 - 홍창수.pdf",
+        "data\\scanned-pdf-indexed\\고려대_계량경제학노트1_김창진-compressed-indexed[econ stats book].pdf",
+        "data\\scanned-pdf-indexed\\고려대_계량경제학노트2_김창진-compressed-indexed[econ stats book].pdf",
+        "data\\scanned-pdf-not-indexed\\금리의_경제학_-_홍완표.pdf",
+        "data\\scanned-pdf-not-indexed\\한경_읽는법_-_한국경제신문-compressed[econ macro book].pdf"
+      ],
+      "outputs": "experiments\\outputs\\068_strict_scanned_criteria_reason_log",
+      "finding": "엄격 기준(scanned_page_fraction==1.0 AND total_visible_chars_sampled==0)으로 labeled 샘플 6개 중 6개가 is_scanned/has_meaningful_bookmark 모두 기대값과 일치했다. CSV summary(pdf_id, folder, path, page_count, sampled_page_count, scanned_page_fraction, total_visible_chars_sampled, total_invisible_chars_sampled, is_scanned, reject_reasons, bookmark_count, toc_level_count, has_meaningful_bookmark, is_ocr_overwrite_target, target_reject_reason)와 사유 문자열(reject_reasons, target_reject_reason)을 함께 저장해 300STUDY 배치 실행 시 어떤 파일이 왜 대상/비대상인지 바로 확인할 수 있게 했다. Zvi Bodie, Alex Kane, Alan Marcus - Investments-McGraw Hill (2021)[finance](폴더=native-pdf-indexed): is_scanned=False, reject_reasons=[scanned_page_fraction=0.0500 != 1.0 (non_scan_like_page_count=19/20); total_visible_chars_sampled=54424 != 0 (pages_with_visible_text_count=19)]. 퀀트의 세계 - 홍창수(폴더=native-pdf-indexed): is_scanned=False, reject_reasons=[scanned_page_fraction=0.0000 != 1.0 (non_scan_like_page_count=20/20); total_visible_chars_sampled=16291 != 0 (pages_with_visible_text_count=20)]. 고려대_계량경제학노트1_김창진-compressed-indexed[econ stats book](폴더=scanned-pdf-indexed): is_scanned=True, reject_reasons=[없음]. 고려대_계량경제학노트2_김창진-compressed-indexed[econ stats book](폴더=scanned-pdf-indexed): is_scanned=True, reject_reasons=[없음]. 금리의_경제학_-_홍완표(폴더=scanned-pdf-not-indexed): is_scanned=True, reject_reasons=[없음]. 한경_읽는법_-_한국경제신문-compressed[econ macro book](폴더=scanned-pdf-not-indexed): is_scanned=True, reject_reasons=[없음].",
+      "ran_at": "2026-07-08T14:15:18"
     }
   ]
 }
-

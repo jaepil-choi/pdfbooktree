@@ -79,3 +79,73 @@ def test_ocr_overlay_cli_parses_options(monkeypatch, tmp_path: Path) -> None:
     assert captured["log_mode"] == "plain"
     assert captured["log_output_dir"] == tmp_path / "artifacts"
     assert captured["enable_file"] is False
+
+
+def test_ocr_overlay_batch_cli_parses_options(monkeypatch, tmp_path: Path) -> None:
+    captured = {}
+
+    class FakeRunner:
+        def __init__(self, config, *, ocr_logger_factory=None):
+            captured["config"] = config
+            captured["ocr_logger_factory"] = ocr_logger_factory
+
+        def run(self):
+            from pdfbooktree.ocr.batch import OcrOverlayBatchResult
+
+            return OcrOverlayBatchResult(
+                total_pdf_count=3,
+                target_count=2,
+                processed_count=1,
+                dry_run_count=0,
+                skipped_count=1,
+                failed_count=0,
+                elapsed_sec=1.0,
+                report_csv_path=Path(captured["config"].output_dir)
+                / "ocr_overlay_batch_report.csv",
+                detail_jsonl_path=Path(captured["config"].output_dir)
+                / "ocr_overlay_batch_detail.jsonl",
+                summary_path=Path(captured["config"].output_dir)
+                / "ocr_overlay_batch_summary.json",
+                results=[],
+            )
+
+    monkeypatch.setattr("pdfbooktree.cli.OcrOverlayBatchRunner", FakeRunner)
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "ocr-overlay-batch",
+            str(tmp_path / "300STUDY"),
+            "--output-dir",
+            str(tmp_path / "out"),
+            "--recursive",
+            "--dry-run",
+            "--force",
+            "--confirm-bookmark-ocr-overwrite",
+            "--engine",
+            "upstage",
+            "--render-dpi",
+            "240",
+            "--max-sample-pages",
+            "50",
+            "--stats-word-level",
+            "--engine-option",
+            "max_retries=3",
+            "--log-mode",
+            "none",
+            "--no-log-file",
+        ],
+    )
+
+    assert result.exit_code == 0
+    config = captured["config"]
+    assert config.input_dir == tmp_path / "300STUDY"
+    assert config.output_dir == tmp_path / "out"
+    assert config.recursive is True
+    assert config.dry_run is True
+    assert config.force is True
+    assert config.confirm_bookmark_ocr_overwrite is True
+    assert config.render_dpi == 240
+    assert config.max_sample_pages == 50
+    assert config.stats_word_level is True
+    assert config.engine_options["max_retries"] == 3
