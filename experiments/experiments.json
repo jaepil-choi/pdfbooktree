@@ -5654,6 +5654,965 @@
         }
       },
       "ran_at": "2026-07-09T09:12:49"
+    },
+    {
+      "id": "074_bpe_style_page_local_tier_merge",
+      "purpose": "073의 same-tier 병합으로도 못 잡는 문제(챕터 오프너가 배너/거대 숫자/타이틀처럼 서로 다른 tier로 쪼개짐, 순수 숫자 line은 content span 필터에서 아예 탈락)를 겨냥해, (1) content span 필터에서 숫자 배제를 없애고 (2) BPE tokenizer 학습과 같은 방식으로 book 전체에서 반복적으로 함께 나타나는 page-local tier pair를 찾아 반복 병합한다. no_merge / same_tier_gap1.5(073 baseline) / bpe_min3 / bpe_min5 네 변형을 John Hull, Shreve Binomial(회귀 확인용), Zvi Bodie Investments(주 타겟)에 재튜닝 없이 동일 파라미터로 적용해 recall/level_accuracy/parent_accuracy를 비교한다.",
+      "inputs": [
+        "data\\native-pdf-indexed\\Zvi Bodie, Alex Kane, Alan Marcus - Investments-McGraw Hill (2021)[finance].pdf"
+      ],
+      "outputs": "experiments\\outputs\\074_bpe_style_page_local_tier_merge",
+      "source_experiments": [
+        "069_page_order_stack_hierarchy",
+        "072_local_parent_child_monotonicity_bodie",
+        "073_heading_line_merge_bodie"
+      ],
+      "min_tier_count": 5,
+      "title_match_threshold": 70,
+      "merge_variants": [
+        "no_merge",
+        "same_tier_gap1.5",
+        "bpe_min3",
+        "bpe_min5",
+        "bpe_min15",
+        "bpe_min30",
+        "bpe_min60"
+      ],
+      "finding": "zvi_bodie_investments/mode_only/no_merge: candidates=1276 multi_line=0 recall=0.7919(628/793) level_accuracy=0.293 parent_accuracy=0.5955 | zvi_bodie_investments/mode_only/same_tier_gap1.5: candidates=1030 multi_line=29 recall=0.7919(628/793) level_accuracy=0.293 parent_accuracy=0.6051 | zvi_bodie_investments/mode_only/bpe_min3: candidates=931 multi_line=101 recall=0.7894(626/793) level_accuracy=0.0319 parent_accuracy=0.8594 | zvi_bodie_investments/mode_only/bpe_min5: candidates=946 multi_line=105 recall=0.7894(626/793) level_accuracy=0.0383 parent_accuracy=0.8179 | zvi_bodie_investments/mode_only/bpe_min15: candidates=986 multi_line=98 recall=0.7894(626/793) level_accuracy=0.3099 parent_accuracy=0.7971 | zvi_bodie_investments/mode_only/bpe_min30: candidates=1062 multi_line=70 recall=0.7907(627/793) level_accuracy=0.2871 parent_accuracy=0.5439 | zvi_bodie_investments/mode_only/bpe_min60: candidates=1117 multi_line=59 recall=0.7919(628/793) level_accuracy=0.293 parent_accuracy=0.5955 | zvi_bodie_investments/mode_and_smaller/no_merge: candidates=1030 multi_line=0 recall=0.7919(628/793) level_accuracy=0.293 parent_accuracy=0.5955 | zvi_bodie_investments/mode_and_smaller/same_tier_gap1.5: candidates=1004 multi_line=20 recall=0.7919(628/793) level_accuracy=0.293 parent_accuracy=0.6051 | zvi_bodie_investments/mode_and_smaller/bpe_min3: candidates=882 multi_line=77 recall=0.7894(626/793) level_accuracy=0.0319 parent_accuracy=0.8594 | zvi_bodie_investments/mode_and_smaller/bpe_min5: candidates=890 multi_line=77 recall=0.7894(626/793) level_accuracy=0.0383 parent_accuracy=0.8179 | zvi_bodie_investments/mode_and_smaller/bpe_min15: candidates=921 multi_line=61 recall=0.7894(626/793) level_accuracy=0.3099 parent_accuracy=0.7971 | zvi_bodie_investments/mode_and_smaller/bpe_min30: candidates=997 multi_line=33 recall=0.7907(627/793) level_accuracy=0.2871 parent_accuracy=0.5439 | zvi_bodie_investments/mode_and_smaller/bpe_min60: candidates=1030 multi_line=0 recall=0.7919(628/793) level_accuracy=0.293 parent_accuracy=0.5955 | skipped(no local pdf)=['john_hull', 'shreve_binomial']",
+      "books": {
+        "zvi_bodie_investments": {
+          "tiers": {
+            "raw_tier_count": 13,
+            "final_tier_count": 9,
+            "final_peaks": [
+              156.01,
+              52.83,
+              36.99,
+              25.25,
+              17.02,
+              14.97,
+              11.9,
+              9.89,
+              4.35
+            ]
+          },
+          "ground_truth_count": 793,
+          "body_mode_results": {
+            "mode_only": {
+              "no_merge": {
+                "candidate_count": 1276,
+                "multi_line_candidate_count": 0,
+                "max_merged_line_count": 1,
+                "bpe_merge_step_count": 0,
+                "local_monotonicity": {
+                  "level_counts": {
+                    "1": 36,
+                    "2": 208,
+                    "3": 541,
+                    "4": 484,
+                    "5": 7
+                  },
+                  "parents_with_children_by_level": {
+                    "1": 36,
+                    "2": 161,
+                    "3": 85,
+                    "4": 7
+                  },
+                  "max_level": 5,
+                  "violations": [],
+                  "is_locally_monotonic": true
+                },
+                "eval_vs_truth": {
+                  "truth_count": 793,
+                  "matched_count": 628,
+                  "recall": 0.7919,
+                  "level_correct_count": 184,
+                  "level_accuracy": 0.293,
+                  "parent_correct_count": 374,
+                  "parent_accuracy": 0.5955,
+                  "level_off_by_histogram": {
+                    "-2": 18,
+                    "-1": 386,
+                    "0": 184,
+                    "1": 8,
+                    "2": 26,
+                    "3": 6
+                  }
+                }
+              },
+              "same_tier_gap1.5": {
+                "candidate_count": 1030,
+                "multi_line_candidate_count": 29,
+                "max_merged_line_count": 80,
+                "bpe_merge_step_count": 0,
+                "local_monotonicity": {
+                  "level_counts": {
+                    "1": 36,
+                    "2": 200,
+                    "3": 530,
+                    "4": 257,
+                    "5": 7
+                  },
+                  "parents_with_children_by_level": {
+                    "1": 36,
+                    "2": 161,
+                    "3": 85,
+                    "4": 7
+                  },
+                  "max_level": 5,
+                  "violations": [],
+                  "is_locally_monotonic": true
+                },
+                "eval_vs_truth": {
+                  "truth_count": 793,
+                  "matched_count": 628,
+                  "recall": 0.7919,
+                  "level_correct_count": 184,
+                  "level_accuracy": 0.293,
+                  "parent_correct_count": 380,
+                  "parent_accuracy": 0.6051,
+                  "level_off_by_histogram": {
+                    "-2": 18,
+                    "-1": 386,
+                    "0": 184,
+                    "1": 8,
+                    "2": 26,
+                    "3": 6
+                  }
+                }
+              },
+              "bpe_min3": {
+                "candidate_count": 931,
+                "multi_line_candidate_count": 101,
+                "max_merged_line_count": 20,
+                "bpe_merge_step_count": 16,
+                "local_monotonicity": {
+                  "level_counts": {
+                    "1": 36,
+                    "2": 241,
+                    "3": 584,
+                    "4": 70
+                  },
+                  "parents_with_children_by_level": {
+                    "1": 35,
+                    "2": 163,
+                    "3": 20
+                  },
+                  "max_level": 4,
+                  "violations": [],
+                  "is_locally_monotonic": true
+                },
+                "eval_vs_truth": {
+                  "truth_count": 793,
+                  "matched_count": 626,
+                  "recall": 0.7894,
+                  "level_correct_count": 20,
+                  "level_accuracy": 0.0319,
+                  "parent_correct_count": 538,
+                  "parent_accuracy": 0.8594,
+                  "level_off_by_histogram": {
+                    "-3": 1,
+                    "-2": 55,
+                    "-1": 541,
+                    "0": 20,
+                    "1": 9
+                  }
+                }
+              },
+              "bpe_min5": {
+                "candidate_count": 946,
+                "multi_line_candidate_count": 105,
+                "max_merged_line_count": 16,
+                "bpe_merge_step_count": 12,
+                "local_monotonicity": {
+                  "level_counts": {
+                    "1": 36,
+                    "2": 245,
+                    "3": 590,
+                    "4": 75
+                  },
+                  "parents_with_children_by_level": {
+                    "1": 35,
+                    "2": 167,
+                    "3": 20
+                  },
+                  "max_level": 4,
+                  "violations": [],
+                  "is_locally_monotonic": true
+                },
+                "eval_vs_truth": {
+                  "truth_count": 793,
+                  "matched_count": 626,
+                  "recall": 0.7894,
+                  "level_correct_count": 24,
+                  "level_accuracy": 0.0383,
+                  "parent_correct_count": 512,
+                  "parent_accuracy": 0.8179,
+                  "level_off_by_histogram": {
+                    "-3": 1,
+                    "-2": 57,
+                    "-1": 535,
+                    "0": 24,
+                    "1": 9
+                  }
+                }
+              },
+              "bpe_min15": {
+                "candidate_count": 986,
+                "multi_line_candidate_count": 98,
+                "max_merged_line_count": 8,
+                "bpe_merge_step_count": 7,
+                "local_monotonicity": {
+                  "level_counts": {
+                    "1": 36,
+                    "2": 183,
+                    "3": 492,
+                    "4": 274,
+                    "5": 1
+                  },
+                  "parents_with_children_by_level": {
+                    "1": 35,
+                    "2": 134,
+                    "3": 65,
+                    "4": 1
+                  },
+                  "max_level": 5,
+                  "violations": [],
+                  "is_locally_monotonic": true
+                },
+                "eval_vs_truth": {
+                  "truth_count": 793,
+                  "matched_count": 626,
+                  "recall": 0.7894,
+                  "level_correct_count": 194,
+                  "level_accuracy": 0.3099,
+                  "parent_correct_count": 499,
+                  "parent_accuracy": 0.7971,
+                  "level_off_by_histogram": {
+                    "-2": 28,
+                    "-1": 393,
+                    "0": 194,
+                    "1": 7,
+                    "2": 4
+                  }
+                }
+              },
+              "bpe_min30": {
+                "candidate_count": 1062,
+                "multi_line_candidate_count": 70,
+                "max_merged_line_count": 8,
+                "bpe_merge_step_count": 4,
+                "local_monotonicity": {
+                  "level_counts": {
+                    "1": 36,
+                    "2": 208,
+                    "3": 516,
+                    "4": 295,
+                    "5": 7
+                  },
+                  "parents_with_children_by_level": {
+                    "1": 36,
+                    "2": 158,
+                    "3": 83,
+                    "4": 7
+                  },
+                  "max_level": 5,
+                  "violations": [],
+                  "is_locally_monotonic": true
+                },
+                "eval_vs_truth": {
+                  "truth_count": 793,
+                  "matched_count": 627,
+                  "recall": 0.7907,
+                  "level_correct_count": 180,
+                  "level_accuracy": 0.2871,
+                  "parent_correct_count": 341,
+                  "parent_accuracy": 0.5439,
+                  "level_off_by_histogram": {
+                    "-2": 38,
+                    "-1": 369,
+                    "0": 180,
+                    "1": 8,
+                    "2": 26,
+                    "3": 6
+                  }
+                }
+              },
+              "bpe_min60": {
+                "candidate_count": 1117,
+                "multi_line_candidate_count": 59,
+                "max_merged_line_count": 4,
+                "bpe_merge_step_count": 2,
+                "local_monotonicity": {
+                  "level_counts": {
+                    "1": 36,
+                    "2": 208,
+                    "3": 540,
+                    "4": 326,
+                    "5": 7
+                  },
+                  "parents_with_children_by_level": {
+                    "1": 36,
+                    "2": 161,
+                    "3": 85,
+                    "4": 7
+                  },
+                  "max_level": 5,
+                  "violations": [],
+                  "is_locally_monotonic": true
+                },
+                "eval_vs_truth": {
+                  "truth_count": 793,
+                  "matched_count": 628,
+                  "recall": 0.7919,
+                  "level_correct_count": 184,
+                  "level_accuracy": 0.293,
+                  "parent_correct_count": 374,
+                  "parent_accuracy": 0.5955,
+                  "level_off_by_histogram": {
+                    "-2": 18,
+                    "-1": 386,
+                    "0": 184,
+                    "1": 8,
+                    "2": 26,
+                    "3": 6
+                  }
+                }
+              }
+            },
+            "mode_and_smaller": {
+              "no_merge": {
+                "candidate_count": 1030,
+                "multi_line_candidate_count": 0,
+                "max_merged_line_count": 1,
+                "bpe_merge_step_count": 0,
+                "local_monotonicity": {
+                  "level_counts": {
+                    "1": 36,
+                    "2": 208,
+                    "3": 537,
+                    "4": 243,
+                    "5": 6
+                  },
+                  "parents_with_children_by_level": {
+                    "1": 36,
+                    "2": 161,
+                    "3": 73,
+                    "4": 6
+                  },
+                  "max_level": 5,
+                  "violations": [],
+                  "is_locally_monotonic": true
+                },
+                "eval_vs_truth": {
+                  "truth_count": 793,
+                  "matched_count": 628,
+                  "recall": 0.7919,
+                  "level_correct_count": 184,
+                  "level_accuracy": 0.293,
+                  "parent_correct_count": 374,
+                  "parent_accuracy": 0.5955,
+                  "level_off_by_histogram": {
+                    "-2": 18,
+                    "-1": 386,
+                    "0": 184,
+                    "1": 8,
+                    "2": 26,
+                    "3": 6
+                  }
+                }
+              },
+              "same_tier_gap1.5": {
+                "candidate_count": 1004,
+                "multi_line_candidate_count": 20,
+                "max_merged_line_count": 5,
+                "bpe_merge_step_count": 0,
+                "local_monotonicity": {
+                  "level_counts": {
+                    "1": 36,
+                    "2": 200,
+                    "3": 527,
+                    "4": 235,
+                    "5": 6
+                  },
+                  "parents_with_children_by_level": {
+                    "1": 36,
+                    "2": 161,
+                    "3": 73,
+                    "4": 6
+                  },
+                  "max_level": 5,
+                  "violations": [],
+                  "is_locally_monotonic": true
+                },
+                "eval_vs_truth": {
+                  "truth_count": 793,
+                  "matched_count": 628,
+                  "recall": 0.7919,
+                  "level_correct_count": 184,
+                  "level_accuracy": 0.293,
+                  "parent_correct_count": 380,
+                  "parent_accuracy": 0.6051,
+                  "level_off_by_histogram": {
+                    "-2": 18,
+                    "-1": 386,
+                    "0": 184,
+                    "1": 8,
+                    "2": 26,
+                    "3": 6
+                  }
+                }
+              },
+              "bpe_min3": {
+                "candidate_count": 882,
+                "multi_line_candidate_count": 77,
+                "max_merged_line_count": 5,
+                "bpe_merge_step_count": 10,
+                "local_monotonicity": {
+                  "level_counts": {
+                    "1": 36,
+                    "2": 241,
+                    "3": 572,
+                    "4": 33
+                  },
+                  "parents_with_children_by_level": {
+                    "1": 35,
+                    "2": 163,
+                    "3": 7
+                  },
+                  "max_level": 4,
+                  "violations": [],
+                  "is_locally_monotonic": true
+                },
+                "eval_vs_truth": {
+                  "truth_count": 793,
+                  "matched_count": 626,
+                  "recall": 0.7894,
+                  "level_correct_count": 20,
+                  "level_accuracy": 0.0319,
+                  "parent_correct_count": 538,
+                  "parent_accuracy": 0.8594,
+                  "level_off_by_histogram": {
+                    "-3": 1,
+                    "-2": 55,
+                    "-1": 541,
+                    "0": 20,
+                    "1": 9
+                  }
+                }
+              },
+              "bpe_min5": {
+                "candidate_count": 890,
+                "multi_line_candidate_count": 77,
+                "max_merged_line_count": 5,
+                "bpe_merge_step_count": 8,
+                "local_monotonicity": {
+                  "level_counts": {
+                    "1": 36,
+                    "2": 245,
+                    "3": 576,
+                    "4": 33
+                  },
+                  "parents_with_children_by_level": {
+                    "1": 35,
+                    "2": 167,
+                    "3": 7
+                  },
+                  "max_level": 4,
+                  "violations": [],
+                  "is_locally_monotonic": true
+                },
+                "eval_vs_truth": {
+                  "truth_count": 793,
+                  "matched_count": 626,
+                  "recall": 0.7894,
+                  "level_correct_count": 24,
+                  "level_accuracy": 0.0383,
+                  "parent_correct_count": 512,
+                  "parent_accuracy": 0.8179,
+                  "level_off_by_histogram": {
+                    "-3": 1,
+                    "-2": 57,
+                    "-1": 535,
+                    "0": 24,
+                    "1": 9
+                  }
+                }
+              },
+              "bpe_min15": {
+                "candidate_count": 921,
+                "multi_line_candidate_count": 61,
+                "max_merged_line_count": 4,
+                "bpe_merge_step_count": 4,
+                "local_monotonicity": {
+                  "level_counts": {
+                    "1": 36,
+                    "2": 183,
+                    "3": 487,
+                    "4": 215
+                  },
+                  "parents_with_children_by_level": {
+                    "1": 35,
+                    "2": 134,
+                    "3": 53
+                  },
+                  "max_level": 4,
+                  "violations": [],
+                  "is_locally_monotonic": true
+                },
+                "eval_vs_truth": {
+                  "truth_count": 793,
+                  "matched_count": 626,
+                  "recall": 0.7894,
+                  "level_correct_count": 194,
+                  "level_accuracy": 0.3099,
+                  "parent_correct_count": 499,
+                  "parent_accuracy": 0.7971,
+                  "level_off_by_histogram": {
+                    "-2": 28,
+                    "-1": 393,
+                    "0": 194,
+                    "1": 7,
+                    "2": 4
+                  }
+                }
+              },
+              "bpe_min30": {
+                "candidate_count": 997,
+                "multi_line_candidate_count": 33,
+                "max_merged_line_count": 2,
+                "bpe_merge_step_count": 1,
+                "local_monotonicity": {
+                  "level_counts": {
+                    "1": 36,
+                    "2": 208,
+                    "3": 511,
+                    "4": 236,
+                    "5": 6
+                  },
+                  "parents_with_children_by_level": {
+                    "1": 36,
+                    "2": 158,
+                    "3": 72,
+                    "4": 6
+                  },
+                  "max_level": 5,
+                  "violations": [],
+                  "is_locally_monotonic": true
+                },
+                "eval_vs_truth": {
+                  "truth_count": 793,
+                  "matched_count": 627,
+                  "recall": 0.7907,
+                  "level_correct_count": 180,
+                  "level_accuracy": 0.2871,
+                  "parent_correct_count": 341,
+                  "parent_accuracy": 0.5439,
+                  "level_off_by_histogram": {
+                    "-2": 38,
+                    "-1": 369,
+                    "0": 180,
+                    "1": 8,
+                    "2": 26,
+                    "3": 6
+                  }
+                }
+              },
+              "bpe_min60": {
+                "candidate_count": 1030,
+                "multi_line_candidate_count": 0,
+                "max_merged_line_count": 1,
+                "bpe_merge_step_count": 0,
+                "local_monotonicity": {
+                  "level_counts": {
+                    "1": 36,
+                    "2": 208,
+                    "3": 537,
+                    "4": 243,
+                    "5": 6
+                  },
+                  "parents_with_children_by_level": {
+                    "1": 36,
+                    "2": 161,
+                    "3": 73,
+                    "4": 6
+                  },
+                  "max_level": 5,
+                  "violations": [],
+                  "is_locally_monotonic": true
+                },
+                "eval_vs_truth": {
+                  "truth_count": 793,
+                  "matched_count": 628,
+                  "recall": 0.7919,
+                  "level_correct_count": 184,
+                  "level_accuracy": 0.293,
+                  "parent_correct_count": 374,
+                  "parent_accuracy": 0.5955,
+                  "level_off_by_histogram": {
+                    "-2": 18,
+                    "-1": 386,
+                    "0": 184,
+                    "1": 8,
+                    "2": 26,
+                    "3": 6
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "ran_at": "2026-07-09T10:02:48"
+    },
+    {
+      "id": "075_length_based_level_selection_bodie",
+      "purpose": "074(bpe_min15, mode_and_smaller)로 만든 Zvi Bodie candidate tree에서, cutoff depth D(level 1..D 전체를 파일 경계로 삼음, level==D만 보는 게 아니라 - terminal node 처리 버그 수정)별로 본문 단어 수 분포를 구하고, cumulative percentile 기반 min_words/max_words 조건(둘 중 하나 또는 둘 다)으로 depth를 선택하는 규칙을 검증한다. min_words 조건은 '파일의 cum_percentile 이상이 min_words 이상'을 만족하는 가장 깊은 depth(최대 세분화)를, max_words 조건은 '파일의 cum_percentile 이상이 max_words 이하'를 만족하는 가장 얕은 depth(최소 세분화)를 고른다. 둘 다 주면 교집합을 구하고 비어 있으면 명시적으로 fail한다.",
+      "inputs": [
+        "data\\native-pdf-indexed\\Zvi Bodie, Alex Kane, Alan Marcus - Investments-McGraw Hill (2021)[finance].pdf"
+      ],
+      "outputs": "experiments\\outputs\\075_length_based_level_selection_bodie",
+      "source_experiments": [
+        "074_bpe_style_page_local_tier_merge"
+      ],
+      "body_mode": "mode_and_smaller",
+      "min_pair_count": 15,
+      "candidate_count": 920,
+      "level_length_stats": {
+        "1": {
+          "node_count": 36,
+          "leaf_node_count": 36,
+          "max_words": 43423,
+          "p95_words": 23795,
+          "p90_words": 23299,
+          "median_words": 15102,
+          "mean_words": 14324.5,
+          "leaf_median_words": 15102,
+          "leaf_mean_words": 14324.5,
+          "top5_longest": [
+            43423,
+            24656,
+            23508,
+            23328,
+            23270
+          ],
+          "longest_segment_sample": {
+            "title": "CHAPTER Investment Policy and the Framework PART VII 28",
+            "level": 1,
+            "start_page": 958,
+            "end_page_exclusive": 1042,
+            "word_count": 43423,
+            "is_leaf_at_depth": true
+          }
+        },
+        "2": {
+          "node_count": 218,
+          "leaf_node_count": 183,
+          "max_words": 43423,
+          "p95_words": 7328,
+          "p90_words": 5403,
+          "median_words": 1251,
+          "mean_words": 2365.5,
+          "leaf_median_words": 1583,
+          "leaf_mean_words": 2789.0,
+          "top5_longest": [
+            43423,
+            18942,
+            18933,
+            15049,
+            14201
+          ],
+          "longest_segment_sample": {
+            "title": "of the CFA Institute",
+            "level": 2,
+            "start_page": 958,
+            "end_page_exclusive": 1042,
+            "word_count": 43423,
+            "is_leaf_at_depth": true
+          }
+        },
+        "3": {
+          "node_count": 705,
+          "leaf_node_count": 537,
+          "max_words": 11523,
+          "p95_words": 2622,
+          "p90_words": 1575,
+          "median_words": 492,
+          "mean_words": 731.5,
+          "leaf_median_words": 550,
+          "leaf_mean_words": 798.8,
+          "top5_longest": [
+            11523,
+            10371,
+            6988,
+            6707,
+            6655
+          ],
+          "longest_segment_sample": {
+            "title": "Subject Index",
+            "level": 3,
+            "start_page": 1013,
+            "end_page_exclusive": 1038,
+            "word_count": 11523,
+            "is_leaf_at_depth": true
+          }
+        },
+        "4": {
+          "node_count": 920,
+          "leaf_node_count": 699,
+          "max_words": 11523,
+          "p95_words": 1608,
+          "p90_words": 1183,
+          "median_words": 442,
+          "mean_words": 560.5,
+          "leaf_median_words": 483,
+          "leaf_mean_words": 576.1,
+          "top5_longest": [
+            11523,
+            10371,
+            6707,
+            5668,
+            5464
+          ],
+          "longest_segment_sample": {
+            "title": "Subject Index",
+            "level": 3,
+            "start_page": 1013,
+            "end_page_exclusive": 1038,
+            "word_count": 11523,
+            "is_leaf_at_depth": true
+          }
+        }
+      },
+      "condition_results": {
+        "default_min_words_1000_p90": {
+          "cum_percentile": 0.9,
+          "min_words": 1000,
+          "max_words": null,
+          "mode": "min_words_only(maximize_levels)",
+          "per_depth": {
+            "1": {
+              "node_count": 36,
+              "leaf_node_count": 36,
+              "min_words_fraction_ok": 0.8611,
+              "min_words_passed": false
+            },
+            "2": {
+              "node_count": 218,
+              "leaf_node_count": 183,
+              "min_words_fraction_ok": 0.6503,
+              "min_words_passed": false
+            },
+            "3": {
+              "node_count": 705,
+              "leaf_node_count": 537,
+              "min_words_fraction_ok": 0.2439,
+              "min_words_passed": false
+            },
+            "4": {
+              "node_count": 920,
+              "leaf_node_count": 699,
+              "min_words_fraction_ok": 0.1588,
+              "min_words_passed": false
+            }
+          },
+          "passing_depths": [],
+          "chosen_depth": null,
+          "failed": true
+        },
+        "max_words_1000_p90": {
+          "cum_percentile": 0.9,
+          "min_words": null,
+          "max_words": 1000,
+          "mode": "max_words_only(minimize_levels)",
+          "per_depth": {
+            "1": {
+              "node_count": 36,
+              "leaf_node_count": 36,
+              "max_words_fraction_ok": 0.1389,
+              "max_words_passed": false
+            },
+            "2": {
+              "node_count": 218,
+              "leaf_node_count": 183,
+              "max_words_fraction_ok": 0.4587,
+              "max_words_passed": false
+            },
+            "3": {
+              "node_count": 705,
+              "leaf_node_count": 537,
+              "max_words_fraction_ok": 0.7759,
+              "max_words_passed": false
+            },
+            "4": {
+              "node_count": 920,
+              "leaf_node_count": 699,
+              "max_words_fraction_ok": 0.8424,
+              "max_words_passed": false
+            }
+          },
+          "passing_depths": [],
+          "chosen_depth": null,
+          "failed": true
+        },
+        "max_words_10000_p90": {
+          "cum_percentile": 0.9,
+          "min_words": null,
+          "max_words": 10000,
+          "mode": "max_words_only(minimize_levels)",
+          "per_depth": {
+            "1": {
+              "node_count": 36,
+              "leaf_node_count": 36,
+              "max_words_fraction_ok": 0.2222,
+              "max_words_passed": false
+            },
+            "2": {
+              "node_count": 218,
+              "leaf_node_count": 183,
+              "max_words_fraction_ok": 0.9587,
+              "max_words_passed": true
+            },
+            "3": {
+              "node_count": 705,
+              "leaf_node_count": 537,
+              "max_words_fraction_ok": 0.9972,
+              "max_words_passed": true
+            },
+            "4": {
+              "node_count": 920,
+              "leaf_node_count": 699,
+              "max_words_fraction_ok": 0.9978,
+              "max_words_passed": true
+            }
+          },
+          "passing_depths": [
+            2,
+            3,
+            4
+          ],
+          "chosen_depth": 2,
+          "failed": false
+        },
+        "both_min1000_max10000_p90": {
+          "cum_percentile": 0.9,
+          "min_words": 1000,
+          "max_words": 10000,
+          "mode": "both_conditions(intersection)",
+          "per_depth": {
+            "1": {
+              "node_count": 36,
+              "leaf_node_count": 36,
+              "min_words_fraction_ok": 0.8611,
+              "min_words_passed": false,
+              "max_words_fraction_ok": 0.2222,
+              "max_words_passed": false
+            },
+            "2": {
+              "node_count": 218,
+              "leaf_node_count": 183,
+              "min_words_fraction_ok": 0.6503,
+              "min_words_passed": false,
+              "max_words_fraction_ok": 0.9587,
+              "max_words_passed": true
+            },
+            "3": {
+              "node_count": 705,
+              "leaf_node_count": 537,
+              "min_words_fraction_ok": 0.2439,
+              "min_words_passed": false,
+              "max_words_fraction_ok": 0.9972,
+              "max_words_passed": true
+            },
+            "4": {
+              "node_count": 920,
+              "leaf_node_count": 699,
+              "min_words_fraction_ok": 0.1588,
+              "min_words_passed": false,
+              "max_words_fraction_ok": 0.9978,
+              "max_words_passed": true
+            }
+          },
+          "passing_depths": [],
+          "chosen_depth": null,
+          "failed": true
+        },
+        "both_min1000_max2000_p90": {
+          "cum_percentile": 0.9,
+          "min_words": 1000,
+          "max_words": 2000,
+          "mode": "both_conditions(intersection)",
+          "per_depth": {
+            "1": {
+              "node_count": 36,
+              "leaf_node_count": 36,
+              "min_words_fraction_ok": 0.8611,
+              "min_words_passed": false,
+              "max_words_fraction_ok": 0.1667,
+              "max_words_passed": false
+            },
+            "2": {
+              "node_count": 218,
+              "leaf_node_count": 183,
+              "min_words_fraction_ok": 0.6503,
+              "min_words_passed": false,
+              "max_words_fraction_ok": 0.656,
+              "max_words_passed": false
+            },
+            "3": {
+              "node_count": 705,
+              "leaf_node_count": 537,
+              "min_words_fraction_ok": 0.2439,
+              "min_words_passed": false,
+              "max_words_fraction_ok": 0.9305,
+              "max_words_passed": true
+            },
+            "4": {
+              "node_count": 920,
+              "leaf_node_count": 699,
+              "min_words_fraction_ok": 0.1588,
+              "min_words_passed": false,
+              "max_words_fraction_ok": 0.963,
+              "max_words_passed": true
+            }
+          },
+          "passing_depths": [],
+          "chosen_depth": null,
+          "failed": true
+        }
+      },
+      "pollution": {
+        "1": {
+          "node_count": 36,
+          "max_title_word_count": 10,
+          "polluted_item_count": 0,
+          "is_polluted": false,
+          "polluted_samples": []
+        },
+        "2": {
+          "node_count": 182,
+          "max_title_word_count": 13,
+          "polluted_item_count": 0,
+          "is_polluted": false,
+          "polluted_samples": []
+        },
+        "3": {
+          "node_count": 487,
+          "max_title_word_count": 14,
+          "polluted_item_count": 0,
+          "is_polluted": false,
+          "polluted_samples": []
+        },
+        "4": {
+          "node_count": 215,
+          "max_title_word_count": 13,
+          "polluted_item_count": 0,
+          "is_polluted": false,
+          "polluted_samples": []
+        }
+      },
+      "finding": "L1: node_count=36 max_words=43423 median_words=15102 mean_words=14324.5 | L2: node_count=218 max_words=43423 median_words=1251 mean_words=2365.5 | L3: node_count=705 max_words=11523 median_words=492 mean_words=731.5 | L4: node_count=920 max_words=11523 median_words=442 mean_words=560.5 || default_min_words_1000_p90(p=0.9,min=1000,max=None): FAIL(no level satisfies both conditions) | max_words_1000_p90(p=0.9,min=None,max=1000): FAIL(no level satisfies both conditions) | max_words_10000_p90(p=0.9,min=None,max=10000): chosen_depth=L2 | both_min1000_max10000_p90(p=0.9,min=1000,max=10000): FAIL(no level satisfies both conditions) | both_min1000_max2000_p90(p=0.9,min=1000,max=2000): FAIL(no level satisfies both conditions) || pollution(title>10words): L1: max_title_word_count=10 polluted_item_count=0 is_polluted=False | L2: max_title_word_count=13 polluted_item_count=0 is_polluted=False | L3: max_title_word_count=14 polluted_item_count=0 is_polluted=False | L4: max_title_word_count=13 polluted_item_count=0 is_polluted=False",
+      "ran_at": "2026-07-09T13:56:21"
     }
   ]
 }
