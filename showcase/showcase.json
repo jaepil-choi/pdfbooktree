@@ -146,6 +146,17 @@
       "finding": "confirmation 없이 실행하면 ExistingBookmarkConfirmationRequired로 실패했다. confirmation 후 첫 30쪽을 OCR overlay 처리했다 (cache_hit=30, cache_miss=0). requested_output_page_count=True, old_bookmarks_not_copied=True, line_stats_rows=575, total_word_count=3712, overlay_modes={'element': 45, 'row': 10, 'word': 245}. 기존 OCR text layer와 새 overlay text를 첫 30쪽 page-by-page로 비교했다: old_chars=17774, new_chars=19731, old_words=3725, new_words=3212, mean_sequence_ratio=0.639, mean_token_recall_vs_original=0.4742, mean_token_precision_vs_overlay=0.5215. 상세 비교는 page_text_compare_original_vs_overlay.{json,csv,md}에 저장했다.",
       "command": "uv run python showcase/010_ocr_overlay_overwrite_live.py",
       "ran_at": "2026-07-07T12:45:43+09:00"
+    },
+    {
+      "id": "011_heading_line_merge_live",
+      "purpose": "src/pdfbooktree/typography/headings.py에 추가한 _merge_adjacent_same_tier_lines가 실제 Zvi Bodie Investments PDF에서 같은 page + 같은 font tier + 인접 line('The Investment ' / 'Environment', 36pt)을 하나의 heading candidate로 합치는지 실제 Processor 실행으로 확인한다.",
+      "inputs": [
+        "data\\native-pdf-indexed\\Zvi Bodie, Alex Kane, Alan Marcus - Investments-McGraw Hill (2021)[finance].pdf"
+      ],
+      "outputs": "showcase\\outputs\\011_heading_line_merge_live\\result.json",
+      "finding": "page 30의 원본 raw line은 ['The Investment', 'Environment 1 PART I']로 쪼개져 있었다(raw_line_split_confirmed=True). heading_candidates.json에는 merged_title='The Investment Environment 1 PART I'로 병합됐고, merged_candidate_exists=True, no_lone_fragment_candidate=True. processing_status=processed, bookmark_count=260.",
+      "command": "uv run python showcase/011_heading_line_merge_live.py",
+      "ran_at": "2026-07-09T09:20:36+09:00"
     }
   ]
 }
