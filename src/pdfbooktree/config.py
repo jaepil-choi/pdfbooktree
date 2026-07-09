@@ -16,6 +16,7 @@ class TypographyConfig:
     max_heading_tier: int = 3
     max_heading_length: int = 160
     min_heading_confidence: float = 0.45
+    heading_merge_gap_ratio: float = 1.5
 
 
 @dataclass(frozen=True)

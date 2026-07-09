@@ -74,6 +74,64 @@ def test_compute_tiers_and_heading_candidates(tmp_path: Path) -> None:
     }
 
 
+def test_extract_heading_candidates_merges_adjacent_same_tier_heading_lines(
+    tmp_path: Path,
+) -> None:
+    pdf = tmp_path / "split_heading.pdf"
+    document = fitz.open()
+    try:
+        page = document.new_page(width=PAGE_WIDTH, height=PAGE_HEIGHT)
+        page.insert_text((72, 90), "CHAPTER", fontsize=28)
+        page.insert_text((72, 125), "1 Introduction", fontsize=28)
+        page.insert_text((72, 200), "1.1 Motivation", fontsize=16)
+        page.insert_text(
+            (72, 340), "This is ordinary body text for the chapter.", fontsize=10
+        )
+        document.save(pdf)
+    finally:
+        document.close()
+
+    config = TypographyConfig(min_tier_count=1, max_heading_tier=2)
+    lines = extract_typography_lines(pdf, config)
+    font_tiers = compute_tier_set(lines, "font_size", config)
+    height_tiers = compute_tier_set(lines, "height", config)
+    candidates = extract_heading_candidates(lines, font_tiers, height_tiers, config)
+
+    titles = {candidate.title for candidate in candidates}
+    assert "CHAPTER 1 Introduction" in titles
+    assert "CHAPTER" not in titles
+    assert "1 Introduction" not in titles
+
+
+def test_extract_heading_candidates_does_not_merge_lines_with_large_gap(
+    tmp_path: Path,
+) -> None:
+    pdf = tmp_path / "far_heading.pdf"
+    document = fitz.open()
+    try:
+        page = document.new_page(width=PAGE_WIDTH, height=PAGE_HEIGHT)
+        page.insert_text((72, 90), "CHAPTER", fontsize=28)
+        page.insert_text((72, 500), "1 Introduction", fontsize=28)
+        page.insert_text((72, 200), "1.1 Motivation", fontsize=16)
+        page.insert_text(
+            (72, 700), "This is ordinary body text for the chapter.", fontsize=10
+        )
+        document.save(pdf)
+    finally:
+        document.close()
+
+    config = TypographyConfig(min_tier_count=1, max_heading_tier=2)
+    lines = extract_typography_lines(pdf, config)
+    font_tiers = compute_tier_set(lines, "font_size", config)
+    height_tiers = compute_tier_set(lines, "height", config)
+    candidates = extract_heading_candidates(lines, font_tiers, height_tiers, config)
+
+    titles = {candidate.title for candidate in candidates}
+    assert "CHAPTER" in titles
+    assert "1 Introduction" in titles
+    assert "CHAPTER 1 Introduction" not in titles
+
+
 def test_processor_creates_bookmark_pdf_markdown_and_artifacts(tmp_path: Path) -> None:
     pdf = tmp_path / "book.pdf"
     output_dir = tmp_path / "out"
