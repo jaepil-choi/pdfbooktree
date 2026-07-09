@@ -5118,6 +5118,542 @@
         }
       ],
       "ran_at": "2026-07-09T03:43:50"
+    },
+    {
+      "id": "072_local_parent_child_monotonicity_bodie",
+      "purpose": "069가 count monotonicity를 global flat level count로 검증해 John Hull/Shreve Binomial에서 잘못된 '위반'을 보고한 문제를 바로잡는다. tree 구조상 실제로 항상 성립해야 하는 제약은 global count가 아니라 local (부모-자식) count다: level k 중 level k+1 자식을 실제로 가진 노드의 수는 level k+1 노드 수를 넘을 수 없다(각 자식은 부모를 정확히 하나만 가지므로). stack 알고리즘에 parent_idx 추적을 추가해 실제 nested tree를 만들고, 이 local 제약이 tautology로 항상 성립하는지 확인한 뒤 Zvi Bodie Investments(native-pdf-indexed, 기존 bookmark 793개)에 적용해 bookmark tree를 만들고 정답과 비교한다. [072b 추가] bookmark 자동 생성에서는 절대 depth가 아니라 상대적 계층 구조(누가 부모인가)가 중요하다는 지적에 따라, 절대 level 정수 일치(level_accuracy)와 별도로 매칭된 truth-entry의 진짜 부모와 추론된 부모가 일치하는지(가장 가까운 매칭된 조상까지 거슬러 올라가 비교, recall 누락에 강건) 보는 parent_accuracy를 추가해 재평가한다.",
+      "inputs": [
+        "data\\native-pdf-indexed\\Zvi Bodie, Alex Kane, Alan Marcus - Investments-McGraw Hill (2021)[finance].pdf"
+      ],
+      "outputs": "experiments\\outputs\\072_local_parent_child_monotonicity_bodie",
+      "source_experiments": [
+        "069_page_order_stack_hierarchy"
+      ],
+      "min_tier_count": 5,
+      "title_match_threshold": 70,
+      "finding": "mode_only: candidates=19311 recall=0.8159(647/793) level_accuracy(절대,참고용)=0.3926 parent_accuracy(상대,실제지표)=0.575 level_jumps=0 global_monotonic(069식,참고용)=False local_monotonic(실제제약)=True level_off_by={'-1': 7, '0': 254, '1': 282, '2': 67, '3': 16, '4': 15, '5': 6} | mode_and_smaller: candidates=1192 recall=0.7957(631/793) level_accuracy(절대,참고용)=0.4089 parent_accuracy(상대,실제지표)=0.5959 level_jumps=0 global_monotonic(069식,참고용)=False local_monotonic(실제제약)=True level_off_by={'-1': 8, '0': 258, '1': 281, '2': 54, '3': 10, '4': 14, '5': 6}",
+      "book": {
+        "tiers": {
+          "raw_tier_count": 23,
+          "final_tier_count": 19,
+          "final_peaks": [
+            51.0,
+            37.0,
+            25.25,
+            20.0,
+            19.0,
+            18.01,
+            17.01,
+            15.39,
+            14.01,
+            13.02,
+            12.0,
+            10.0,
+            9.0,
+            8.0,
+            7.01,
+            6.0,
+            4.35,
+            3.64,
+            2.73
+          ]
+        },
+        "ground_truth_count": 793,
+        "body_mode_results": {
+          "mode_only": {
+            "candidate_count": 19311,
+            "global_monotonicity": {
+              "level_counts": {
+                "1": 7,
+                "2": 162,
+                "3": 385,
+                "4": 1902,
+                "5": 5399,
+                "6": 6660,
+                "7": 4053,
+                "8": 714,
+                "9": 29
+              },
+              "max_level": 9,
+              "violations": [
+                {
+                  "level": 6,
+                  "count": 6660,
+                  "next_level": 7,
+                  "next_count": 4053
+                },
+                {
+                  "level": 7,
+                  "count": 4053,
+                  "next_level": 8,
+                  "next_count": 714
+                },
+                {
+                  "level": 8,
+                  "count": 714,
+                  "next_level": 9,
+                  "next_count": 29
+                }
+              ],
+              "is_monotonic": false
+            },
+            "local_monotonicity": {
+              "level_counts": {
+                "1": 7,
+                "2": 162,
+                "3": 385,
+                "4": 1902,
+                "5": 5399,
+                "6": 6660,
+                "7": 4053,
+                "8": 714,
+                "9": 29
+              },
+              "parents_with_children_by_level": {
+                "1": 7,
+                "2": 47,
+                "3": 110,
+                "4": 399,
+                "5": 656,
+                "6": 355,
+                "7": 185,
+                "8": 9
+              },
+              "max_level": 9,
+              "violations": [],
+              "is_locally_monotonic": true
+            },
+            "level_jumps": 0,
+            "eval_vs_truth": {
+              "truth_count": 793,
+              "matched_count": 647,
+              "recall": 0.8159,
+              "level_correct_count": 254,
+              "level_accuracy": 0.3926,
+              "parent_correct_count": 372,
+              "parent_accuracy": 0.575,
+              "level_off_by_histogram": {
+                "-1": 7,
+                "0": 254,
+                "1": 282,
+                "2": 67,
+                "3": 16,
+                "4": 15,
+                "5": 6
+              }
+            }
+          },
+          "mode_and_smaller": {
+            "candidate_count": 1192,
+            "global_monotonicity": {
+              "level_counts": {
+                "1": 7,
+                "2": 58,
+                "3": 131,
+                "4": 441,
+                "5": 422,
+                "6": 100,
+                "7": 33
+              },
+              "max_level": 7,
+              "violations": [
+                {
+                  "level": 4,
+                  "count": 441,
+                  "next_level": 5,
+                  "next_count": 422
+                },
+                {
+                  "level": 5,
+                  "count": 422,
+                  "next_level": 6,
+                  "next_count": 100
+                },
+                {
+                  "level": 6,
+                  "count": 100,
+                  "next_level": 7,
+                  "next_count": 33
+                }
+              ],
+              "is_monotonic": false
+            },
+            "local_monotonicity": {
+              "level_counts": {
+                "1": 7,
+                "2": 58,
+                "3": 131,
+                "4": 441,
+                "5": 422,
+                "6": 100,
+                "7": 33
+              },
+              "parents_with_children_by_level": {
+                "1": 7,
+                "2": 44,
+                "3": 88,
+                "4": 105,
+                "5": 34,
+                "6": 8
+              },
+              "max_level": 7,
+              "violations": [],
+              "is_locally_monotonic": true
+            },
+            "level_jumps": 0,
+            "eval_vs_truth": {
+              "truth_count": 793,
+              "matched_count": 631,
+              "recall": 0.7957,
+              "level_correct_count": 258,
+              "level_accuracy": 0.4089,
+              "parent_correct_count": 376,
+              "parent_accuracy": 0.5959,
+              "level_off_by_histogram": {
+                "-1": 8,
+                "0": 258,
+                "1": 281,
+                "2": 54,
+                "3": 10,
+                "4": 14,
+                "5": 6
+              }
+            }
+          }
+        }
+      },
+      "ran_at": "2026-07-09T08:40:22"
+    },
+    {
+      "id": "073_heading_line_merge_bodie",
+      "purpose": "072의 parent_mismatch_sample에서 발견한 문제(heading이 여러 line으로 쪼개져 렌더링되면 fuzzy title 매칭이 fragment 하나에 잘못 꽂혀 그 아래 서브트리 전체의 parent_accuracy가 연쇄로 틀어짐)를 바로잡는다. 사용자 지적: 같은 page에서 인접하고 font tier가 같은 line은 heading 후보를 만들기 전에 하나로 합쳐야 한다. no_merge(072와 동일, baseline) / merge_gap1.5(같은 page+tier+인접, 수직 gap<=line height*1.5) / merge_nogap(gap 조건 없이 같은 page+tier+인접이면 병합) 세 변형을 mode_only/mode_and_smaller 두 body_mode에 각각 적용해 Zvi Bodie Investments에서 recall/level_accuracy/parent_accuracy 변화를 비교한다.",
+      "inputs": [
+        "data\\native-pdf-indexed\\Zvi Bodie, Alex Kane, Alan Marcus - Investments-McGraw Hill (2021)[finance].pdf"
+      ],
+      "outputs": "experiments\\outputs\\073_heading_line_merge_bodie",
+      "source_experiments": [
+        "069_page_order_stack_hierarchy",
+        "072_local_parent_child_monotonicity_bodie"
+      ],
+      "min_tier_count": 5,
+      "title_match_threshold": 70,
+      "merge_variants": [
+        "no_merge",
+        "merge_gap1.5",
+        "merge_nogap"
+      ],
+      "finding": "mode_only/no_merge: candidates=19311 multi_line=0 recall=0.8159(647/793) level_accuracy=0.3926 parent_accuracy=0.575 local_monotonic=True | mode_only/merge_gap1.5: candidates=4103 multi_line=1836 recall=0.8272(656/793) level_accuracy=0.3887 parent_accuracy=0.593 local_monotonic=True | mode_only/merge_nogap: candidates=3704 multi_line=1945 recall=0.8285(657/793) level_accuracy=0.3912 parent_accuracy=0.5982 local_monotonic=True | mode_and_smaller/no_merge: candidates=1192 multi_line=0 recall=0.7957(631/793) level_accuracy=0.4089 parent_accuracy=0.5959 local_monotonic=True | mode_and_smaller/merge_gap1.5: candidates=1135 multi_line=29 recall=0.7957(631/793) level_accuracy=0.4089 parent_accuracy=0.607 local_monotonic=True | mode_and_smaller/merge_nogap: candidates=876 multi_line=228 recall=0.7957(631/793) level_accuracy=0.4089 parent_accuracy=0.607 local_monotonic=True",
+      "book": {
+        "tiers": {
+          "raw_tier_count": 23,
+          "final_tier_count": 19,
+          "final_peaks": [
+            51.0,
+            37.0,
+            25.25,
+            20.0,
+            19.0,
+            18.01,
+            17.01,
+            15.39,
+            14.01,
+            13.02,
+            12.0,
+            10.0,
+            9.0,
+            8.0,
+            7.01,
+            6.0,
+            4.35,
+            3.64,
+            2.73
+          ]
+        },
+        "ground_truth_count": 793,
+        "body_mode_results": {
+          "mode_only": {
+            "no_merge": {
+              "candidate_count": 19311,
+              "multi_line_candidate_count": 0,
+              "local_monotonicity": {
+                "level_counts": {
+                  "1": 7,
+                  "2": 162,
+                  "3": 385,
+                  "4": 1902,
+                  "5": 5399,
+                  "6": 6660,
+                  "7": 4053,
+                  "8": 714,
+                  "9": 29
+                },
+                "parents_with_children_by_level": {
+                  "1": 7,
+                  "2": 47,
+                  "3": 110,
+                  "4": 399,
+                  "5": 656,
+                  "6": 355,
+                  "7": 185,
+                  "8": 9
+                },
+                "max_level": 9,
+                "violations": [],
+                "is_locally_monotonic": true
+              },
+              "eval_vs_truth": {
+                "truth_count": 793,
+                "matched_count": 647,
+                "recall": 0.8159,
+                "level_correct_count": 254,
+                "level_accuracy": 0.3926,
+                "parent_correct_count": 372,
+                "parent_accuracy": 0.575,
+                "level_off_by_histogram": {
+                  "-1": 7,
+                  "0": 254,
+                  "1": 282,
+                  "2": 67,
+                  "3": 16,
+                  "4": 15,
+                  "5": 6
+                }
+              }
+            },
+            "merge_gap1.5": {
+              "candidate_count": 4103,
+              "multi_line_candidate_count": 1836,
+              "local_monotonicity": {
+                "level_counts": {
+                  "1": 7,
+                  "2": 56,
+                  "3": 143,
+                  "4": 571,
+                  "5": 1223,
+                  "6": 1211,
+                  "7": 650,
+                  "8": 232,
+                  "9": 10
+                },
+                "parents_with_children_by_level": {
+                  "1": 7,
+                  "2": 47,
+                  "3": 110,
+                  "4": 399,
+                  "5": 656,
+                  "6": 355,
+                  "7": 185,
+                  "8": 9
+                },
+                "max_level": 9,
+                "violations": [],
+                "is_locally_monotonic": true
+              },
+              "eval_vs_truth": {
+                "truth_count": 793,
+                "matched_count": 656,
+                "recall": 0.8272,
+                "level_correct_count": 255,
+                "level_accuracy": 0.3887,
+                "parent_correct_count": 389,
+                "parent_accuracy": 0.593,
+                "level_off_by_histogram": {
+                  "-1": 8,
+                  "0": 255,
+                  "1": 290,
+                  "2": 68,
+                  "3": 14,
+                  "4": 15,
+                  "5": 6
+                }
+              }
+            },
+            "merge_nogap": {
+              "candidate_count": 3704,
+              "multi_line_candidate_count": 1945,
+              "local_monotonicity": {
+                "level_counts": {
+                  "1": 7,
+                  "2": 55,
+                  "3": 141,
+                  "4": 500,
+                  "5": 1114,
+                  "6": 1085,
+                  "7": 583,
+                  "8": 209,
+                  "9": 10
+                },
+                "parents_with_children_by_level": {
+                  "1": 7,
+                  "2": 47,
+                  "3": 110,
+                  "4": 399,
+                  "5": 656,
+                  "6": 355,
+                  "7": 185,
+                  "8": 9
+                },
+                "max_level": 9,
+                "violations": [],
+                "is_locally_monotonic": true
+              },
+              "eval_vs_truth": {
+                "truth_count": 793,
+                "matched_count": 657,
+                "recall": 0.8285,
+                "level_correct_count": 257,
+                "level_accuracy": 0.3912,
+                "parent_correct_count": 393,
+                "parent_accuracy": 0.5982,
+                "level_off_by_histogram": {
+                  "-1": 8,
+                  "0": 257,
+                  "1": 289,
+                  "2": 68,
+                  "3": 14,
+                  "4": 15,
+                  "5": 6
+                }
+              }
+            }
+          },
+          "mode_and_smaller": {
+            "no_merge": {
+              "candidate_count": 1192,
+              "multi_line_candidate_count": 0,
+              "local_monotonicity": {
+                "level_counts": {
+                  "1": 7,
+                  "2": 58,
+                  "3": 131,
+                  "4": 441,
+                  "5": 422,
+                  "6": 100,
+                  "7": 33
+                },
+                "parents_with_children_by_level": {
+                  "1": 7,
+                  "2": 44,
+                  "3": 88,
+                  "4": 105,
+                  "5": 34,
+                  "6": 8
+                },
+                "max_level": 7,
+                "violations": [],
+                "is_locally_monotonic": true
+              },
+              "eval_vs_truth": {
+                "truth_count": 793,
+                "matched_count": 631,
+                "recall": 0.7957,
+                "level_correct_count": 258,
+                "level_accuracy": 0.4089,
+                "parent_correct_count": 376,
+                "parent_accuracy": 0.5959,
+                "level_off_by_histogram": {
+                  "-1": 8,
+                  "0": 258,
+                  "1": 281,
+                  "2": 54,
+                  "3": 10,
+                  "4": 14,
+                  "5": 6
+                }
+              }
+            },
+            "merge_gap1.5": {
+              "candidate_count": 1135,
+              "multi_line_candidate_count": 29,
+              "local_monotonicity": {
+                "level_counts": {
+                  "1": 7,
+                  "2": 52,
+                  "3": 126,
+                  "4": 434,
+                  "5": 392,
+                  "6": 91,
+                  "7": 33
+                },
+                "parents_with_children_by_level": {
+                  "1": 7,
+                  "2": 44,
+                  "3": 88,
+                  "4": 105,
+                  "5": 34,
+                  "6": 8
+                },
+                "max_level": 7,
+                "violations": [],
+                "is_locally_monotonic": true
+              },
+              "eval_vs_truth": {
+                "truth_count": 793,
+                "matched_count": 631,
+                "recall": 0.7957,
+                "level_correct_count": 258,
+                "level_accuracy": 0.4089,
+                "parent_correct_count": 383,
+                "parent_accuracy": 0.607,
+                "level_off_by_histogram": {
+                  "-1": 8,
+                  "0": 258,
+                  "1": 281,
+                  "2": 54,
+                  "3": 10,
+                  "4": 14,
+                  "5": 6
+                }
+              }
+            },
+            "merge_nogap": {
+              "candidate_count": 876,
+              "multi_line_candidate_count": 228,
+              "local_monotonicity": {
+                "level_counts": {
+                  "1": 7,
+                  "2": 51,
+                  "3": 119,
+                  "4": 319,
+                  "5": 296,
+                  "6": 64,
+                  "7": 20
+                },
+                "parents_with_children_by_level": {
+                  "1": 7,
+                  "2": 44,
+                  "3": 88,
+                  "4": 105,
+                  "5": 34,
+                  "6": 8
+                },
+                "max_level": 7,
+                "violations": [],
+                "is_locally_monotonic": true
+              },
+              "eval_vs_truth": {
+                "truth_count": 793,
+                "matched_count": 631,
+                "recall": 0.7957,
+                "level_correct_count": 258,
+                "level_accuracy": 0.4089,
+                "parent_correct_count": 383,
+                "parent_accuracy": 0.607,
+                "level_off_by_histogram": {
+                  "-1": 8,
+                  "0": 258,
+                  "1": 281,
+                  "2": 54,
+                  "3": 10,
+                  "4": 14,
+                  "5": 6
+                }
+              }
+            }
+          }
+        }
+      },
+      "ran_at": "2026-07-09T09:12:49"
     }
   ]
 }
