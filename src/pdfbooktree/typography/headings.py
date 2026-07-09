@@ -4,10 +4,12 @@ from __future__ import annotations
 
 import re
 from collections import Counter
+from statistics import median
 
 from pdfbooktree.config import TypographyConfig
 from pdfbooktree.models import HeadingCandidate, TierSet, TypographyLine
 from pdfbooktree.typography.tiers import assign_tier
+from pdfbooktree.utils.text_normalize import normalize_text
 
 _NUMBERING = re.compile(
     r"^(chapter\s+\d+|part\s+\d+|appendix\s+[a-z]|\d+(?:\.\d+)*|제\s*\d+\s*장)\b",
@@ -27,12 +29,16 @@ def extract_heading_candidates(
 
     resolved = config or TypographyConfig()
     repeated = _repeated_margin_text(lines)
+    kept_lines = [
+        line for line in lines if not _is_repeated_margin_line(line, repeated)
+    ]
+    merged_lines = _merge_adjacent_same_tier_lines(
+        kept_lines, font_tiers, resolved.heading_merge_gap_ratio
+    )
     candidates: list[HeadingCandidate] = []
-    for line in lines:
+    for line in merged_lines:
         text = line.text.strip()
         if not _has_title_shape(text, resolved.max_heading_length):
-            continue
-        if _is_repeated_margin_line(line, repeated):
             continue
         font_tier = (
             assign_tier(line.font_size, font_tiers.cut_points)
@@ -101,6 +107,63 @@ def _numbering_depth(text: str) -> int | None:
     if _NUMBERING.match(text):
         return 1
     return None
+
+
+def _merge_adjacent_same_tier_lines(
+    lines: list[TypographyLine], font_tiers: TierSet, gap_ratio: float
+) -> list[TypographyLine]:
+    """같은 page + 같은 font tier + 수직으로 인접한 line을 하나로 합친다.
+
+    heading이 'CHAPTER' / '1' / 'The Investment Environment'처럼 여러 line에
+    걸쳐 렌더링되면, line 단위로 후보를 만들 때 title 매칭과 계층 추론이 그 중
+    fragment 하나에만 꽂혀 나머지 구조가 틀어진다(실험 072/073, Zvi Bodie
+    Investments에서 실측: chapter 배너 fragment가 잘못 매칭되면 그 하위 섹션
+    전체의 parent 추론이 연쇄로 어긋남). 인접 여부는 수직 gap이
+    `max(두 line height) * gap_ratio`를 넘지 않는지로 판단한다 — 같은 tier라도
+    페이지 안에서 멀리 떨어진 무관한 텍스트(예: 서로 다른 pull quote)까지
+    합쳐지는 것을 막기 위한 gate다. gap_ratio=1.5는 실험 073에서 검증한 값이다.
+    """
+
+    if not font_tiers.tiers:
+        return lines
+    merged: list[TypographyLine] = []
+    current: TypographyLine | None = None
+    current_tier: int | None = None
+    for line in lines:
+        tier = assign_tier(line.font_size, font_tiers.cut_points)
+        can_merge = (
+            current is not None
+            and current_tier == tier
+            and current.pdf_page == line.pdf_page
+            and (line.y0 - current.y1) <= max(current.height, line.height) * gap_ratio
+        )
+        if can_merge and current is not None:
+            current = _combine_lines(current, line)
+        else:
+            if current is not None:
+                merged.append(current)
+            current = line
+        current_tier = tier
+    if current is not None:
+        merged.append(current)
+    return merged
+
+
+def _combine_lines(first: TypographyLine, second: TypographyLine) -> TypographyLine:
+    return TypographyLine(
+        pdf_page=first.pdf_page,
+        text=normalize_text(f"{first.text} {second.text}"),
+        x0=min(first.x0, second.x0),
+        y0=min(first.y0, second.y0),
+        x1=max(first.x1, second.x1),
+        y1=max(first.y1, second.y1),
+        page_width=first.page_width,
+        page_height=first.page_height,
+        font_size=round(median([first.font_size, second.font_size]), 2),
+        height=round(median([first.height, second.height]), 2),
+        is_bold=first.is_bold or second.is_bold,
+        font_names=tuple(sorted(set(first.font_names) | set(second.font_names))),
+    )
 
 
 def _repeated_margin_text(lines: list[TypographyLine]) -> set[str]:
