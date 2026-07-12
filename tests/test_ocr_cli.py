@@ -30,10 +30,11 @@ def test_ocr_overlay_cli_parses_options(monkeypatch, tmp_path: Path) -> None:
                 engine="upstage",
             )
 
-    def fake_build_logger(mode, output_dir, *, enable_file):
+    def fake_build_logger(mode, output_dir, *, enable_file, desc=None):
         captured["log_mode"] = mode
         captured["log_output_dir"] = output_dir
         captured["enable_file"] = enable_file
+        captured["desc"] = desc
         return FakeLogger()
 
     monkeypatch.setattr("pdfbooktree.cli.OcrOverlayBuilder", FakeBuilder)
@@ -79,15 +80,17 @@ def test_ocr_overlay_cli_parses_options(monkeypatch, tmp_path: Path) -> None:
     assert captured["log_mode"] == "plain"
     assert captured["log_output_dir"] == tmp_path / "artifacts"
     assert captured["enable_file"] is False
+    assert captured["desc"] == "OCR overlay: book.pdf"
 
 
 def test_ocr_overlay_batch_cli_parses_options(monkeypatch, tmp_path: Path) -> None:
     captured = {}
 
     class FakeRunner:
-        def __init__(self, config, *, ocr_logger_factory=None):
+        def __init__(self, config, *, log_mode=None, enable_log_file=True):
             captured["config"] = config
-            captured["ocr_logger_factory"] = ocr_logger_factory
+            captured["log_mode"] = log_mode
+            captured["enable_log_file"] = enable_log_file
 
         def run(self):
             from pdfbooktree.ocr.batch import OcrOverlayBatchResult
@@ -149,3 +152,5 @@ def test_ocr_overlay_batch_cli_parses_options(monkeypatch, tmp_path: Path) -> No
     assert config.max_sample_pages == 50
     assert config.stats_word_level is True
     assert config.engine_options["max_retries"] == 3
+    assert captured["log_mode"] == "none"
+    assert captured["enable_log_file"] is False

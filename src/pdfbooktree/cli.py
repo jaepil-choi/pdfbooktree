@@ -231,7 +231,7 @@ def ocr_overlay(
     log_mode: str = typer.Option(
         "auto",
         "--log-mode",
-        help="OCR runtime 로그 출력 방식이다. auto, rich, plain, json, none 중 하나다.",
+        help="OCR runtime 로그 출력 방식이다. auto, tqdm, plain, json, none 중 하나다.",
     ),
     no_log_file: bool = typer.Option(
         False,
@@ -242,16 +242,19 @@ def ocr_overlay(
     """PDF 모든 page를 OCR parse한 뒤 invisible text layer를 다시 입힌다."""
 
     resolved_log_mode = default_ocr_log_mode() if log_mode == "auto" else log_mode
-    if resolved_log_mode not in {"rich", "plain", "json", "none"}:
+    if resolved_log_mode not in {"tqdm", "plain", "json", "none"}:
         raise typer.BadParameter(
-            "log-mode은 auto, rich, plain, json, none 중 하나여야 한다."
+            "log-mode은 auto, tqdm, plain, json, none 중 하나여야 한다."
         )
     if cache_policy not in {"reuse", "refresh", "only"}:
         raise typer.BadParameter(
             "cache-policy는 reuse, refresh, only 중 하나여야 한다."
         )
     logger = build_ocr_logger(
-        cast(OcrLogMode, resolved_log_mode), output_dir, enable_file=not no_log_file
+        cast(OcrLogMode, resolved_log_mode),
+        output_dir,
+        enable_file=not no_log_file,
+        desc=f"OCR overlay: {pdf.name}",
     )
     config = OcrOverlayConfig(
         input_pdf=pdf,
@@ -313,7 +316,11 @@ def ocr_overlay_batch_cmd(
     log_mode: str = typer.Option(
         "auto",
         "--log-mode",
-        help="파일별 OCR runtime 로그 출력 방식이다. auto, rich, plain, json, none 중 하나다.",
+        help=(
+            "OCR runtime 로그 출력 방식이다. auto, tqdm, plain, json, none 중 하나다. "
+            "tqdm은 전체 batch page 진행(outer bar)과 현재 책 page 진행(inner bar)을 "
+            "함께 보여주고, 남은 시간은 전체 대상 page 수 기준으로 추정한다."
+        ),
     ),
     no_log_file: bool = typer.Option(
         False,
@@ -324,9 +331,9 @@ def ocr_overlay_batch_cmd(
     """디렉터리 안 target PDF만 골라 OCR overlay를 batch 실행한다."""
 
     resolved_log_mode = default_ocr_log_mode() if log_mode == "auto" else log_mode
-    if resolved_log_mode not in {"rich", "plain", "json", "none"}:
+    if resolved_log_mode not in {"tqdm", "plain", "json", "none"}:
         raise typer.BadParameter(
-            "log-mode은 auto, rich, plain, json, none 중 하나여야 한다."
+            "log-mode은 auto, tqdm, plain, json, none 중 하나여야 한다."
         )
     config = OcrOverlayBatchConfig(
         input_dir=input_dir,
@@ -343,9 +350,8 @@ def ocr_overlay_batch_cmd(
     )
     runner = OcrOverlayBatchRunner(
         config,
-        ocr_logger_factory=lambda path: build_ocr_logger(
-            cast(OcrLogMode, resolved_log_mode), path, enable_file=not no_log_file
-        ),
+        log_mode=cast(OcrLogMode, resolved_log_mode),
+        enable_log_file=not no_log_file,
     )
     result = runner.run()
     rich_print(
