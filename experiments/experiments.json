@@ -13966,6 +13966,905 @@
       },
       "finding": "partial OCR artifact는 progress의 completed_pages와 insertable JSON의 pdf_page 연속성을 함께 보여줘야 한다. raw cache 파일 수만으로는 어떤 page가 빠졌는지 판단할 수 없으며, insertable page 번호 검증이 필요하다.",
       "ran_at": "2026-07-12T17:37:26"
+    },
+    {
+      "id": "084_hull_adaptive_frontier_page_invariants",
+      "purpose": "현재 production BPE bookmark plan을 실제 Hull PDF에서 만들고, synthetic node 없이 실제 node만 쓰는 adaptive frontier가 같은 PDF page의 복수 시작 경계 금지, 최소 2-page span, min_words 병합을 만족할 수 있는지 검증한다.",
+      "inputs": [
+        "data\\native-pdf-indexed\\John Hull - Options, Futures, and Other Derivatives, Global Edition-Pearson (2021).pdf"
+      ],
+      "outputs": "experiments\\outputs\\084_hull_adaptive_frontier_page_invariants",
+      "method": "과대 subtree만 실제 child로 재귀 분할한 뒤 같은 page 시작 entry를 합치고, 1-page group과 min_words 미달 group을 인접한 기존 node group에 병합한다. 최종 page range는 병합 뒤의 다음 boundary로 계산한다.",
+      "summary": {
+        "page_count": 881,
+        "bookmark_plan_count": 945,
+        "raw_adaptive_entry_count": 627,
+        "configurations": {
+          "min500_max10000": {
+            "min_words": 500,
+            "max_words": 10000,
+            "raw_adaptive_entry_count": 627,
+            "final_group_count": 260,
+            "same_page_merge_count": 183,
+            "page_span_merge_count": 181,
+            "min_word_merge_count": 3,
+            "small_group_count": 0,
+            "large_group_count": 0,
+            "strictly_increasing_start_pages": true,
+            "same_page_start_count": 0,
+            "page_span_violation_count": 0,
+            "all_plan_nodes_accounted": true,
+            "duplicated_plan_node_count": 0,
+            "synthetic_node_count": 0,
+            "samples": [
+              {
+                "start_page": 1,
+                "end_page": 5,
+                "page_span": 5,
+                "word_count": 963,
+                "member_count": 13,
+                "member_titles": [
+                  "GLOBAL EDITION",
+                  "OPTIONS, FUTURES, OPTIONS, FUTURES,",
+                  "AND AND OTHER DERIVATIVES OTHER DERIVATIVES",
+                  "11 11 e e",
+                  "JOHN C. HULL JOHN C. HULL",
+                  "OPTIONS, FUTURES, AND OTHER DERIVATIVES",
+                  "John C. Hull",
+                  "Maple Financial Group Professor of Derivatives and Risk Management Joseph L. Rotman School of Management"
+                ]
+              },
+              {
+                "start_page": 6,
+                "end_page": 15,
+                "page_span": 10,
+                "word_count": 2332,
+                "member_count": 1,
+                "member_titles": [
+                  "CONTENTS"
+                ]
+              },
+              {
+                "start_page": 16,
+                "end_page": 17,
+                "page_span": 2,
+                "word_count": 629,
+                "member_count": 2,
+                "member_titles": [
+                  "BUSINESS SNAPSHOTS",
+                  "TECHNICAL NOTES"
+                ]
+              },
+              {
+                "start_page": 18,
+                "end_page": 19,
+                "page_span": 2,
+                "word_count": 756,
+                "member_count": 5,
+                "member_titles": [
+                  "PREFACE",
+                  "NEW TO THIS EDITION",
+                  "SOLVING TEACHING AND LEARNING CHALLENGES",
+                  "Math Knowledge",
+                  "End of Chapter Problems"
+                ]
+              },
+              {
+                "start_page": 20,
+                "end_page": 21,
+                "page_span": 2,
+                "word_count": 1093,
+                "member_count": 5,
+                "member_titles": [
+                  "Designing a Course",
+                  "Software",
+                  "Slides",
+                  "Technical Notes",
+                  "EMPLOYABILITY"
+                ]
+              },
+              {
+                "start_page": 22,
+                "end_page": 24,
+                "page_span": 3,
+                "word_count": 1122,
+                "member_count": 2,
+                "member_titles": [
+                  "ACKNOWLEDGMENTS",
+                  "About the Author"
+                ]
+              },
+              {
+                "start_page": 25,
+                "end_page": 27,
+                "page_span": 3,
+                "word_count": 1578,
+                "member_count": 5,
+                "member_titles": [
+                  "1.1 EXCHANGE-TRADED MARKETS",
+                  "Electronic Markets",
+                  "1.2 OVER-THE-COUNTER MARKETS",
+                  "Business Snapshot 1.1 The Lehman Bankruptcy",
+                  "Business Snapshot 1.2 Systemic Risk"
+                ]
+              },
+              {
+                "start_page": 28,
+                "end_page": 29,
+                "page_span": 2,
+                "word_count": 850,
+                "member_count": 2,
+                "member_titles": [
+                  "Market Size",
+                  "1.3 FORWARD CONTRACTS"
+                ]
+              },
+              {
+                "start_page": 30,
+                "end_page": 31,
+                "page_span": 2,
+                "word_count": 973,
+                "member_count": 3,
+                "member_titles": [
+                  "Payoffs from Forward Contracts",
+                  "Forward Prices and Spot Prices",
+                  "1.4 FUTURES CONTRACTS"
+                ]
+              },
+              {
+                "start_page": 32,
+                "end_page": 33,
+                "page_span": 2,
+                "word_count": 1048,
+                "member_count": 1,
+                "member_titles": [
+                  "1.5 OPTIONS"
+                ]
+              },
+              {
+                "start_page": 34,
+                "end_page": 35,
+                "page_span": 2,
+                "word_count": 803,
+                "member_count": 4,
+                "member_titles": [
+                  "1.6 TYPES OF TRADERS",
+                  "Business Snapshot 1.3 Hedge Funds",
+                  "1.7 HEDGERS",
+                  "Hedging Using Forward Contracts"
+                ]
+              },
+              {
+                "start_page": 36,
+                "end_page": 37,
+                "page_span": 2,
+                "word_count": 992,
+                "member_count": 4,
+                "member_titles": [
+                  "Hedging Using Options",
+                  "A Comparison",
+                  "1.8 SPECULATORS",
+                  "Speculation Using Futures"
+                ]
+              },
+              {
+                "start_page": 38,
+                "end_page": 39,
+                "page_span": 2,
+                "word_count": 686,
+                "member_count": 2,
+                "member_titles": [
+                  "Speculation Using Options",
+                  "A Comparison"
+                ]
+              },
+              {
+                "start_page": 40,
+                "end_page": 41,
+                "page_span": 2,
+                "word_count": 1145,
+                "member_count": 3,
+                "member_titles": [
+                  "1.9 ARBITRAGEURS",
+                  "1.10 DANGERS",
+                  "Business Snapshot 1.4 SocGen’s Big Loss in 2008"
+                ]
+              },
+              {
+                "start_page": 42,
+                "end_page": 46,
+                "page_span": 5,
+                "word_count": 2212,
+                "member_count": 1,
+                "member_titles": [
+                  "FURTHER READING"
+                ]
+              },
+              {
+                "start_page": 47,
+                "end_page": 48,
+                "page_span": 2,
+                "word_count": 939,
+                "member_count": 4,
+                "member_titles": [
+                  "and Central Counterparties",
+                  "2.1 BACKGROUND",
+                  "Business Snapshot 2.1 The Unanticipated Delivery of a Futures Contract",
+                  "Closing Out Positions"
+                ]
+              },
+              {
+                "start_page": 49,
+                "end_page": 50,
+                "page_span": 2,
+                "word_count": 1096,
+                "member_count": 5,
+                "member_titles": [
+                  "2.2 SPECIFICATION OF A FUTURES CONTRACT",
+                  "The Asset",
+                  "The Contract Size",
+                  "Delivery Arrangements",
+                  "Delivery Months"
+                ]
+              },
+              {
+                "start_page": 51,
+                "end_page": 53,
+                "page_span": 3,
+                "word_count": 1277,
+                "member_count": 5,
+                "member_titles": [
+                  "Price Quotes",
+                  "Price Limits and Position Limits",
+                  "2.3 CONVERGENCE OF FUTURES PRICE TO SPOT PRICE",
+                  "2.4 THE OPERATION OF MARGIN ACCOUNTS",
+                  "Daily Settlement"
+                ]
+              },
+              {
+                "start_page": 54,
+                "end_page": 55,
+                "page_span": 2,
+                "word_count": 1191,
+                "member_count": 3,
+                "member_titles": [
+                  "The Clearing House and Its Members",
+                  "Credit Risk",
+                  "2.5 OTC MARKETS"
+                ]
+              },
+              {
+                "start_page": 56,
+                "end_page": 57,
+                "page_span": 2,
+                "word_count": 1132,
+                "member_count": 3,
+                "member_titles": [
+                  "Central Counterparties",
+                  "Bilateral Clearing",
+                  "Business Snapshot 2.2 Long-Term Capital Management’s Big Loss"
+                ]
+              }
+            ]
+          },
+          "min1000_max10000": {
+            "min_words": 1000,
+            "max_words": 10000,
+            "raw_adaptive_entry_count": 627,
+            "final_group_count": 132,
+            "same_page_merge_count": 183,
+            "page_span_merge_count": 181,
+            "min_word_merge_count": 131,
+            "small_group_count": 0,
+            "large_group_count": 1,
+            "strictly_increasing_start_pages": true,
+            "same_page_start_count": 0,
+            "page_span_violation_count": 0,
+            "all_plan_nodes_accounted": true,
+            "duplicated_plan_node_count": 0,
+            "synthetic_node_count": 0,
+            "samples": [
+              {
+                "start_page": 1,
+                "end_page": 19,
+                "page_span": 19,
+                "word_count": 4680,
+                "member_count": 21,
+                "member_titles": [
+                  "GLOBAL EDITION",
+                  "OPTIONS, FUTURES, OPTIONS, FUTURES,",
+                  "AND AND OTHER DERIVATIVES OTHER DERIVATIVES",
+                  "11 11 e e",
+                  "JOHN C. HULL JOHN C. HULL",
+                  "OPTIONS, FUTURES, AND OTHER DERIVATIVES",
+                  "John C. Hull",
+                  "Maple Financial Group Professor of Derivatives and Risk Management Joseph L. Rotman School of Management"
+                ]
+              },
+              {
+                "start_page": 20,
+                "end_page": 21,
+                "page_span": 2,
+                "word_count": 1093,
+                "member_count": 5,
+                "member_titles": [
+                  "Designing a Course",
+                  "Software",
+                  "Slides",
+                  "Technical Notes",
+                  "EMPLOYABILITY"
+                ]
+              },
+              {
+                "start_page": 22,
+                "end_page": 24,
+                "page_span": 3,
+                "word_count": 1122,
+                "member_count": 2,
+                "member_titles": [
+                  "ACKNOWLEDGMENTS",
+                  "About the Author"
+                ]
+              },
+              {
+                "start_page": 25,
+                "end_page": 31,
+                "page_span": 7,
+                "word_count": 3401,
+                "member_count": 10,
+                "member_titles": [
+                  "1.1 EXCHANGE-TRADED MARKETS",
+                  "Electronic Markets",
+                  "1.2 OVER-THE-COUNTER MARKETS",
+                  "Business Snapshot 1.1 The Lehman Bankruptcy",
+                  "Business Snapshot 1.2 Systemic Risk",
+                  "Market Size",
+                  "1.3 FORWARD CONTRACTS",
+                  "Payoffs from Forward Contracts"
+                ]
+              },
+              {
+                "start_page": 32,
+                "end_page": 39,
+                "page_span": 8,
+                "word_count": 3529,
+                "member_count": 11,
+                "member_titles": [
+                  "1.5 OPTIONS",
+                  "1.6 TYPES OF TRADERS",
+                  "Business Snapshot 1.3 Hedge Funds",
+                  "1.7 HEDGERS",
+                  "Hedging Using Forward Contracts",
+                  "Hedging Using Options",
+                  "A Comparison",
+                  "1.8 SPECULATORS"
+                ]
+              },
+              {
+                "start_page": 40,
+                "end_page": 41,
+                "page_span": 2,
+                "word_count": 1145,
+                "member_count": 3,
+                "member_titles": [
+                  "1.9 ARBITRAGEURS",
+                  "1.10 DANGERS",
+                  "Business Snapshot 1.4 SocGen’s Big Loss in 2008"
+                ]
+              },
+              {
+                "start_page": 42,
+                "end_page": 48,
+                "page_span": 7,
+                "word_count": 3151,
+                "member_count": 5,
+                "member_titles": [
+                  "FURTHER READING",
+                  "and Central Counterparties",
+                  "2.1 BACKGROUND",
+                  "Business Snapshot 2.1 The Unanticipated Delivery of a Futures Contract",
+                  "Closing Out Positions"
+                ]
+              },
+              {
+                "start_page": 49,
+                "end_page": 50,
+                "page_span": 2,
+                "word_count": 1096,
+                "member_count": 5,
+                "member_titles": [
+                  "2.2 SPECIFICATION OF A FUTURES CONTRACT",
+                  "The Asset",
+                  "The Contract Size",
+                  "Delivery Arrangements",
+                  "Delivery Months"
+                ]
+              },
+              {
+                "start_page": 51,
+                "end_page": 53,
+                "page_span": 3,
+                "word_count": 1277,
+                "member_count": 5,
+                "member_titles": [
+                  "Price Quotes",
+                  "Price Limits and Position Limits",
+                  "2.3 CONVERGENCE OF FUTURES PRICE TO SPOT PRICE",
+                  "2.4 THE OPERATION OF MARGIN ACCOUNTS",
+                  "Daily Settlement"
+                ]
+              },
+              {
+                "start_page": 54,
+                "end_page": 55,
+                "page_span": 2,
+                "word_count": 1191,
+                "member_count": 3,
+                "member_titles": [
+                  "The Clearing House and Its Members",
+                  "Credit Risk",
+                  "2.5 OTC MARKETS"
+                ]
+              },
+              {
+                "start_page": 56,
+                "end_page": 57,
+                "page_span": 2,
+                "word_count": 1132,
+                "member_count": 3,
+                "member_titles": [
+                  "Central Counterparties",
+                  "Bilateral Clearing",
+                  "Business Snapshot 2.2 Long-Term Capital Management’s Big Loss"
+                ]
+              },
+              {
+                "start_page": 58,
+                "end_page": 60,
+                "page_span": 3,
+                "word_count": 1252,
+                "member_count": 6,
+                "member_titles": [
+                  "Futures Trades vs. OTC Trades",
+                  "2.6 MARKET QUOTES",
+                  "Prices",
+                  "Settlement Price",
+                  "Trading Volume and Open Interest",
+                  "Patterns of Futures"
+                ]
+              },
+              {
+                "start_page": 61,
+                "end_page": 62,
+                "page_span": 2,
+                "word_count": 1295,
+                "member_count": 4,
+                "member_titles": [
+                  "2.7 DELIVERY",
+                  "Cash Settlement",
+                  "2.8 TYPES OF TRADERS AND TYPES OF ORDERS",
+                  "Orders"
+                ]
+              },
+              {
+                "start_page": 63,
+                "end_page": 64,
+                "page_span": 2,
+                "word_count": 1032,
+                "member_count": 5,
+                "member_titles": [
+                  "2.9 REGULATION",
+                  "Trading Irregularities",
+                  "2.10 ACCOUNTING AND TAX",
+                  "Accounting",
+                  "Tax"
+                ]
+              },
+              {
+                "start_page": 65,
+                "end_page": 66,
+                "page_span": 2,
+                "word_count": 1009,
+                "member_count": 4,
+                "member_titles": [
+                  "2.11 FORWARD vs. FUTURES CONTRACTS",
+                  "Profits from Forward and Futures Contracts",
+                  "Foreign Exchange Quotes",
+                  "SUMMARY"
+                ]
+              },
+              {
+                "start_page": 67,
+                "end_page": 70,
+                "page_span": 4,
+                "word_count": 1810,
+                "member_count": 1,
+                "member_titles": [
+                  "FURTHER READING"
+                ]
+              },
+              {
+                "start_page": 71,
+                "end_page": 72,
+                "page_span": 2,
+                "word_count": 1053,
+                "member_count": 4,
+                "member_titles": [
+                  "Using Futures",
+                  "3.1 BASIC PRINCIPLES",
+                  "Short Hedges",
+                  "Long Hedges"
+                ]
+              },
+              {
+                "start_page": 73,
+                "end_page": 74,
+                "page_span": 2,
+                "word_count": 1115,
+                "member_count": 3,
+                "member_titles": [
+                  "3.2 ARGUMENTS FOR AND AGAINST HEDGING",
+                  "Hedging and Shareholders",
+                  "Hedging and Competitors"
+                ]
+              },
+              {
+                "start_page": 75,
+                "end_page": 89,
+                "page_span": 15,
+                "word_count": 6560,
+                "member_count": 15,
+                "member_titles": [
+                  "Hedging Can Lead to a Worse Outcome",
+                  "Business Snapshot 3.1 Hedging by Gold Mining Companies",
+                  "3.3 BASIS RISK",
+                  "The Basis",
+                  "Choice of Contract",
+                  "3.4 CROSS HEDGING",
+                  "Calculating the Minimum Variance Hedge Ratio",
+                  "Optimal Number of Contracts"
+                ]
+              },
+              {
+                "start_page": 90,
+                "end_page": 92,
+                "page_span": 3,
+                "word_count": 1614,
+                "member_count": 3,
+                "member_titles": [
+                  "3.6 STACK AND ROLL",
+                  "SUMMARY",
+                  "Business Snapshot 3.2 Metallgesellschaft: Hedging Gone Awry"
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "finding": "min500_max10000: raw=627 final=260 same_page_merge=183 span_merge=181 min_merge=3 small=0 large=0 page_ok=True | min1000_max10000: raw=627 final=132 same_page_merge=183 span_merge=181 min_merge=131 small=0 large=1 page_ok=True",
+      "ran_at": "2026-07-12T18:23:00"
+    },
+    {
+      "id": "085_hull_lca_context_frontier",
+      "purpose": "Hull production BPE bookmark tree에서 adaptive frontier의 min_words/page span 병합을 같은 top-level 실제 root 안으로 제한해, 084의 의미적으로 무관한 병합을 막으면서 page 불변식을 만족할 수 있는지 검증한다.",
+      "inputs": [
+        "data\\native-pdf-indexed\\John Hull - Options, Futures, and Other Derivatives, Global Edition-Pearson (2021).pdf"
+      ],
+      "outputs": "experiments\\outputs\\085_hull_lca_context_frontier",
+      "method": "084의 실제-node adaptive entry를 출발점으로 쓰고, 같은 page·1-page·min_words 미달 group을 직전 우선으로 합치되 top-level root가 다르면 병합하지 않는다. 각 group의 LCA와 막힌 병합을 기록한다.",
+      "summary": {
+        "page_count": 881,
+        "bookmark_plan_count": 945,
+        "raw_adaptive_entry_count": 627,
+        "final_group_count": 451,
+        "blocked_same_page_merge_count": 7,
+        "page_span_merge_count": 0,
+        "min_word_merge_count": 0,
+        "blocked_page_span_merge_count": 1,
+        "blocked_min_word_merge_count": 1,
+        "same_page_start_count": 7,
+        "page_span_violation_count": 305,
+        "small_group_count": 380,
+        "large_group_count": 0,
+        "all_plan_nodes_accounted": true,
+        "duplicated_plan_node_count": 0,
+        "synthetic_node_count": 0,
+        "samples": [
+          {
+            "start_page": 1,
+            "end_page": 0,
+            "page_span": 0,
+            "word_count": 0,
+            "top_root_title": "GLOBAL EDITION",
+            "lca_title": "GLOBAL EDITION",
+            "member_titles": [
+              "GLOBAL EDITION"
+            ]
+          },
+          {
+            "start_page": 1,
+            "end_page": 0,
+            "page_span": 0,
+            "word_count": 0,
+            "top_root_title": "OPTIONS, FUTURES, OPTIONS, FUTURES,",
+            "lca_title": "OPTIONS, FUTURES, OPTIONS, FUTURES,",
+            "member_titles": [
+              "OPTIONS, FUTURES, OPTIONS, FUTURES,"
+            ]
+          },
+          {
+            "start_page": 1,
+            "end_page": 0,
+            "page_span": 0,
+            "word_count": 0,
+            "top_root_title": "AND AND OTHER DERIVATIVES OTHER DERIVATIVES",
+            "lca_title": "AND AND OTHER DERIVATIVES OTHER DERIVATIVES",
+            "member_titles": [
+              "AND AND OTHER DERIVATIVES OTHER DERIVATIVES"
+            ]
+          },
+          {
+            "start_page": 1,
+            "end_page": 0,
+            "page_span": 0,
+            "word_count": 0,
+            "top_root_title": "11 11 e e",
+            "lca_title": "11 11 e e",
+            "member_titles": [
+              "11 11 e e"
+            ]
+          },
+          {
+            "start_page": 1,
+            "end_page": 1,
+            "page_span": 1,
+            "word_count": 20,
+            "top_root_title": "JOHN C. HULL JOHN C. HULL",
+            "lca_title": "JOHN C. HULL JOHN C. HULL",
+            "member_titles": [
+              "JOHN C. HULL JOHN C. HULL"
+            ]
+          },
+          {
+            "start_page": 2,
+            "end_page": 3,
+            "page_span": 2,
+            "word_count": 676,
+            "top_root_title": "OPTIONS, FUTURES, AND OTHER DERIVATIVES",
+            "lca_title": "OPTIONS, FUTURES, AND OTHER DERIVATIVES",
+            "member_titles": [
+              "OPTIONS, FUTURES, AND OTHER DERIVATIVES",
+              "John C. Hull",
+              "Maple Financial Group Professor of Derivatives and Risk Management Joseph L. Rotman School of Management",
+              "University of Toronto",
+              "E L E V E N T H E D I T I O N",
+              "G L O B A L E D I T I O N"
+            ]
+          },
+          {
+            "start_page": 4,
+            "end_page": 4,
+            "page_span": 1,
+            "word_count": 2,
+            "top_root_title": "OPTIONS, FUTURES, AND OTHER DERIVATIVES",
+            "lca_title": "To Michelle",
+            "member_titles": [
+              "To Michelle"
+            ]
+          },
+          {
+            "start_page": 5,
+            "end_page": 5,
+            "page_span": 1,
+            "word_count": 265,
+            "top_root_title": "OPTIONS, FUTURES, AND OTHER DERIVATIVES",
+            "lca_title": "CONTENTS IN BRIEF",
+            "member_titles": [
+              "CONTENTS IN BRIEF"
+            ]
+          },
+          {
+            "start_page": 6,
+            "end_page": 15,
+            "page_span": 10,
+            "word_count": 2332,
+            "top_root_title": "OPTIONS, FUTURES, AND OTHER DERIVATIVES",
+            "lca_title": "CONTENTS",
+            "member_titles": [
+              "CONTENTS"
+            ]
+          },
+          {
+            "start_page": 16,
+            "end_page": 16,
+            "page_span": 1,
+            "word_count": 343,
+            "top_root_title": "OPTIONS, FUTURES, AND OTHER DERIVATIVES",
+            "lca_title": "BUSINESS SNAPSHOTS",
+            "member_titles": [
+              "BUSINESS SNAPSHOTS"
+            ]
+          },
+          {
+            "start_page": 17,
+            "end_page": 17,
+            "page_span": 1,
+            "word_count": 286,
+            "top_root_title": "OPTIONS, FUTURES, AND OTHER DERIVATIVES",
+            "lca_title": "TECHNICAL NOTES",
+            "member_titles": [
+              "TECHNICAL NOTES"
+            ]
+          },
+          {
+            "start_page": 18,
+            "end_page": 18,
+            "page_span": 1,
+            "word_count": 332,
+            "top_root_title": "OPTIONS, FUTURES, AND OTHER DERIVATIVES",
+            "lca_title": "PREFACE",
+            "member_titles": [
+              "PREFACE",
+              "NEW TO THIS EDITION"
+            ]
+          },
+          {
+            "start_page": 19,
+            "end_page": 19,
+            "page_span": 1,
+            "word_count": 424,
+            "top_root_title": "OPTIONS, FUTURES, AND OTHER DERIVATIVES",
+            "lca_title": "PREFACE",
+            "member_titles": [
+              "SOLVING TEACHING AND LEARNING CHALLENGES",
+              "Math Knowledge",
+              "End of Chapter Problems"
+            ]
+          },
+          {
+            "start_page": 20,
+            "end_page": 20,
+            "page_span": 1,
+            "word_count": 559,
+            "top_root_title": "OPTIONS, FUTURES, AND OTHER DERIVATIVES",
+            "lca_title": "PREFACE",
+            "member_titles": [
+              "Designing a Course",
+              "Software"
+            ]
+          },
+          {
+            "start_page": 21,
+            "end_page": 21,
+            "page_span": 1,
+            "word_count": 534,
+            "top_root_title": "OPTIONS, FUTURES, AND OTHER DERIVATIVES",
+            "lca_title": "PREFACE",
+            "member_titles": [
+              "Slides",
+              "Technical Notes",
+              "EMPLOYABILITY"
+            ]
+          },
+          {
+            "start_page": 22,
+            "end_page": 22,
+            "page_span": 1,
+            "word_count": 582,
+            "top_root_title": "OPTIONS, FUTURES, AND OTHER DERIVATIVES",
+            "lca_title": "ACKNOWLEDGMENTS",
+            "member_titles": [
+              "ACKNOWLEDGMENTS"
+            ]
+          },
+          {
+            "start_page": 23,
+            "end_page": 24,
+            "page_span": 2,
+            "word_count": 540,
+            "top_root_title": "OPTIONS, FUTURES, AND OTHER DERIVATIVES",
+            "lca_title": "About the Author",
+            "member_titles": [
+              "About the Author"
+            ]
+          },
+          {
+            "start_page": 25,
+            "end_page": 25,
+            "page_span": 1,
+            "word_count": 477,
+            "top_root_title": "OPTIONS, FUTURES, AND OTHER DERIVATIVES",
+            "lca_title": "1.1 EXCHANGE-TRADED MARKETS",
+            "member_titles": [
+              "1.1 EXCHANGE-TRADED MARKETS"
+            ]
+          },
+          {
+            "start_page": 26,
+            "end_page": 27,
+            "page_span": 2,
+            "word_count": 1101,
+            "top_root_title": "OPTIONS, FUTURES, AND OTHER DERIVATIVES",
+            "lca_title": "PREFACE",
+            "member_titles": [
+              "Electronic Markets",
+              "1.2 OVER-THE-COUNTER MARKETS",
+              "Business Snapshot 1.1 The Lehman Bankruptcy",
+              "Business Snapshot 1.2 Systemic Risk"
+            ]
+          },
+          {
+            "start_page": 28,
+            "end_page": 28,
+            "page_span": 1,
+            "word_count": 367,
+            "top_root_title": "OPTIONS, FUTURES, AND OTHER DERIVATIVES",
+            "lca_title": "Market Size",
+            "member_titles": [
+              "Market Size"
+            ]
+          },
+          {
+            "start_page": 29,
+            "end_page": 29,
+            "page_span": 1,
+            "word_count": 483,
+            "top_root_title": "OPTIONS, FUTURES, AND OTHER DERIVATIVES",
+            "lca_title": "1.3 FORWARD CONTRACTS",
+            "member_titles": [
+              "1.3 FORWARD CONTRACTS"
+            ]
+          },
+          {
+            "start_page": 30,
+            "end_page": 30,
+            "page_span": 1,
+            "word_count": 561,
+            "top_root_title": "OPTIONS, FUTURES, AND OTHER DERIVATIVES",
+            "lca_title": "PREFACE",
+            "member_titles": [
+              "Payoffs from Forward Contracts",
+              "Forward Prices and Spot Prices"
+            ]
+          },
+          {
+            "start_page": 31,
+            "end_page": 31,
+            "page_span": 1,
+            "word_count": 412,
+            "top_root_title": "OPTIONS, FUTURES, AND OTHER DERIVATIVES",
+            "lca_title": "1.4 FUTURES CONTRACTS",
+            "member_titles": [
+              "1.4 FUTURES CONTRACTS"
+            ]
+          },
+          {
+            "start_page": 32,
+            "end_page": 33,
+            "page_span": 2,
+            "word_count": 1048,
+            "top_root_title": "OPTIONS, FUTURES, AND OTHER DERIVATIVES",
+            "lca_title": "1.5 OPTIONS",
+            "member_titles": [
+              "1.5 OPTIONS"
+            ]
+          },
+          {
+            "start_page": 34,
+            "end_page": 34,
+            "page_span": 1,
+            "word_count": 373,
+            "top_root_title": "OPTIONS, FUTURES, AND OTHER DERIVATIVES",
+            "lca_title": "1.6 TYPES OF TRADERS",
+            "member_titles": [
+              "1.6 TYPES OF TRADERS",
+              "Business Snapshot 1.3 Hedge Funds"
+            ]
+          }
+        ]
+      },
+      "finding": "raw=627 final=451 blocked_same_page=7 same_page_starts=7 span_violations=305 small=380 large=0",
+      "ran_at": "2026-07-12T18:34:47"
     }
   ]
 }
