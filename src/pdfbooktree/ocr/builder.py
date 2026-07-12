@@ -113,6 +113,7 @@ class OcrOverlayBuilder:
                     )
 
                 insertable_key = cache.insertable_cache_key(
+                    raw_cache_key=raw_key,
                     raw_response=raw_response,
                     adapter_version=engine.adapter_version,
                 )

@@ -32,7 +32,27 @@ def test_insertable_cache_key_changes_when_adapter_version_changes(
     cache = OcrCache(tmp_path)
     raw = {"elements": [{"id": "1", "content": {"text": "Hello"}}]}
 
-    first = cache.insertable_cache_key(raw_response=raw, adapter_version="v1")
-    second = cache.insertable_cache_key(raw_response=raw, adapter_version="v2")
+    first = cache.insertable_cache_key(
+        raw_cache_key="raw-page-1", raw_response=raw, adapter_version="v1"
+    )
+    second = cache.insertable_cache_key(
+        raw_cache_key="raw-page-1", raw_response=raw, adapter_version="v2"
+    )
+
+    assert first != second
+
+
+def test_insertable_cache_key_changes_for_identical_response_on_other_page(
+    tmp_path: Path,
+) -> None:
+    cache = OcrCache(tmp_path)
+    raw = {"elements": [{"id": "1", "content": {"text": ""}}]}
+
+    first = cache.insertable_cache_key(
+        raw_cache_key="raw-page-1", raw_response=raw, adapter_version="v1"
+    )
+    second = cache.insertable_cache_key(
+        raw_cache_key="raw-page-2", raw_response=raw, adapter_version="v1"
+    )
 
     assert first != second

@@ -67,13 +67,21 @@ class OcrCache:
     def insertable_cache_key(
         self,
         *,
+        raw_cache_key: str,
         raw_response: dict[str, Any],
         adapter_version: str,
     ) -> str:
-        """표준 삽입 모델 cache key를 만든다."""
+        """표준 삽입 모델 cache key를 만든다.
+
+        표준 삽입 모델에는 원본 PDF page 번호와 page 좌표가 포함된다. 따라서 내용이
+        같은 raw OCR 응답이라도 서로 다른 page의 모델을 공유하면 안 된다.
+        ``raw_cache_key``는 입력 PDF와 1-based page를 포함하므로 이를 함께 사용한다.
+        """
 
         return stable_json_hash(
             {
+                "cache_version": 2,
+                "raw_cache_key": raw_cache_key,
                 "raw_hash": stable_json_hash(raw_response),
                 "adapter_version": adapter_version,
             }
