@@ -196,6 +196,17 @@
       "finding": "pages=637, bookmarks=0, ocr_status=partial, completed=253, first_unprocessed=254, missing_completed=[], duplicate_insertable=[122, 123, 124, 126]",
       "command": "uv run python showcase/014_inspection_partial_ocr_artifact.py",
       "ran_at": "2026-07-12T17:42:09"
+    },
+    {
+      "id": "015_bpe_toc_extraction_ocr_merged",
+      "purpose": "기존 bookmark 482개가 전부 level 1 스캔 파일명(진짜 목차 아님)인 실제 통계학원론 OCR PDF에서, skip_existing_bookmarks를 꺼서 공개 Processor가 typography+BPE 파이프라인으로 실제 TOC(bookmark plan)를 새로 뽑아 결과 PDF에 심는지 inspect_bookmarks/inspect_plan_artifact로 확인한다.",
+      "inputs": [
+        "data\\scanned-pdf-not-indexed\\통계학원론 (김동욱)_OCR.compressed[stats book].pdf"
+      ],
+      "outputs": "showcase\\outputs\\015_bpe_toc_extraction_ocr_merged\\result.json",
+      "finding": "기존 bookmark 482개(전부 level 1, 진짜 목차 아님)를 무시하고 재추출: status=processed, bookmark 670개(levels={1: 7, 2: 41, 3: 82, 4: 214, 5: 135, 6: 94, 7: 85, 8: 12}) 추출, outline confidence=0.8",
+      "command": "uv run python showcase/015_bpe_toc_extraction_ocr_merged.py",
+      "ran_at": "2026-07-12T21:45:15+09:00"
     }
   ]
 }
