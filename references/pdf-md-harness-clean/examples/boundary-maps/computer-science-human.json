@@ -1,0 +1,16 @@
+{
+  "sections": [
+    {"number": 1, "start": 23, "title": "살펴보는 일을 멈춰야 할 때: 최적 멈춤"},
+    {"number": 2, "start": 63, "title": "최신의 것과 가장 좋은 것 사이: 탐색과 이용"},
+    {"number": 3, "start": 113, "title": "질서를 찾다: 정렬하기"},
+    {"number": 4, "start": 159, "title": "잊어라: 기억하기"},
+    {"number": 5, "start": 197, "title": "중요한 것부터 하라: 일정 계획하기"},
+    {"number": 6, "start": 241, "title": "미래여: 예측하기"},
+    {"number": 7, "start": 279, "title": "생각을 덜 해야 할 때: 통계적 학습"},
+    {"number": 8, "start": 315, "title": "벽을 넘어가자: 최적화"},
+    {"number": 9, "start": 341, "title": "우연에 맡겨야 할 때: 무작위성"},
+    {"number": 10, "start": 383, "title": "어떻게 연결할 것인가: 네트워킹"},
+    {"number": 11, "start": 427, "title": "남들의 마음: 게임 이론"},
+    {"number": 12, "start": 473, "title": "결론: 계산 친절"}
+  ]
+}

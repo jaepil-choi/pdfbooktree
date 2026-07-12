@@ -1,0 +1,271 @@
+{
+  "boundaries": [
+    {
+      "page": 9,
+      "number": 1,
+      "title": "1장 확률분포",
+      "score": 100,
+      "standalone": true,
+      "toc_like": false,
+      "raw_line": "boundary-map",
+      "reasons": [
+        "explicit boundary map"
+      ],
+      "source": "boundary-map",
+      "end_page": 48
+    },
+    {
+      "page": 49,
+      "number": 2,
+      "title": "2장 다차원 확률변수의 확률분포",
+      "score": 100,
+      "standalone": true,
+      "toc_like": false,
+      "raw_line": "boundary-map",
+      "reasons": [
+        "explicit boundary map"
+      ],
+      "source": "boundary-map",
+      "end_page": 103
+    },
+    {
+      "page": 104,
+      "number": 3,
+      "title": "3장 여러 가지 확률분포",
+      "score": 100,
+      "standalone": true,
+      "toc_like": false,
+      "raw_line": "boundary-map",
+      "reasons": [
+        "explicit boundary map"
+      ],
+      "source": "boundary-map",
+      "end_page": 134
+    },
+    {
+      "page": 135,
+      "number": 4,
+      "title": "4장 표본분포",
+      "score": 100,
+      "standalone": true,
+      "toc_like": false,
+      "raw_line": "boundary-map",
+      "reasons": [
+        "explicit boundary map"
+      ],
+      "source": "boundary-map",
+      "end_page": 194
+    },
+    {
+      "page": 195,
+      "number": 5,
+      "title": "5장 표본분포의 근사",
+      "score": 100,
+      "standalone": true,
+      "toc_like": false,
+      "raw_line": "boundary-map",
+      "reasons": [
+        "explicit boundary map"
+      ],
+      "source": "boundary-map",
+      "end_page": 232
+    },
+    {
+      "page": 233,
+      "number": 6,
+      "title": "6장 추정",
+      "score": 100,
+      "standalone": true,
+      "toc_like": false,
+      "raw_line": "boundary-map",
+      "reasons": [
+        "explicit boundary map"
+      ],
+      "source": "boundary-map",
+      "end_page": 285
+    },
+    {
+      "page": 286,
+      "number": 7,
+      "title": "7장 검정",
+      "score": 100,
+      "standalone": true,
+      "toc_like": false,
+      "raw_line": "boundary-map",
+      "reasons": [
+        "explicit boundary map"
+      ],
+      "source": "boundary-map",
+      "end_page": 323
+    },
+    {
+      "page": 324,
+      "number": 8,
+      "title": "8장 추정량의 비교",
+      "score": 100,
+      "standalone": true,
+      "toc_like": false,
+      "raw_line": "boundary-map",
+      "reasons": [
+        "explicit boundary map"
+      ],
+      "source": "boundary-map",
+      "end_page": 366
+    },
+    {
+      "page": 367,
+      "number": 9,
+      "title": "9장 검정의 비교",
+      "score": 100,
+      "standalone": true,
+      "toc_like": false,
+      "raw_line": "boundary-map",
+      "reasons": [
+        "explicit boundary map"
+      ],
+      "source": "boundary-map",
+      "end_page": 398
+    },
+    {
+      "page": 399,
+      "number": 10,
+      "title": "10장 분산분석과 회귀분석",
+      "score": 100,
+      "standalone": true,
+      "toc_like": false,
+      "raw_line": "boundary-map",
+      "reasons": [
+        "explicit boundary map"
+      ],
+      "source": "boundary-map",
+      "end_page": 432
+    },
+    {
+      "page": 433,
+      "number": 11,
+      "title": "11장 베이지안 추론",
+      "score": 100,
+      "standalone": true,
+      "toc_like": false,
+      "raw_line": "boundary-map",
+      "reasons": [
+        "explicit boundary map"
+      ],
+      "source": "boundary-map",
+      "end_page": 457
+    },
+    {
+      "page": 458,
+      "number": 12,
+      "title": "부록 I: 미분과 적분",
+      "score": 100,
+      "standalone": true,
+      "toc_like": false,
+      "raw_line": "boundary-map",
+      "reasons": [
+        "explicit boundary map"
+      ],
+      "source": "boundary-map",
+      "end_page": 475
+    },
+    {
+      "page": 476,
+      "number": 13,
+      "title": "부록 II: 행렬 대수",
+      "score": 100,
+      "standalone": true,
+      "toc_like": false,
+      "raw_line": "boundary-map",
+      "reasons": [
+        "explicit boundary map"
+      ],
+      "source": "boundary-map",
+      "end_page": 493
+    },
+    {
+      "page": 494,
+      "number": 14,
+      "title": "부록 III: R",
+      "score": 100,
+      "standalone": true,
+      "toc_like": false,
+      "raw_line": "boundary-map",
+      "reasons": [
+        "explicit boundary map"
+      ],
+      "source": "boundary-map",
+      "end_page": 509
+    },
+    {
+      "page": 510,
+      "number": 15,
+      "title": "부록 IV: 여러 가지 분포표",
+      "score": 100,
+      "standalone": true,
+      "toc_like": false,
+      "raw_line": "boundary-map",
+      "reasons": [
+        "explicit boundary map"
+      ],
+      "source": "boundary-map",
+      "end_page": 522
+    },
+    {
+      "page": 523,
+      "number": 16,
+      "title": "연습문제 풀이",
+      "score": 100,
+      "standalone": true,
+      "toc_like": false,
+      "raw_line": "boundary-map",
+      "reasons": [
+        "explicit boundary map"
+      ],
+      "source": "boundary-map",
+      "end_page": 627
+    },
+    {
+      "page": 628,
+      "number": 17,
+      "title": "찾아보기",
+      "score": 100,
+      "standalone": true,
+      "toc_like": false,
+      "raw_line": "boundary-map",
+      "reasons": [
+        "explicit boundary map"
+      ],
+      "source": "boundary-map",
+      "end_page": 634
+    },
+    {
+      "page": 635,
+      "number": 18,
+      "title": "참고문헌",
+      "score": 100,
+      "standalone": true,
+      "toc_like": false,
+      "raw_line": "boundary-map",
+      "reasons": [
+        "explicit boundary map"
+      ],
+      "source": "boundary-map",
+      "end_page": 635
+    },
+    {
+      "page": 636,
+      "number": 19,
+      "title": "저자 약력",
+      "score": 100,
+      "standalone": true,
+      "toc_like": false,
+      "raw_line": "boundary-map",
+      "reasons": [
+        "explicit boundary map"
+      ],
+      "source": "boundary-map",
+      "end_page": 637
+    }
+  ],
+  "page_count": 637
+}

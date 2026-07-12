@@ -1,0 +1,23 @@
+{
+  "sections": [
+    {"number": 1, "start": 9, "title": "1장 확률분포"},
+    {"number": 2, "start": 49, "title": "2장 다차원 확률변수의 확률분포"},
+    {"number": 3, "start": 104, "title": "3장 여러 가지 확률분포"},
+    {"number": 4, "start": 135, "title": "4장 표본분포"},
+    {"number": 5, "start": 195, "title": "5장 표본분포의 근사"},
+    {"number": 6, "start": 233, "title": "6장 추정"},
+    {"number": 7, "start": 286, "title": "7장 검정"},
+    {"number": 8, "start": 324, "title": "8장 추정량의 비교"},
+    {"number": 9, "start": 367, "title": "9장 검정의 비교"},
+    {"number": 10, "start": 399, "title": "10장 분산분석과 회귀분석"},
+    {"number": 11, "start": 433, "title": "11장 베이지안 추론"},
+    {"number": 12, "start": 458, "title": "부록 I: 미분과 적분"},
+    {"number": 13, "start": 476, "title": "부록 II: 행렬 대수"},
+    {"number": 14, "start": 494, "title": "부록 III: R"},
+    {"number": 15, "start": 510, "title": "부록 IV: 여러 가지 분포표"},
+    {"number": 16, "start": 523, "title": "연습문제 풀이"},
+    {"number": 17, "start": 628, "title": "찾아보기"},
+    {"number": 18, "start": 635, "title": "참고문헌"},
+    {"number": 19, "start": 636, "title": "저자 약력"}
+  ]
+}
