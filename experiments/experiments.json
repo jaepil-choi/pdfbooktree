@@ -13870,6 +13870,73 @@
       },
       "finding": "baseline: candidates=921 recall=0.7894 level_accuracy=0.3099 parent_accuracy=0.7971 unmatched=325 bridge=40 | separator_spacing: candidates=956 recall=0.7907 level_accuracy=0.3158 parent_accuracy=0.8357 unmatched=337 bridge=44 | body_separators=43335 merged_pairs=74 broad_rejections=118 | l2_markdown: files=220 p90_words=5381 max_words=43693",
       "ran_at": "2026-07-12T11:57:39"
+    },
+    {
+      "id": "081_rebuild_pdf_from_insertable_artifacts",
+      "purpose": "기존 Document Parse insertable artifact만 직접 읽어 원본 PDF에 invisible OCR layer를 다시 삽입하고, API 재호출 없이 이전 PNG sandwich PDF보다 작은 PDF를 만들 수 있는지 실제 300STUDY 책으로 검증한다.",
+      "inputs": [
+        "data\\300STUDY\\a_books\\normalbook\\AB테스트_무작정따라하_-_오서준.pdf",
+        "data\\300STUDY\\artifacts\\a_books\\normalbook\\AB테스트_무작정따라하_-_오서준",
+        "data\\300STUDY\\pdfs\\a_books\\normalbook\\AB테스트_무작정따라하_-_오서준.pdf"
+      ],
+      "outputs": "experiments\\outputs\\081_rebuild_pdf_from_insertable_artifacts",
+      "method": "insertable cache JSON을 pdf_page로 정렬해 직접 역직렬화하고, write_overlay_pdf로 source PDF의 기존 text object를 교체한 뒤 invisible OCR layer를 삽입한다. raw cache key, PDF render, Upstage API 호출은 하지 않는다.",
+      "summary": {
+        "source_page_count": 75,
+        "insertable_page_count": 75,
+        "insertable_pages_complete": true,
+        "source_bytes": 18766585,
+        "previous_sandwich_pdf_bytes": 28409534,
+        "artifact_rebuild_pdf_bytes": 28409534,
+        "artifact_rebuild_vs_sandwich_ratio": 1.0,
+        "sample_pages": [
+          {
+            "pdf_page": 1,
+            "source_render_sha256": "7a94a5e8197aeb1142ee0199079a18b4adfa309ff86737c4441bc9c69be9f96d",
+            "rebuild_render_sha256": "7a94a5e8197aeb1142ee0199079a18b4adfa309ff86737c4441bc9c69be9f96d",
+            "visual_identical": true,
+            "rebuild_text_length": 64
+          },
+          {
+            "pdf_page": 38,
+            "source_render_sha256": "6756f9465b82f96c5cc8bf4afb8819398433c194624a9ca054b776550c96e28b",
+            "rebuild_render_sha256": "6756f9465b82f96c5cc8bf4afb8819398433c194624a9ca054b776550c96e28b",
+            "visual_identical": true,
+            "rebuild_text_length": 1320
+          },
+          {
+            "pdf_page": 75,
+            "source_render_sha256": "6ac40e7129bc2607e279016067448594d0b05b5e957fdffaff333f0e213e8c71",
+            "rebuild_render_sha256": "6ac40e7129bc2607e279016067448594d0b05b5e957fdffaff333f0e213e8c71",
+            "visual_identical": true,
+            "rebuild_text_length": 283
+          }
+        ]
+      },
+      "finding": "insertable artifact가 모든 source page를 빠짐없이 포함하면 cache key와 API 호출 없이 OCR overlay PDF를 재조립할 수 있다. 다만 이 결과는 완전한 cache에 한정된 PoC이며, 누락 artifact의 신뢰성 있는 복구와 제품 public interface 도입을 정당화하지는 않는다.",
+      "ran_at": "2026-07-12T14:41:26"
+    },
+    {
+      "id": "082_recover_insertable_from_raw_cache",
+      "purpose": "insertable cache가 누락됐지만 raw Document Parse response cache는 완전한 실제 300STUDY PDF에서, OCR API를 다시 호출하지 않고 raw cache와 adapter로 누락 insertable page를 복원한 뒤 OCR overlay PDF를 재조립할 수 있는지 검증한다.",
+      "inputs": [
+        "data\\300STUDY\\a_books\\normalbook\\금리의_경제학_-_홍완표.pdf",
+        "data\\300STUDY\\artifacts\\a_books\\normalbook\\금리의_경제학_-_홍완표"
+      ],
+      "outputs": "experiments\\outputs\\082_recover_insertable_from_raw_cache",
+      "method": "기존 OCR 설정과 동일한 input hash, engine, 요청 옵션, DPI로 OcrOverlayBuilder(cache_policy=only)를 실행한다. raw cache hit이면 page를 로컬 render한 뒤 adapter로 insertable model을 만들어 저장하고, raw cache가 없으면 즉시 실패하므로 Upstage API 호출은 발생하지 않는다.",
+      "summary": {
+        "page_count": 264,
+        "raw_cache_file_count": 264,
+        "insertable_before": 263,
+        "insertable_after": 263,
+        "cache_hit_count": 264,
+        "cache_miss_count": 0,
+        "output_pdf": "experiments\\outputs\\082_recover_insertable_from_raw_cache\\interest_economics_raw_cache_rebuild.pdf",
+        "output_pdf_bytes": 51485390
+      },
+      "finding": "실패: raw cache는 264개 전부 hit하고 API 호출도 없었지만 insertable 파일 수는 263개에서 늘지 않았다. 기존 insertable cache key가 raw response와 adapter version만 포함해 OCR 내용이 같은 서로 다른 page가 하나의 model을 공유하는 collision이 원인이다. 따라서 artifact만으로 누락 page를 신뢰성 있게 재조립하는 기능은 제품에 넣지 않는다.",
+      "ran_at": "2026-07-12T16:47:36"
     }
   ]
 }
