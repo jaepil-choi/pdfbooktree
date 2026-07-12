@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import cast
 
@@ -17,6 +18,13 @@ from pdfbooktree.classify import (
     default_classify_log_mode,
 )
 from pdfbooktree.config import MarkdownSplitConfig, ProcessingConfig, TypographyConfig
+from pdfbooktree.inspection import (
+    inspect_bookmarks,
+    inspect_ocr_artifact,
+    inspect_page_count,
+    inspect_plan_artifact,
+    inspect_text,
+)
 from pdfbooktree.ocr import (
     OcrOverlayBatchConfig,
     OcrOverlayBatchRunner,
@@ -32,6 +40,8 @@ from pdfbooktree.utils.jsonio import to_jsonable
 app = typer.Typer(
     help="PDF 책의 typography hierarchy로 bookmark와 Markdown tree를 만든다."
 )
+inspect_app = typer.Typer(help="PDF와 처리 artifact를 읽기 전용으로 조사한다.")
+app.add_typer(inspect_app, name="inspect")
 
 
 def parse_page_ranges(value: str | None) -> list[int] | None:
@@ -71,6 +81,90 @@ def parse_engine_options(values: list[str]) -> dict[str, object]:
             raise typer.BadParameter("--engine-option key가 비어 있다.")
         options[key] = _coerce_engine_option_value(raw.strip())
     return options
+
+
+def print_inspection(result: dict[str, object], *, as_json: bool) -> None:
+    """inspection 결과를 사람용 또는 machine-readable JSON으로 출력한다."""
+
+    if as_json:
+        typer.echo(json.dumps(to_jsonable(result), ensure_ascii=False))
+        return
+    rich_print(result)
+
+
+def raise_inspection_error(error: Exception) -> None:
+    """agent가 다음 확인 작업을 고를 수 있는 CLI 오류로 바꾼다."""
+
+    raise typer.BadParameter(str(error)) from error
+
+
+@inspect_app.command("page-count")
+def inspect_page_count_cmd(
+    pdf: Path = typer.Argument(..., help="확인할 PDF 파일이다."),
+    as_json: bool = typer.Option(False, "--json", help="JSON 한 줄로 출력한다."),
+) -> None:
+    """PDF 총 page 수를 확인한다."""
+
+    try:
+        print_inspection(inspect_page_count(pdf), as_json=as_json)
+    except (FileNotFoundError, ValueError) as error:
+        raise_inspection_error(error)
+
+
+@inspect_app.command("text")
+def inspect_text_cmd(
+    pdf: Path = typer.Argument(..., help="확인할 PDF 파일이다."),
+    pages: str = typer.Option(..., "--pages", help="1-based page 목록이다. 예: 1-3,42"),
+    as_json: bool = typer.Option(False, "--json", help="JSON 한 줄로 출력한다."),
+) -> None:
+    """지정한 1-based page 범위의 text를 확인한다."""
+
+    try:
+        parsed_pages = parse_page_ranges(pages)
+        if parsed_pages is None:
+            raise ValueError("확인할 PDF page를 하나 이상 지정해야 한다.")
+        print_inspection(inspect_text(pdf, parsed_pages), as_json=as_json)
+    except (FileNotFoundError, ValueError) as error:
+        raise_inspection_error(error)
+
+
+@inspect_app.command("bookmarks")
+def inspect_bookmarks_cmd(
+    pdf: Path = typer.Argument(..., help="확인할 PDF 파일이다."),
+    as_json: bool = typer.Option(False, "--json", help="JSON 한 줄로 출력한다."),
+) -> None:
+    """PDF의 기존 bookmark를 확인한다."""
+
+    try:
+        print_inspection(inspect_bookmarks(pdf), as_json=as_json)
+    except (FileNotFoundError, ValueError) as error:
+        raise_inspection_error(error)
+
+
+@inspect_app.command("ocr")
+def inspect_ocr_cmd(
+    artifact_dir: Path = typer.Argument(..., help="OCR artifact directory다."),
+    as_json: bool = typer.Option(False, "--json", help="JSON 한 줄로 출력한다."),
+) -> None:
+    """OCR 진행 상태, cache, stats와 마지막 log event를 확인한다."""
+
+    try:
+        print_inspection(inspect_ocr_artifact(artifact_dir), as_json=as_json)
+    except (FileNotFoundError, ValueError) as error:
+        raise_inspection_error(error)
+
+
+@inspect_app.command("plan")
+def inspect_plan_cmd(
+    output_dir: Path = typer.Argument(..., help="process output directory다."),
+    as_json: bool = typer.Option(False, "--json", help="JSON 한 줄로 출력한다."),
+) -> None:
+    """bookmark plan validation과 Markdown export 결과를 확인한다."""
+
+    try:
+        print_inspection(inspect_plan_artifact(output_dir), as_json=as_json)
+    except (FileNotFoundError, ValueError) as error:
+        raise_inspection_error(error)
 
 
 def _coerce_engine_option_value(value: str) -> object:

@@ -2,6 +2,13 @@
 
 from pdfbooktree.batch import BatchProcessor
 from pdfbooktree.config import MarkdownSplitConfig, ProcessingConfig, TypographyConfig
+from pdfbooktree.inspection import (
+    inspect_bookmarks,
+    inspect_ocr_artifact,
+    inspect_page_count,
+    inspect_plan_artifact,
+    inspect_text,
+)
 from pdfbooktree.models import (
     BatchResult,
     BookmarkPlanItem,
@@ -28,6 +35,11 @@ __all__ = [
     "ConfidenceSummary",
     "ExistingOutlineItem",
     "HeadingCandidate",
+    "inspect_bookmarks",
+    "inspect_ocr_artifact",
+    "inspect_page_count",
+    "inspect_plan_artifact",
+    "inspect_text",
     "MarkdownExportResult",
     "MarkdownFileStat",
     "MarkdownSplitConfig",
