@@ -16,7 +16,7 @@ from pdfbooktree.classify import (
     build_classify_logger,
     default_classify_log_mode,
 )
-from pdfbooktree.config import ProcessingConfig, TypographyConfig
+from pdfbooktree.config import MarkdownSplitConfig, ProcessingConfig, TypographyConfig
 from pdfbooktree.ocr import (
     OcrOverlayBatchConfig,
     OcrOverlayBatchRunner,
@@ -292,13 +292,64 @@ def process(
     max_heading_tier: int = typer.Option(
         3, "--max-heading-tier", min=1, help="heading 후보로 볼 최대 tier 번호다."
     ),
+    bpe_max_node_words: int = typer.Option(
+        30,
+        "--bpe-max-node-words",
+        min=1,
+        help="이 단어 수를 초과한 BPE node는 hierarchy를 한 단계 낮춘다.",
+    ),
+    bpe_level_pollution_ratio: float = typer.Option(
+        0.30,
+        "--bpe-level-pollution-ratio",
+        min=0.0,
+        max=1.0,
+        help="장문 BPE node 비율이 이 값보다 큰 bookmark level은 본문으로 제외한다.",
+    ),
+    margin_band_ratio: float = typer.Option(
+        0.12,
+        "--margin-band-ratio",
+        min=0.01,
+        max=0.25,
+        help="반복 header/footer를 찾을 page 상·하단 영역 비율이다.",
+    ),
+    margin_min_consecutive_pages: int = typer.Option(
+        10,
+        "--margin-min-consecutive-pages",
+        min=2,
+        help="인쇄 쪽수 offset이 연속으로 유지되어야 하는 최소 page 수다.",
+    ),
+    max_words: int | None = typer.Option(
+        None,
+        "--max-words",
+        min=1,
+        help="지정하면 coverage 기반 단일 Markdown split export를 활성화한다.",
+    ),
+    max_words_coverage: float = typer.Option(
+        0.95,
+        "--max-words-coverage",
+        min=0.01,
+        max=1.0,
+        help="max-words 이하가 되어야 하는 Markdown 파일 비율이다.",
+    ),
 ) -> None:
     """단일 PDF를 typography hierarchy 기반으로 처리한다."""
 
     config = ProcessingConfig(
         skip_existing_bookmarks=skip_existing_bookmarks,
         typography=TypographyConfig(
-            min_tier_count=min_tier_count, max_heading_tier=max_heading_tier
+            min_tier_count=min_tier_count,
+            max_heading_tier=max_heading_tier,
+            bpe_max_node_words=bpe_max_node_words,
+            bpe_level_pollution_ratio=bpe_level_pollution_ratio,
+            margin_band_ratio=margin_band_ratio,
+            margin_min_consecutive_pages=margin_min_consecutive_pages,
+        ),
+        markdown_split=(
+            MarkdownSplitConfig(
+                max_words=max_words, max_words_coverage=max_words_coverage
+            )
+            if max_words is not None
+            else None
         ),
     )
     result = Processor(pdf, output_dir, config).run()

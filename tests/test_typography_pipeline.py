@@ -8,9 +8,11 @@ from pathlib import Path
 import fitz
 
 from pdfbooktree.config import ProcessingConfig, TypographyConfig
+from pdfbooktree.models import TypographyLine
 from pdfbooktree.processor import Processor
 from pdfbooktree.typography.headings import extract_heading_candidates
 from pdfbooktree.typography.lines import extract_typography_lines
+from pdfbooktree.typography.margins import exclude_margin_artifacts
 from pdfbooktree.typography.tiers import assign_tier, compute_tier_set
 
 PAGE_WIDTH = 595.0
@@ -54,6 +56,98 @@ def test_extract_typography_lines_merges_visual_line_spans(tmp_path: Path) -> No
     assert len(lines) == 1
     assert lines[0].text == "Chapter One"
     assert lines[0].font_size == 28
+
+
+def test_exclude_margin_artifacts_removes_numbered_running_header_and_footer() -> None:
+    lines = []
+    opening_words = {3: "alpha", 4: "beta", 5: "gamma", 6: "delta"}
+    for pdf_page in range(3, 7):
+        lines.extend(
+            [
+                TypographyLine(
+                    pdf_page=pdf_page,
+                    text=f"CHAPTER {pdf_page - 2}. Example {pdf_page - 2}",
+                    x0=72.0,
+                    y0=12.0,
+                    x1=450.0,
+                    y1=22.0,
+                    page_width=PAGE_WIDTH,
+                    page_height=PAGE_HEIGHT,
+                    font_size=10.0,
+                    height=10.0,
+                    is_bold=False,
+                ),
+                TypographyLine(
+                    pdf_page=pdf_page,
+                    text="Course Notes",
+                    x0=72.0,
+                    y0=32.0,
+                    x1=150.0,
+                    y1=42.0,
+                    page_width=PAGE_WIDTH,
+                    page_height=PAGE_HEIGHT,
+                    font_size=8.0,
+                    height=10.0,
+                    is_bold=False,
+                ),
+                TypographyLine(
+                    pdf_page=pdf_page,
+                    text=f"Opening body {opening_words[pdf_page]}",
+                    x0=72.0,
+                    y0=82.0,
+                    x1=200.0,
+                    y1=94.0,
+                    page_width=PAGE_WIDTH,
+                    page_height=PAGE_HEIGHT,
+                    font_size=10.0,
+                    height=12.0,
+                    is_bold=False,
+                ),
+                TypographyLine(
+                    pdf_page=pdf_page,
+                    text=f"Body page {pdf_page}",
+                    x0=72.0,
+                    y0=300.0,
+                    x1=200.0,
+                    y1=312.0,
+                    page_width=PAGE_WIDTH,
+                    page_height=PAGE_HEIGHT,
+                    font_size=10.0,
+                    height=12.0,
+                    is_bold=False,
+                ),
+            ]
+        )
+    lines.append(
+        TypographyLine(
+            pdf_page=7,
+            text="5",
+            x0=290.0,
+            y0=810.0,
+            x1=305.0,
+            y1=820.0,
+            page_width=PAGE_WIDTH,
+            page_height=PAGE_HEIGHT,
+            font_size=10.0,
+            height=10.0,
+            is_bold=False,
+        )
+    )
+
+    kept = exclude_margin_artifacts(
+        lines, TypographyConfig(margin_min_consecutive_pages=3)
+    )
+
+    assert [line.text for line in kept] == [
+        "Opening body alpha",
+        "Body page 3",
+        "Opening body beta",
+        "Body page 4",
+        "Opening body gamma",
+        "Body page 5",
+        "Opening body delta",
+        "Body page 6",
+    ]
 
 
 def test_compute_tiers_and_heading_candidates(tmp_path: Path) -> None:

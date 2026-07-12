@@ -128,6 +128,32 @@ class BookmarkPlanValidation:
 
 
 @dataclass(frozen=True)
+class MarkdownFileStat:
+    """하나의 split Markdown 파일 길이와 범위다."""
+
+    path: Path
+    title: str
+    level: int
+    start_pdf_page: int
+    end_pdf_page: int
+    word_count: int
+
+
+@dataclass(frozen=True)
+class MarkdownExportResult:
+    """길이 coverage 정책으로 export한 Markdown 묶음의 결과다."""
+
+    output_dir: Path
+    chosen_level: int | None
+    constraint_satisfied: bool
+    file_count: int
+    total_word_count: int
+    word_count_stats: dict[str, int | float | None] = field(default_factory=dict)
+    overflow_files: list[MarkdownFileStat] = field(default_factory=list)
+    manifest_path: Path | None = None
+
+
+@dataclass(frozen=True)
 class ConfidenceSummary:
     """주요 단계의 신뢰도를 요약한다."""
 
@@ -145,6 +171,7 @@ class ProcessingResult:
     input_pdf: Path
     output_pdf: Path | None = None
     output_markdown_dir: Path | None = None
+    markdown_export: MarkdownExportResult | None = None
     ocr_pdf: Path | None = None
     bookmark_count: int = 0
     confidence_summary: ConfidenceSummary = field(default_factory=ConfidenceSummary)

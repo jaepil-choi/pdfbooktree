@@ -1,7 +1,7 @@
 """PDF 책 구조화 패키지의 공개 API다."""
 
 from pdfbooktree.batch import BatchProcessor
-from pdfbooktree.config import ProcessingConfig, TypographyConfig
+from pdfbooktree.config import MarkdownSplitConfig, ProcessingConfig, TypographyConfig
 from pdfbooktree.models import (
     BatchResult,
     BookmarkPlanItem,
@@ -10,6 +10,8 @@ from pdfbooktree.models import (
     ConfidenceSummary,
     ExistingOutlineItem,
     HeadingCandidate,
+    MarkdownExportResult,
+    MarkdownFileStat,
     ProcessingResult,
     Tier,
     TierSet,
@@ -26,6 +28,9 @@ __all__ = [
     "ConfidenceSummary",
     "ExistingOutlineItem",
     "HeadingCandidate",
+    "MarkdownExportResult",
+    "MarkdownFileStat",
+    "MarkdownSplitConfig",
     "ProcessingConfig",
     "ProcessingResult",
     "Processor",
