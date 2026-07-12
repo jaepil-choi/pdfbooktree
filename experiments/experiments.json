@@ -15157,6 +15157,887 @@
       },
       "finding": "zero-loss wrap으로 전체 커버리지가 79.5%(baseline)에서 101.3%로 개선됐고, page별 최소 커버리지는 100.0%(page 457), 99.9% 미만 page 0개, 시각 회귀 없음=True, 처리 시간 266.3초. 모든 page가 사실상 100% 커버리지에 도달해 zero-loss 가설이 검증됐다.",
       "ran_at": "2026-07-12T19:22:34"
+    },
+    {
+      "id": "088_unclamped_font_size_stack_recovery",
+      "purpose": "insertion.py의 MAX_FONT_SIZE_PT=18.0pt 절대 clamp가 진짜 heading tier와 equation/chart/table/figure tier를 같은 값으로 뭉개서 BPE stack이 hierarchy를 전혀 구분 못 하는지, clamp를 없애면(각 line이 고유 bbox 높이의 font_size를 그대로 갖게 하면) stack algorithm이 equation tier가 chapter tier보다 커도 이론상 문제없이 진짜 heading 계층을 복원하는지 확인한다. category(OCR engine 의존) 우회는 쓰지 않는다.",
+      "inputs": [
+        "data\\scanned-pdf-not-indexed\\수리통계학(개정판)-김우철_upocr_merged.pdf",
+        "showcase\\outputs\\014_ocr_overlay_math_statistics\\artifacts"
+      ],
+      "outputs": "experiments\\outputs\\088_unclamped_font_size_stack_recovery",
+      "method": "showcase 014/015의 insertable cache(637쪽)를 재사용해 arm_a(baseline, 현재 src와 동일한 clamp)와 arm_b(unclamped, MAX_FONT_SIZE_PT만 사실상 무제한)를 만들고, 둘 다 Processor와 동일한 함수 순서(extract_typography_lines -> exclude_margin_artifacts -> compute_tier_set -> extract_bpe_headings -> infer_bpe_outline -> normalize_bookmark_plan, config는 모두 기본값)로 BPE bookmark plan을 만들어 level 분포와 1장/1.1/1.2/1.3/머리말/차례 anchor의 계층 위치를 비교했다.",
+      "summary": {
+        "arm_a_baseline": {
+          "line_count": 19576,
+          "raw_line_count": 20233,
+          "font_tier_count": 3,
+          "top_font_sizes": [
+            {
+              "font_size": 18.0,
+              "count": 1346
+            },
+            {
+              "font_size": 9.3,
+              "count": 425
+            },
+            {
+              "font_size": 9.8,
+              "count": 389
+            },
+            {
+              "font_size": 9.7,
+              "count": 382
+            },
+            {
+              "font_size": 8.9,
+              "count": 380
+            },
+            {
+              "font_size": 9.1,
+              "count": 379
+            },
+            {
+              "font_size": 8.7,
+              "count": 377
+            },
+            {
+              "font_size": 9.5,
+              "count": 371
+            },
+            {
+              "font_size": 9.9,
+              "count": 362
+            },
+            {
+              "font_size": 10.6,
+              "count": 353
+            }
+          ],
+          "bookmark_count": 552,
+          "level_counts": {
+            "1": 552
+          },
+          "max_level": 1,
+          "anchor_hits": [
+            {
+              "anchor": "1장",
+              "match_count": 0
+            },
+            {
+              "anchor": "1.1",
+              "match_count": 3,
+              "first_title": "따라서 <정리 4.1.1>로부터 Y1, Y2의 결합확률밀도함수는 pdfY1,Y2 (y1,y2) 1 + y2/I(0, 1) (y1 )I(o, 8 ) (y2)|y2| (y1y2)a1-1 (y2 (1-y1))a2-1e (1)(a2)a1 +2 1",
+              "first_level": 1,
+              "first_pdf_page": 142
+            },
+            {
+              "anchor": "1.2",
+              "match_count": 3,
+              "first_title": "(a) f1,2(x,y) 三 2e-x-2yI(x>0,y>0) (b) f1,2(x,y) = 2e-x-yI(0<x<y) 25 (c) f1.2(x,y) = (1+x4y4)I(- 1≤x≤1, -1≤y≤1) 104 (d) f1,2(x,y)= (1/6)工 (1/3)g(1/2)1-x-y, x,y= 0,1, x+y= 0,1",
+              "first_level": 1,
+              "first_pdf_page": 101
+            },
+            {
+              "anchor": "1.3",
+              "match_count": 4,
+              "first_title": "경우이고, (a)의 사건이 (b)의 사건의 부분 사건이므로 (a), (b)가 성립하는 것은 명백하다. 또한, <정리 10.1.3>으로 부터",
+              "first_level": 1,
+              "first_pdf_page": 402
+            },
+            {
+              "anchor": "머리말",
+              "match_count": 1,
+              "first_title": "머리말",
+              "first_level": 1,
+              "first_pdf_page": 2
+            },
+            {
+              "anchor": "차례",
+              "match_count": 3,
+              "first_title": "차례",
+              "first_level": 1,
+              "first_pdf_page": 4
+            }
+          ],
+          "tree_preview": [
+            "[L1, p.2] 머리말",
+            "[L1, p.3] 개정판을 내면서",
+            "[L1, p.4] 차례",
+            "[L1, p.12] 경우에 An =(Bn)°이라고 하면 8",
+            "[L1, p.12] 표본공간이 S=[0, 1]이고 P((a,",
+            "[L1, p.12] b])=b-a (a<b)일 때, 한 점의 확률은",
+            "[L1, p.12] ○○ P({b})=P( N (b - 1n , b])=lim",
+            "[L1, p.12] n→oo n→oo",
+            "[L1, p.30] | (a) (증가성) | x1 <2이면 F(x1) ≤ F(x2) | | --- | --- | | (b) (전체 변동) | lim F(x) = 0, lim F (x)=1",
+            "[L1, p.31] ![image](/image/placeholder)",
+            "[L1, p.32] f(0)s^{0}+f(1)s^{1}+f(2)s^{2}+\\",
+            "[L1, p.38] C(t) = log M(t) II -log (1 - 2t) = 2t + (2t)2/2+ (2t)3/3+ ··· -1<2t<1 , Cr = (r- 1)!2r (r= 1, 2, ···)",
+            "[L1, p.42] 조건부확률 | 사전 | | 사후 | 독립 | | | 랜덤한 | | 확률변수",
+            "[L1, p.42] 1 로 확률이 정의되었을 때, Ak = x : 2 - x≤3 } (k=1, 2, · ··)에 대 k 하여 다음 사건과 확률을 구하여라.",
+            "[L1, p.44] (a) f(x)= c(2/3)x, x= 0, 1, 2, ... (b) f(x) = cx2(1 - x)I(0,1) (x) - 2|x| - 8 <x<+ 8 (c)",
+            "[L1, p.46] 임을 밝혀라. Z의 3차 누율 C3 E-(X-4)41- 3을 각각 X의 왜도(歪度, (Z)=E|(X ル)'와 4차 누율 c4(Z)= skewness)와 첨예도(尖 라고 한다. 度, kurtosis)",
+            "[L1, p.49] 순서쌍에 그 순서쌍을 가질 확률을 대응시키는 함수 f(xj,yk) = P (X= xj, Y = yk) 로 정의된 함수 f 를 이산형 이차원18)",
+            "[L1, p.49] 이러한 함수는 확률변수가 한 개일 때와",
+            "[L1, p.50] (a) f(x,y) ≥0 Vx,y : - 8 <x<+, - 8 <y<+ f(x,y) =0 A (x,y) ≠ (xj,yk) (j=1,2,· : k=1,2,···) , ○○ ○○ (b) f(x,y) = f(xpyk) =1 x y",
+            "[L1, p.50] =P(a≤X≤b,c≤Y≤d) (a<b,c<d)",
+            "[L1, p.50] 19) 이중적분은 미분소인 dydx가 나타나는 순서대로 적분해나가는 반복적분(iterated integral) d d f(x, y) dy dx 을 뜻한다. 즉 SaS",
+            "[L1, p.51] 8 + 8 - 2x c[-e- 2x /2]+ = c/2=1 dx = c dy dx = 1",
+            "[L1, p.52] 21) m≥l, n ≥ l일 때 (m)(iny) = 1 m +끼은 (1+t)m(1+t)n = (1+t)m+n에서 t'의 l 계수이다.",
+            "[L1, p.54] <예 2.1.5>에서 (X, Y)의 결합누적분포함수는 F(x,y)= {1 - e -2xヘy + 2e-y(e-xヘy - 1)}I(x ≥0,y≥0) 따라서 X, Y의 주변누적분포함수는 각각 다음과 같이 구할 수 있다. F1 (x)= lim",
+            "[L1, p.54] {1 - e -2xヘy+2e-y(e-x^y - 1)}I(x≥0) = (1-e - 2x )I(x≥0) y→+ -2xヘy +2e-y(e-xヘy-",
+            "[L1, p.54] {1- e x→+8",
+            "[L1, p.60] f(x,y) = 120xy(1 - x 一",
+            "[L1, p.61] <정리 2.2.3>에서와 같이, X, Y의 상관계수를",
+            "[L1, p.61] 나타낸다.",
+            "[L1, p.62] 를 (X, Y)의 (r+s) 차의 (r,s) 번째 결합적률(結合積率, joint moment)이라고",
+            "[L1, p.65] Mx (s) II Jo esx 2e - 2x dx",
+            "[L1, p.76] ![image](/image/placeholder) Y Y-E(Y Y-E(Y|X) E(Y)=E[E(YIX)] v(X) (E(Y|X)-E(Y)) X 의 함수들 (E(Y|X) X의 상수함수들",
+            "[L1, p.79] | 정리 2.4.4 | 독립성과 상관관계31) | | --- | --- | | 확률변수 X와 Y가 서로 독립이면 Cov(X, Y)=0 | 확률변수 X와 Y가 서로",
+            "[L1, p.83] 확률벡터 (X1, · : Xk)t의",
+            "[L1, p.83] 실수 값 함수 , g(x1, · : xk)에 대하여",
+            "[L1, p.84] 확률벡터35) X = (X1, ... Xk)t의 성분들인 X1, ..., Xk의 평균,",
+            "[L1, p.84] =Cov(Xi,Xj) (i,j=1,2,···,k)",
+            "[L1, p.85] <예 2.2.1>에서 확률벡터 X = (X1, X2)t의 결합확률밀도함수가 f(x, y) = 120xy(1 - x 一 y)I(x≥0,y≥0,x+y≤1) 일 때, <예",
+            "[L1, p.85] 계산으로부터 2/63 - 1/63) E(X) =",
+            "[L1, p.85] 확률벡터 (X1, · : X )t의 기댓값을 E [(X 1, ··· X k )t] = (E(X1), ··· E(Xk))'로 , , 나타내는 것과"
+          ],
+          "elapsed_sec": 245.69
+        },
+        "arm_b_unclamped": {
+          "line_count": 19182,
+          "raw_line_count": 19839,
+          "font_tier_count": 6,
+          "top_font_sizes": [
+            {
+              "font_size": 9.3,
+              "count": 404
+            },
+            {
+              "font_size": 9.1,
+              "count": 371
+            },
+            {
+              "font_size": 8.9,
+              "count": 371
+            },
+            {
+              "font_size": 9.8,
+              "count": 371
+            },
+            {
+              "font_size": 9.5,
+              "count": 357
+            },
+            {
+              "font_size": 9.7,
+              "count": 356
+            },
+            {
+              "font_size": 8.7,
+              "count": 356
+            },
+            {
+              "font_size": 9.9,
+              "count": 345
+            },
+            {
+              "font_size": 10.6,
+              "count": 344
+            },
+            {
+              "font_size": 10.2,
+              "count": 325
+            }
+          ],
+          "bookmark_count": 1354,
+          "level_counts": {
+            "1": 150,
+            "2": 445,
+            "3": 561,
+            "4": 198
+          },
+          "max_level": 4,
+          "anchor_hits": [
+            {
+              "anchor": "1장",
+              "match_count": 0
+            },
+            {
+              "anchor": "1.1",
+              "match_count": 21,
+              "first_title": "| 정리 1.1.3 확률측도의 연속성 | | --- | | ○○ (a) A1 드A2드 . : 드An 드···이면 P(U An)=lim P(An) n=1",
+              "first_level": 1,
+              "first_pdf_page": 11
+            },
+            {
+              "anchor": "1.2",
+              "match_count": 17,
+              "first_title": "점근분포 | | | 대수의 법칙 | | 표본적률 | 1.2 1부터 10까지의 수가 하나씩 적힌 카드들 중에서 한 장을 랜덤하게 뽑았을 분위수 | | 표본분위수 | | 키 점근 | | 때, 뽑힌 카드가 짝수임을 알고 있는 경우에 뽑힌 카드의 숫자가 5 이상의",
+              "first_level": 4,
+              "first_pdf_page": 42
+            },
+            {
+              "anchor": "1.3",
+              "match_count": 26,
+              "first_title": "| 정리 1.1.3 확률측도의 연속성 | | --- | | ○○ (a) A1 드A2드 . : 드An 드···이면 P(U An)=lim P(An) n=1",
+              "first_level": 1,
+              "first_pdf_page": 11
+            },
+            {
+              "anchor": "머리말",
+              "match_count": 1,
+              "first_title": "머리말",
+              "first_level": 1,
+              "first_pdf_page": 2
+            },
+            {
+              "anchor": "차례",
+              "match_count": 1,
+              "first_title": "차례",
+              "first_level": 1,
+              "first_pdf_page": 4
+            }
+          ],
+          "tree_preview": [
+            "[L1, p.2] 머리말",
+            "[L1, p.3] 개정판을 내면서",
+            "[L1, p.4] 차례",
+            "[L1, p.11] | 정리 1.1.3 확률측도의 연속성 | | --- | | ○○ (a) A1 드A2드 . : 드An 드···이면 P(U An)=lim P(An) n=1",
+            "[L1, p.12] (b) B1 コB2コ · 이므로 (a)와 여사건의 확률 성질을 이용하면 (b)가 성립함을 알",
+            "[L1, p.12] : ≥Bn 三 · : 인 수 있다.",
+            "[L1, p.12] 로 정의하고, 포함 관계가 작아지는 사건들 B1 ≥B2 三 · : ≥Bn 三 · : =(Bn)°이라고",
+            "[L1, p.12] 예 1.1.3 =(Bn)c , n=1",
+            "  [L2, p.12] 표본공간이 S=[0, 1]이고 P((a, b])=b-a (a<b)일 때, 한 점의 n=1",
+            "  [L2, p.12] 확률은 ○○ P({b})=P( N (b - 1n ,",
+            "  [L2, p.12] n n =1 n→oo n→oo",
+            "[L1, p.30] | (a) (증가성) | x1 <2이면 F(x1) [증명] (a) 다음의 포함 관계와 확률의 단조성으로부터 증가성이 성립하는 것은",
+            "  [L2, p.30] 변동) | lim F(x) 이므로, 확률측도의",
+            "  [L2, p.30] = 0, lim F (x)=1 따라서 (a)의 증가성으로부터 전체 변동에 관한 성질이",
+            "[L1, p.30] limF(x+h)=F(x)",
+            "  [L2, p.31] ![image](/image/placeholder)",
+            "    [L3, p.32] f(0)s^{0}+f(1)s^{1}+f(2)s^{2}+\\",
+            "    [L3, p.35] 2 k a a a ea II 1 + 1! + + ··· + + ··· 2! k! 으로부터 다음 부등식이 성립하는 것을 알 수 있다. (Itxl)k / k! ≤ eltxl ≤",
+            "  [L2, p.35] etx +e-tx 이 부등식의 각 13) 적률이 실수로 정의되기 위하여는 무한 합이나 이상적분이 절대 수렴, 즉 E(|X|*) <+이 변에 확률밀도함수를 곱하여",
+            "  [L2, p.35] 모든 적률이 존재한다.",
+            "[L1, p.38] C(t) = log M(t) II -log (1 - 2t) = 2t + (2t)2/2+",
+            "[L1, p.38] (2t)3/3+ ··· -1<2t<1 , Cr",
+            "    [L3, p.42] | 일원문류모형 | | 신뢰섭압 지완 | | 정칙 | | 확률적분먼완 | | --- | --- | --- | --- | --- | --- | --- | | | 다변량 정규분포 | | 정칙행렬 선형회귀모형 | | | 다변량 정규분포",
+            "  [L2, p.42] 설명변수 | | | 고유값 | | | | | 단순 | | 수 | 계수 회귀계수 | 중심극한정리 |",
+            "    [L3, p.42] 표본회귀계수 | 극한분포 | | 평균오 올 확률을 구하여라.",
+            "      [L4, p.42] 점근분포 | | | 대수의 법칙 | | 표본적률 | 1.2 1부터 10까지의 수가 하나씩 적힌 카드들 중에서 한 장을 랜덤하게 뽑았을 분위수 | | 표본분위수 | | 키 점근 | | 때, 뽑힌 카드가 짝수임을 알고 있는 경우에 뽑힌 카드의 숫자가 5 이상의",
+            "  [L2, p.42] 첨예도 | 표본상관계수 | | | 분산안정변환 |",
+            "    [L3, p.42] | 난수 | 균등난수 | | | 몬테칼로적분 | | 1 .3 한 공장에서 기계 A, B, C를 사용하여 같은 종류의 스프링을 생산하고 있",
+            "    [L3, p.42] 적률이용추정량 | | | 추정 | | 추정량 로 알려져 있다. 또한 이 공장에서 생산되는 전체 스프링의 30%는 기계 A",
+            "    [L3, p.42] | | 다중모수 지수족 점수함수 | | 연습문제 (b) 어느 날 생산된 전체 스프링 중 하나를 랜덤하게 선택했을 때, 그것이 불",
+            "    [L3, p.42] 최소제곱 점근정규성 | | 공간 | | | 1.4 한 기기의 내부에 부품 3개가 병렬로 연결되어 있어 적어도 하나가",
+            "    [L3, p.42] 가산가법성 | | 확률측도 | 정사영 | 움직일 확률을 구하여라. 조건부확률 | 사전 | | 사후 | 독립 | | | 1 .5 양의 실수 전체의 부분집합 A에 대하여",
+            "  [L2, p.42] 랜덤한 | | 확률변수 이산형 | | |",
+            "    [L3, p.42] 확률질량함수 | | | 실험 | | 연속형 | | | 1 로 확률이 정의되었을 때, Ak = 확률분포 | | 확률밀도함수 지표함수 | 평균 x : 2 - x≤3 } (k=1, 2, · ··)에 대 k 구하여라.",
+            "  [L2, p.43] 10 x<1 (a) F(x) = 1- (1/2)k k ≤ x<k+1 (k=1, 2, ···) 0 x <0 2 0 ≤ x<1 (b) F(x)= x",
+            "  [L2, p.43] 1 x ≥ 1 10 x<0 (c)",
+            "[L1, p.44] (a) f(x)=",
+            "[L1, p.44] x= 0, 1,",
+            "  [L2, p.44] 1.12 확률변수 X의 확률밀도함수가 다음과 같은 경우에 (a), (b)의 (x) - 2|x|",
+            "  [L2, p.44] 1.13 확률변수 X에 대하여 E(X2) <+ 8 일 때 실수 a에 대하여 <x<+ 8"
+          ],
+          "elapsed_sec": 248.0
+        },
+        "hierarchy_recovered": true,
+        "finding": "baseline: font_tier=3, top_font_size={'font_size': 18.0, 'count': 1346}, level_counts={1: 552} (max_level=1). unclamped: font_tier=6, top_font_size={'font_size': 9.3, 'count': 404}, level_counts={1: 150, 2: 445, 3: 561, 4: 198} (max_level=4). clamp만 없애도 stack algorithm이 진짜 heading 다단 계층을 복원했다: 가설이 검증됐다."
+      },
+      "finding": "baseline: font_tier=3, top_font_size={'font_size': 18.0, 'count': 1346}, level_counts={1: 552} (max_level=1). unclamped: font_tier=6, top_font_size={'font_size': 9.3, 'count': 404}, level_counts={1: 150, 2: 445, 3: 561, 4: 198} (max_level=4). clamp만 없애도 stack algorithm이 진짜 heading 다단 계층을 복원했다: 가설이 검증됐다.",
+      "ran_at": "2026-07-12T21:10:58"
+    },
+    {
+      "id": "089_pollution_line_filter_before_tiering",
+      "purpose": "088에서 확인한 것처럼 overlay_mode='element'가 만드는 거대 병합 line이 tier 계산과 BPE 후보 풀을 오염시킨다. category를 쓰지 않고 순수 단어 수 (line 자체 속성)만으로 이런 pollution line을 tiering 이전에 제거하면 tree 구조가 얼마나 회복되는지, 그리고 이것이 사용자가 지적한 '1.3 확률변수와 확률분포' 같은 실제 heading 누락 문제(font_size가 body tier와 구분 안 되는 별개 원인)까지 고쳐주는지 확인한다.",
+      "inputs": [
+        "experiments\\outputs\\088_unclamped_font_size_stack_recovery\\arm_b_unclamped.pdf"
+      ],
+      "outputs": "experiments\\outputs\\089_pollution_line_filter_before_tiering",
+      "method": "088의 unclamped overlay PDF(arm_b)를 그대로 재사용해 extract_typography_lines -> exclude_margin_artifacts까지는 동일하게 수행하고, arm_c에서만 word_count > 30인 line을 compute_tier_set 이전에 제거했다. 나머지 파이프라인(BPE heading 추출, stack outline 추론)은 Processor와 동일한 함수, 기본 config를 그대로 썼다. 알려진 실제 heading 5개(머리말/차례/1장/1.1/1.3)를 정확한 전체 문구로 anchor 매칭했고, '1.3 확률변수와 확률분포'는 tier 배정 결과를 직접 조회해 body tier에 묶이는지도 별도로 확인했다.",
+      "summary": {
+        "pollution_word_threshold": 30,
+        "pollution_line_count": 39,
+        "pollution_sample": [
+          {
+            "pdf_page": 421,
+            "word_count": 336,
+            "text": "\\qquad\\qquad\\qquad\\qquad\\qquad\\qquad\\qquad\\qquad\\qquad\\qquad\\qquad\\qquad\\qquad\\qquad\\qquad\\qquad\\qquad\\qquad\\qquad\\qquad"
+          },
+          {
+            "pdf_page": 12,
+            "word_count": 279,
+            "text": "이므로 이러한 사건들의 극한을 \\begin{array}{l}{{\\displaystyle{\\mid\\Im\\prod_{n}\\Lambda_{n}=\\mid\\stackrel{\\circ}{\\bigcup_{n}}\\Lambda_{n"
+          },
+          {
+            "pdf_page": 335,
+            "word_count": 145,
+            "text": "\\overline{{{(|\\mathrm{og}\\times\\mathrm{~}\\mathrm{~}\\mathrm{~}\\mathrm{~}\\mathrm{~}\\mathrm{~}\\mathrm{~}\\mathrm{~}\\mathrm{~"
+          },
+          {
+            "pdf_page": 569,
+            "word_count": 47,
+            "text": "\\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ \\ }}}\\end{array}\\right.}}\\end{"
+          },
+          {
+            "pdf_page": 517,
+            "word_count": 40,
+            "text": "값은 X ~ x --- | --- | --- | | r | 0.010 | 0.025 | 0.050 | 0.100 | 0.900 | 0.950 | 0.975 | 0.990 | | 1 | 6.635 | 5.024 | 3"
+          },
+          {
+            "pdf_page": 92,
+            "word_count": 39,
+            "text": "(X1, ··· X k)t, Y = (Y1, ··· , 조건에서 실수 값 함수 g(X, E(Y|X ) = (E(Y 1|X ), · : E(Y LIX ))t, Var (YX) = (Cov(Y io Y jIX))1 ≤ "
+          },
+          {
+            "pdf_page": 393,
+            "word_count": 39,
+            "text": "점근 | 첨예도 | | | 표본상관계수 | | | 분산안정변환 | | 난수 | 추정 | 균등난수 | 1' , Xn)t · · · (n=8)을 (b) 위의 가설을 유의수준 a = 0.05에서 검정하려고 할 때 최강력 "
+          },
+          {
+            "pdf_page": 398,
+            "word_count": 39,
+            "text": "conditional probability) 사전(事前 prior) 사후 ( 事後 posterior) 독립 (獨立 mutually independent) 종속(從屬 mutually depende 실험 (random "
+          },
+          {
+            "pdf_page": 398,
+            "word_count": 38,
+            "text": "지표함수 (指標函數 inction) 평균(平均 mean) 기댓값 (期待값 expected value) 표준편차(標準 偏差 standard deviation) 표준화 (標準 化 random sampling) 랜덤표본 "
+          },
+          {
+            "pdf_page": 517,
+            "word_count": 38,
+            "text": "P (X > X2a 4.605 | 0.211 | 0.103 | 0.051 | 0.020 | | 3 | 11.345 | 9.348 | 7.815 | 6.251 | 0.584 | 0.352 | 0.216 | 0.115 "
+          }
+        ],
+        "result_unfiltered": {
+          "line_count": 19182,
+          "font_tier_count": 6,
+          "tier_peaks": [
+            44.76,
+            27.84,
+            21.78,
+            15.81,
+            9.75,
+            4.17
+          ],
+          "bookmark_count": 1354,
+          "level_counts": {
+            "1": 150,
+            "2": 445,
+            "3": 561,
+            "4": 198
+          },
+          "max_level": 4,
+          "anchor_hits": [
+            {
+              "anchor": "머리말",
+              "match_count": 1,
+              "first_title": "머리말",
+              "first_level": 1,
+              "first_pdf_page": 2,
+              "exact_clean_match": true
+            },
+            {
+              "anchor": "차례",
+              "match_count": 1,
+              "first_title": "차례",
+              "first_level": 1,
+              "first_pdf_page": 4,
+              "exact_clean_match": true
+            },
+            {
+              "anchor": "1장 확률분포",
+              "match_count": 0
+            },
+            {
+              "anchor": "1.1 확률의 뜻과 성질",
+              "match_count": 0
+            },
+            {
+              "anchor": "1.3 확률변수와 확률분포",
+              "match_count": 0
+            }
+          ],
+          "tree_preview": [
+            "[L1, p.2] 머리말",
+            "[L1, p.3] 개정판을 내면서",
+            "[L1, p.4] 차례",
+            "[L1, p.11] | 정리 1.1.3 확률측도의 연속성 | | --- | | ○○ (a) A1 드A2드 . : 드An 드···이면 P(U An)=lim P(An) n=1",
+            "[L1, p.12] (b) B1 コB2コ · 이므로 (a)와 여사건의 확률 성질을 이용하면 (b)가 성립함을 알",
+            "[L1, p.12] : ≥Bn 三 · : 인 수 있다.",
+            "[L1, p.12] 로 정의하고, 포함 관계가 작아지는 사건들 B1 ≥B2 三 · : ≥Bn 三 · : =(Bn)°이라고",
+            "[L1, p.12] 예 1.1.3 =(Bn)c , n=1",
+            "  [L2, p.12] 표본공간이 S=[0, 1]이고 P((a, b])=b-a (a<b)일 때, 한 점의 n=1",
+            "  [L2, p.12] 확률은 ○○ P({b})=P( N (b - 1n ,",
+            "  [L2, p.12] n n =1 n→oo n→oo",
+            "[L1, p.30] | (a) (증가성) | x1 <2이면 F(x1) [증명] (a) 다음의 포함 관계와 확률의 단조성으로부터 증가성이 성립하는 것은",
+            "  [L2, p.30] 변동) | lim F(x) 이므로, 확률측도의",
+            "  [L2, p.30] = 0, lim F (x)=1 따라서 (a)의 증가성으로부터 전체 변동에 관한 성질이",
+            "[L1, p.30] limF(x+h)=F(x)",
+            "  [L2, p.31] ![image](/image/placeholder)",
+            "    [L3, p.32] f(0)s^{0}+f(1)s^{1}+f(2)s^{2}+\\",
+            "    [L3, p.35] 2 k a a a ea II 1 + 1! + + ··· + + ··· 2! k! 으로부터 다음 부등식이 성립하는 것을 알 수 있다. (Itxl)k / k! ≤ eltxl ≤",
+            "  [L2, p.35] etx +e-tx 이 부등식의 각 13) 적률이 실수로 정의되기 위하여는 무한 합이나 이상적분이 절대 수렴, 즉 E(|X|*) <+이 변에 확률밀도함수를 곱하여",
+            "  [L2, p.35] 모든 적률이 존재한다.",
+            "[L1, p.38] C(t) = log M(t) II -log (1 - 2t) = 2t + (2t)2/2+",
+            "[L1, p.38] (2t)3/3+ ··· -1<2t<1 , Cr",
+            "    [L3, p.42] | 일원문류모형 | | 신뢰섭압 지완 | | 정칙 | | 확률적분먼완 | | --- | --- | --- | --- | --- | --- | --- | | | 다변량 정규분포 | | 정칙행렬 선형회귀모형 | | | 다변량 정규분포",
+            "  [L2, p.42] 설명변수 | | | 고유값 | | | | | 단순 | | 수 | 계수 회귀계수 | 중심극한정리 |",
+            "    [L3, p.42] 표본회귀계수 | 극한분포 | | 평균오 올 확률을 구하여라.",
+            "      [L4, p.42] 점근분포 | | | 대수의 법칙 | | 표본적률 | 1.2 1부터 10까지의 수가 하나씩 적힌 카드들 중에서 한 장을 랜덤하게 뽑았을 분위수 | | 표본분위수 | | 키 점근 | | 때, 뽑힌 카드가 짝수임을 알고 있는 경우에 뽑힌 카드의 숫자가 5 이상의",
+            "  [L2, p.42] 첨예도 | 표본상관계수 | | | 분산안정변환 |",
+            "    [L3, p.42] | 난수 | 균등난수 | | | 몬테칼로적분 | | 1 .3 한 공장에서 기계 A, B, C를 사용하여 같은 종류의 스프링을 생산하고 있",
+            "    [L3, p.42] 적률이용추정량 | | | 추정 | | 추정량 로 알려져 있다. 또한 이 공장에서 생산되는 전체 스프링의 30%는 기계 A",
+            "    [L3, p.42] | | 다중모수 지수족 점수함수 | | 연습문제 (b) 어느 날 생산된 전체 스프링 중 하나를 랜덤하게 선택했을 때, 그것이 불",
+            "    [L3, p.42] 최소제곱 점근정규성 | | 공간 | | | 1.4 한 기기의 내부에 부품 3개가 병렬로 연결되어 있어 적어도 하나가",
+            "    [L3, p.42] 가산가법성 | | 확률측도 | 정사영 | 움직일 확률을 구하여라. 조건부확률 | 사전 | | 사후 | 독립 | | | 1 .5 양의 실수 전체의 부분집합 A에 대하여",
+            "  [L2, p.42] 랜덤한 | | 확률변수 이산형 | | |",
+            "    [L3, p.42] 확률질량함수 | | | 실험 | | 연속형 | | | 1 로 확률이 정의되었을 때, Ak = 확률분포 | | 확률밀도함수 지표함수 | 평균 x : 2 - x≤3 } (k=1, 2, · ··)에 대 k 구하여라.",
+            "  [L2, p.43] 10 x<1 (a) F(x) = 1- (1/2)k k ≤ x<k+1 (k=1, 2, ···) 0 x <0 2 0 ≤ x<1 (b) F(x)= x",
+            "  [L2, p.43] 1 x ≥ 1 10 x<0 (c)",
+            "[L1, p.44] (a) f(x)=",
+            "[L1, p.44] x= 0, 1,",
+            "  [L2, p.44] 1.12 확률변수 X의 확률밀도함수가 다음과 같은 경우에 (a), (b)의 (x) - 2|x|",
+            "  [L2, p.44] 1.13 확률변수 X에 대하여 E(X2) <+ 8 일 때 실수 a에 대하여 <x<+ 8"
+          ]
+        },
+        "result_filtered": {
+          "line_count": 19143,
+          "font_tier_count": 6,
+          "tier_peaks": [
+            44.77,
+            27.8,
+            21.79,
+            15.83,
+            9.73,
+            4.15
+          ],
+          "bookmark_count": 1345,
+          "level_counts": {
+            "1": 145,
+            "2": 434,
+            "3": 564,
+            "4": 202
+          },
+          "max_level": 4,
+          "anchor_hits": [
+            {
+              "anchor": "머리말",
+              "match_count": 1,
+              "first_title": "머리말",
+              "first_level": 1,
+              "first_pdf_page": 2,
+              "exact_clean_match": true
+            },
+            {
+              "anchor": "차례",
+              "match_count": 1,
+              "first_title": "차례",
+              "first_level": 1,
+              "first_pdf_page": 4,
+              "exact_clean_match": true
+            },
+            {
+              "anchor": "1장 확률분포",
+              "match_count": 0
+            },
+            {
+              "anchor": "1.1 확률의 뜻과 성질",
+              "match_count": 0
+            },
+            {
+              "anchor": "1.3 확률변수와 확률분포",
+              "match_count": 0
+            }
+          ],
+          "tree_preview": [
+            "[L1, p.2] 머리말",
+            "[L1, p.3] 개정판을 내면서",
+            "[L1, p.4] 차례",
+            "[L1, p.11] | 정리 1.1.3 확률측도의 연속성 | | --- | | ○○ (a) A1 드A2드 . : 드An 드···이면 P(U An)=lim P(An) n=1",
+            "[L1, p.12] (b) B1 コB2コ · 이므로 (a)와 여사건의 확률 성질을 이용하면 (b)가 성립함을 알",
+            "[L1, p.12] : ≥Bn 三 · : 인 수 있다.",
+            "[L1, p.12] 로 정의하고, 포함 관계가 작아지는 사건들 B1 ≥B2 三 · : ≥Bn 三 · : =(Bn)°이라고",
+            "[L1, p.12] 예 1.1.3 =(Bn)c , n=1",
+            "  [L2, p.12] 표본공간이 S=[0, 1]이고 P((a, b])=b-a (a<b)일 때, 한 점의 n=1",
+            "  [L2, p.12] 확률은 ○○ P({b})=P( N (b - 1n ,",
+            "  [L2, p.12] n n =1 n→oo n→oo",
+            "[L1, p.30] | (a) (증가성) | x1 <2이면 F(x1) [증명] (a) 다음의 포함 관계와 확률의 단조성으로부터 증가성이 성립하는 것은",
+            "  [L2, p.30] 변동) | lim F(x) 이므로, 확률측도의",
+            "  [L2, p.30] = 0, lim F (x)=1 따라서 (a)의 증가성으로부터 전체 변동에 관한 성질이",
+            "[L1, p.30] limF(x+h)=F(x)",
+            "  [L2, p.31] ![image](/image/placeholder)",
+            "    [L3, p.32] f(0)s^{0}+f(1)s^{1}+f(2)s^{2}+\\",
+            "    [L3, p.35] 2 k a a a ea II 1 + 1! + + ··· + + ··· 2! k! 으로부터 다음 부등식이 성립하는 것을 알 수 있다. (Itxl)k / k! ≤ eltxl ≤",
+            "  [L2, p.35] etx +e-tx 이 부등식의 각 13) 적률이 실수로 정의되기 위하여는 무한 합이나 이상적분이 절대 수렴, 즉 E(|X|*) <+이 변에 확률밀도함수를 곱하여",
+            "  [L2, p.35] 모든 적률이 존재한다.",
+            "[L1, p.38] C(t) = log M(t) II -log (1 - 2t) = 2t + (2t)2/2+ (2t)3/3+ ··· -1<2t<1 , Cr",
+            "    [L3, p.42] | 일원문류모형 | | 신뢰섭압 지완 | | 정칙 | | 확률적분먼완 | | --- | --- | --- | --- | --- | --- | --- | | | 다변량 정규분포 | | 정칙행렬 선형회귀모형 | | | 다변량 정규분포",
+            "  [L2, p.42] 설명변수 | | | 고유값 | | | | | 단순 | | 수 | 계수 회귀계수 | 중심극한정리 |",
+            "    [L3, p.42] 표본회귀계수 | 극한분포 | | 평균오 올 확률을 구하여라.",
+            "      [L4, p.42] 점근분포 | | | 대수의 법칙 | | 표본적률 | 1.2 1부터 10까지의 수가 하나씩 적힌 카드들 중에서 한 장을 랜덤하게 뽑았을 분위수 | | 표본분위수 | | 키 점근 | | 때, 뽑힌 카드가 짝수임을 알고 있는 경우에 뽑힌 카드의 숫자가 5 이상의",
+            "  [L2, p.42] 첨예도 | 표본상관계수 | | | 분산안정변환 |",
+            "    [L3, p.42] | 난수 | 균등난수 | | | 몬테칼로적분 | | 1 .3 한 공장에서 기계 A, B, C를 사용하여 같은 종류의 스프링을 생산하고 있",
+            "    [L3, p.42] 적률이용추정량 | | | 추정 | | 추정량 로 알려져 있다. 또한 이 공장에서 생산되는 전체 스프링의 30%는 기계 A",
+            "    [L3, p.42] | | 다중모수 지수족 점수함수 | | 연습문제 (b) 어느 날 생산된 전체 스프링 중 하나를 랜덤하게 선택했을 때, 그것이 불",
+            "    [L3, p.42] 최소제곱 점근정규성 | | 공간 | | | 1.4 한 기기의 내부에 부품 3개가 병렬로 연결되어 있어 적어도 하나가",
+            "    [L3, p.42] 가산가법성 | | 확률측도 | 정사영 | 움직일 확률을 구하여라. 조건부확률 | 사전 | | 사후 | 독립 | | | 1 .5 양의 실수 전체의 부분집합 A에 대하여",
+            "  [L2, p.42] 랜덤한 | | 확률변수 이산형 | | |",
+            "    [L3, p.42] 확률질량함수 | | | 실험 | | 연속형 | | | 1 로 확률이 정의되었을 때, Ak = 확률분포 | | 확률밀도함수 지표함수 | 평균 x : 2 - x≤3 } (k=1, 2, · ··)에 대 k 구하여라.",
+            "  [L2, p.43] 10 x<1 (a) F(x) = 1- (1/2)k k ≤ x<k+1 (k=1, 2, ···) 0 x <0 2 0 ≤ x<1 (b) F(x)= x",
+            "  [L2, p.43] 1 x ≥ 1 10 x<0 (c)",
+            "[L1, p.44] (a) f(x)=",
+            "[L1, p.44] x= 0, 1,",
+            "  [L2, p.44] 1.12 확률변수 X의 확률밀도함수가 다음과 같은 경우에 (a), (b)의 (x) - 2|x|",
+            "  [L2, p.44] 1.13 확률변수 X에 대하여 E(X2) <+ 8 일 때 실수 a에 대하여 <x<+ 8",
+            "[L1, p.44] (c) f(x) ="
+          ]
+        },
+        "heading_1_3_unfiltered": {
+          "text": "1.3 확률변수와 확률분포 ▶ 20",
+          "pdf_page": 4,
+          "font_size": 8.21,
+          "height": 10.91,
+          "is_bold": false,
+          "tier": 5
+        },
+        "heading_1_3_filtered": {
+          "text": "1.3 확률변수와 확률분포 ▶ 20",
+          "pdf_page": 4,
+          "font_size": 8.21,
+          "height": 10.91,
+          "is_bold": false,
+          "tier": 5
+        },
+        "exact_clean_match_before": 2,
+        "exact_clean_match_after": 2,
+        "finding": "pollution 제거 전: line=19182, font_tier=6, level_counts={1: 150, 2: 445, 3: 561, 4: 198}, 정확히 깨끗하게 매칭된 known heading=2/5. pollution 제거 후(word_count>30 line 39개 제거): line=19143, font_tier=6, level_counts={1: 145, 2: 434, 3: 564, 4: 202}, 정확히 깨끗하게 매칭된 known heading=2/5. '1.3 확률변수와 확률분포'는 제거 전 tier=5, 제거 후 tier=5로 여전히 body tier에 묶여 heading 후보 자체가 되지 못했다(pollution 필터와 무관한 별개 원인: 이 heading의 font_size가 body와 구분되지 않는다)."
+      },
+      "finding": "pollution 제거 전: line=19182, font_tier=6, level_counts={1: 150, 2: 445, 3: 561, 4: 198}, 정확히 깨끗하게 매칭된 known heading=2/5. pollution 제거 후(word_count>30 line 39개 제거): line=19143, font_tier=6, level_counts={1: 145, 2: 434, 3: 564, 4: 202}, 정확히 깨끗하게 매칭된 known heading=2/5. '1.3 확률변수와 확률분포'는 제거 전 tier=5, 제거 후 tier=5로 여전히 body tier에 묶여 heading 후보 자체가 되지 못했다(pollution 필터와 무관한 별개 원인: 이 heading의 font_size가 body와 구분되지 않는다).",
+      "ran_at": "2026-07-12T21:21:05"
+    },
+    {
+      "id": "090_iterative_tier_purity_pruning",
+      "purpose": "088/089에서 남은 문제(표/수식 fragment가 heading tier를 오염시켜 tree가 안 만들어짐)를 풀기 위해, category 없이 tier -> level 배치의 구조적 'purity'만으로 tree를 방해하는 tier를 찾아 반복 제거하는 일반 알고리즘을 검증한다. bookmark가 하나도 안 남는 결과도 그대로 받아들인다.",
+      "inputs": [
+        "experiments\\outputs\\088_unclamped_font_size_stack_recovery\\arm_b_unclamped.pdf"
+      ],
+      "outputs": "experiments\\outputs\\090_iterative_tier_purity_pruning",
+      "method": "088의 unclamped overlay PDF에서 extract_bpe_headings로 얻은 heading token(이미 BPE 병합 완료)에 대해, infer_bpe_outline의 순수 stack 로직만 복제해 tier별 level 분포와 purity(최빈 level 비중)를 측정했다. purity<0.8이고 표본이 5개 이상인 tier 중 가장 낮은 tier를 후보 pool에서 제거하고 재계산하는 것을 반복했다. page burstiness(한두 page 집중도)도 보완 신호로 같이 측정했다.",
+      "summary": {
+        "min_purity": 0.8,
+        "min_tier_item_count": 5,
+        "initial_candidate_count": 1375,
+        "initial_tier_stats": {
+          "4": {
+            "count": 437,
+            "level_distribution": {
+              "1": 3,
+              "2": 42,
+              "3": 201,
+              "4": 191
+            },
+            "dominant_level": 3,
+            "purity": 0.46,
+            "unique_pages": 215,
+            "max_on_one_page": 25,
+            "burst_share": 0.0572
+          },
+          "3": {
+            "count": 515,
+            "level_distribution": {
+              "1": 5,
+              "2": 138,
+              "3": 372
+            },
+            "dominant_level": 3,
+            "purity": 0.7223,
+            "unique_pages": 209,
+            "max_on_one_page": 7,
+            "burst_share": 0.0136
+          },
+          "2": {
+            "count": 396,
+            "level_distribution": {
+              "1": 122,
+              "2": 274
+            },
+            "dominant_level": 2,
+            "purity": 0.6919,
+            "unique_pages": 146,
+            "max_on_one_page": 8,
+            "burst_share": 0.0202
+          },
+          "1": {
+            "count": 27,
+            "level_distribution": {
+              "1": 27
+            },
+            "dominant_level": 1,
+            "purity": 1.0,
+            "unique_pages": 8,
+            "max_on_one_page": 8,
+            "burst_share": 0.2963
+          }
+        },
+        "initial_anchor_hits": [
+          {
+            "anchor": "머리말",
+            "match_count": 1,
+            "first_title": "머리말",
+            "first_level": 1,
+            "exact_clean_match": true
+          },
+          {
+            "anchor": "차례",
+            "match_count": 1,
+            "first_title": "차례",
+            "first_level": 1,
+            "exact_clean_match": true
+          },
+          {
+            "anchor": "1장 확률분포",
+            "match_count": 0
+          },
+          {
+            "anchor": "1.1 확률의 뜻과 성질",
+            "match_count": 0
+          },
+          {
+            "anchor": "1.3 확률변수와 확률분포",
+            "match_count": 0
+          }
+        ],
+        "prune_trace": [
+          {
+            "iteration": 0,
+            "remaining_count": 1375,
+            "tier_stats": {
+              "4": {
+                "count": 437,
+                "level_distribution": {
+                  "1": 3,
+                  "2": 42,
+                  "3": 201,
+                  "4": 191
+                },
+                "dominant_level": 3,
+                "purity": 0.46,
+                "unique_pages": 215,
+                "max_on_one_page": 25,
+                "burst_share": 0.0572
+              },
+              "3": {
+                "count": 515,
+                "level_distribution": {
+                  "1": 5,
+                  "2": 138,
+                  "3": 372
+                },
+                "dominant_level": 3,
+                "purity": 0.7223,
+                "unique_pages": 209,
+                "max_on_one_page": 7,
+                "burst_share": 0.0136
+              },
+              "2": {
+                "count": 396,
+                "level_distribution": {
+                  "1": 122,
+                  "2": 274
+                },
+                "dominant_level": 2,
+                "purity": 0.6919,
+                "unique_pages": 146,
+                "max_on_one_page": 8,
+                "burst_share": 0.0202
+              },
+              "1": {
+                "count": 27,
+                "level_distribution": {
+                  "1": 27
+                },
+                "dominant_level": 1,
+                "purity": 1.0,
+                "unique_pages": 8,
+                "max_on_one_page": 8,
+                "burst_share": 0.2963
+              }
+            },
+            "removable_tiers": [
+              2,
+              3,
+              4
+            ],
+            "removed_tier": 4
+          },
+          {
+            "iteration": 1,
+            "remaining_count": 938,
+            "tier_stats": {
+              "3": {
+                "count": 515,
+                "level_distribution": {
+                  "1": 5,
+                  "2": 138,
+                  "3": 372
+                },
+                "dominant_level": 3,
+                "purity": 0.7223,
+                "unique_pages": 209,
+                "max_on_one_page": 7,
+                "burst_share": 0.0136
+              },
+              "2": {
+                "count": 396,
+                "level_distribution": {
+                  "1": 122,
+                  "2": 274
+                },
+                "dominant_level": 2,
+                "purity": 0.6919,
+                "unique_pages": 146,
+                "max_on_one_page": 8,
+                "burst_share": 0.0202
+              },
+              "1": {
+                "count": 27,
+                "level_distribution": {
+                  "1": 27
+                },
+                "dominant_level": 1,
+                "purity": 1.0,
+                "unique_pages": 8,
+                "max_on_one_page": 8,
+                "burst_share": 0.2963
+              }
+            },
+            "removable_tiers": [
+              2,
+              3
+            ],
+            "removed_tier": 2
+          },
+          {
+            "iteration": 2,
+            "remaining_count": 542,
+            "tier_stats": {
+              "3": {
+                "count": 515,
+                "level_distribution": {
+                  "1": 112,
+                  "2": 403
+                },
+                "dominant_level": 2,
+                "purity": 0.7825,
+                "unique_pages": 209,
+                "max_on_one_page": 7,
+                "burst_share": 0.0136
+              },
+              "1": {
+                "count": 27,
+                "level_distribution": {
+                  "1": 27
+                },
+                "dominant_level": 1,
+                "purity": 1.0,
+                "unique_pages": 8,
+                "max_on_one_page": 8,
+                "burst_share": 0.2963
+              }
+            },
+            "removable_tiers": [
+              3
+            ],
+            "removed_tier": 3
+          },
+          {
+            "iteration": 3,
+            "remaining_count": 27,
+            "tier_stats": {
+              "1": {
+                "count": 27,
+                "level_distribution": {
+                  "1": 27
+                },
+                "dominant_level": 1,
+                "purity": 1.0,
+                "unique_pages": 8,
+                "max_on_one_page": 8,
+                "burst_share": 0.2963
+              }
+            },
+            "removable_tiers": []
+          }
+        ],
+        "removed_tiers_in_order": [
+          4,
+          2,
+          3
+        ],
+        "final_candidate_count": 27,
+        "final_bookmark_count": 27,
+        "final_level_counts": {
+          "1": 27
+        },
+        "final_anchor_hits": [
+          {
+            "anchor": "머리말",
+            "match_count": 0
+          },
+          {
+            "anchor": "차례",
+            "match_count": 0
+          },
+          {
+            "anchor": "1장 확률분포",
+            "match_count": 0
+          },
+          {
+            "anchor": "1.1 확률의 뜻과 성질",
+            "match_count": 0
+          },
+          {
+            "anchor": "1.3 확률변수와 확률분포",
+            "match_count": 0
+          }
+        ],
+        "final_tree_preview": [
+          "[L1, p.168] 피적분함수인",
+          "[L1, p.168] f1,...,n (y1, · :",
+          "[L1, p.168] f(yn) 은 Yr+1' · ··",
+          "[L1, p.168] Yn 의 , , 치환에",
+          "[L1, p.238] (x)가 각각의 관측",
+          "[L1, p.238] 정의될 때 통계량",
+          "[L1, p.238] 한다.",
+          "[L1, p.309] 51 = I (日), · : ,Ek1",
+          "[L1, p.318] 7.16 k(k ≥ 3)개의",
+          "[L1, p.318] Bernoulli(pi), 0",
+          "[L1, p.318] 답하여라.",
+          "[L1, p.322] Y )' (n> 2)을",
+          "[L1, p.322] Y1)', ···, (X n,",
+          "[L1, p.322] Ho : 9 ≤ Po vs",
+          "[L1, p.322] H1 : p> Po",
+          "[L1, p.322] (o는 주어진",
+          "[L1, p.322] 값) 을 검정할",
+          "[L1, p.322] 때 다음에",
+          "[L1, p.322] 답하여라.",
+          "[L1, p.377] * (X)] = 0",
+          "[L1, p.390] iid (日) =E sR(X",
+          "[L1, p.390] 2 SR · · · 과",
+          "[L1, p.390] 같이 나타낼 수",
+          "[L1, p.390] (b) 2 가",
+          "[L1, p.448] ≤ 日≤ 1에서의",
+          "[L1, p.448] >0, a2 > 0이고",
+          "[L1, p.448] 손실함수가"
+        ],
+        "finding": "초기: heading candidate 1375개, tier 4개, purity={1:1.0, 2:0.6919, 3:0.7223, 4:0.46}. 반복 제거로 tier [4, 2, 3]를 순서대로 제거했고(iteration 4회), 최종적으로 27개 candidate, bookmark 27개가 남았다. level_counts={1: 27}."
+      },
+      "finding": "초기: heading candidate 1375개, tier 4개, purity={1:1.0, 2:0.6919, 3:0.7223, 4:0.46}. 반복 제거로 tier [4, 2, 3]를 순서대로 제거했고(iteration 4회), 최종적으로 27개 candidate, bookmark 27개가 남았다. level_counts={1: 27}.",
+      "ran_at": "2026-07-12T21:42:02"
     }
   ]
 }
