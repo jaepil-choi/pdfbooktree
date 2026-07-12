@@ -7,7 +7,7 @@ from pathlib import Path
 import fitz
 import pikepdf
 
-from pdfbooktree.ocr.models import InsertableOcrLine, InsertableOcrPage, OcrBox
+from pdfbooktree.ocr.models import InsertableOcrPage, OcrBox
 
 TEXT_OBJECT_BEGIN = "BT"
 TEXT_OBJECT_END = "ET"
@@ -25,6 +25,17 @@ DEFAULT_FONT_CANDIDATES = [
 MIN_FONT_SIZE_PT = 3.0
 MAX_FONT_SIZE_PT = 18.0
 REFERENCE_PAGE_HEIGHT_PT = 792.0
+
+# line이 자연 font_size(rect.height*0.88)로 한 줄에 다 안 들어가면(주로
+# overlay_mode="element" fallback의 문단/표 전체 병합 line, 드물게 substitute
+# font(malgun.ttf)가 원본보다 넓게 렌더링되는 word/row line) bbox 폭 기준으로
+# word-wrap하고 세로로 쌓는다. word 폭이 font_size에 선형 비례하므로 wrap_width>0,
+# available_height>0만 있으면 font_size를 충분히 줄여 항상 다 들어갈 수 있다(실측:
+# 수리통계학 637쪽 문자 커버리지 44.3% -> 101.3%, 637쪽 전부 100%+, experiments/087).
+LINE_SPACING_FACTOR = 1.15
+MIN_WRAP_WIDTH_PT = 20.0
+FIT_MIN_FONT_SIZE_PT = 0.05
+BINARY_SEARCH_ITER = 30
 
 
 def write_overlay_pdf(
@@ -115,33 +126,131 @@ def _insert_invisible_lines(
         page = document[page_model.pdf_page - 1]
         writer = fitz.TextWriter(page.rect)
         min_font_size, max_font_size = _page_relative_font_size_bounds(page.rect.height)
+        # get_text() 추출은 회전(rotation) 여부와 무관하게 원본 MediaBox 크기로
+        # clip한다. 0/180도 회전이면 mediabox == page.rect라 차이가 없지만, 90/270도
+        # 회전(width/height가 서로 바뀜)에서는 TextWriter가 쓰는 page.rect보다 훨씬
+        # 좁은 영역만 실제로 추출된다(실측: 수리통계학 637쪽 중 회전 3쪽, experiments/087).
+        safe_bounds = fitz.Rect(0.0, 0.0, page.mediabox.width, page.mediabox.height)
         inserted_on_page = 0
-        for line in _iter_insertable_lines(page_model):
-            text = " ".join(line.text.split())
-            if not text:
-                continue
+        for element in page_model.elements:
+            for line in element.lines:
+                text = " ".join(line.text.split())
+                if not text:
+                    continue
 
-            rect = _scale_rect(
-                line.bbox,
-                page_rect=page.rect,
-                width_px=page_model.width_px,
-                height_px=page_model.height_px,
-            )
-            font_size = max(min_font_size, min(max_font_size, rect.height * 0.88))
-            writer.append(
-                (rect.x0, rect.y1),
-                text,
-                font=font,
-                fontsize=font_size,
-            )
-            inserted_on_page += 1
+                rect = _scale_rect(
+                    line.bbox,
+                    page_rect=page.rect,
+                    width_px=page_model.width_px,
+                    height_px=page_model.height_px,
+                )
+
+                wrapped_lines, font_size = _fit_line_text(
+                    font, text, rect, safe_bounds, min_font_size, max_font_size
+                )
+                line_height = font_size * LINE_SPACING_FACTOR
+                origin_x0 = min(
+                    max(rect.x0, 0.0), safe_bounds.width - MIN_WRAP_WIDTH_PT
+                )
+                origin_y0 = min(rect.y0, safe_bounds.height - 1.0)
+                for index, wrapped_text in enumerate(wrapped_lines):
+                    baseline_y = origin_y0 + (index + 1) * line_height
+                    writer.append(
+                        (origin_x0, baseline_y),
+                        wrapped_text,
+                        font=font,
+                        fontsize=font_size,
+                    )
+                    inserted_on_page += 1
 
         if inserted_on_page:
             writer.write_text(page, overlay=True, render_mode=3)
 
 
-def _iter_insertable_lines(page: InsertableOcrPage) -> list[InsertableOcrLine]:
-    return [line for element in page.elements for line in element.lines]
+def _fit_line_text(
+    font: fitz.Font,
+    text: str,
+    rect: fitz.Rect,
+    safe_bounds: fitz.Rect,
+    min_font_size: float,
+    max_font_size: float,
+) -> tuple[list[str], float]:
+    """line을 wrap_width/available_height 안에 반드시 들어가는 font_size로 맞춘다.
+
+    word 폭은 font_size에 선형 비례하므로, wrap_width>0과 available_height>0만
+    있으면 font_size를 충분히 줄여 항상 들어갈 수 있다(단일 초과 토큰도 동일 원리로
+    해결된다). 자연 font_size로 한 줄에 이미 들어가면(대다수의 정상 line) 그대로
+    한 줄만 쓴다. safe_bounds는 get_text()가 실제로 clip하는 영역(MediaBox 기준)이지,
+    TextWriter가 쓰는 page.rect(회전 반영)가 아니다.
+    """
+
+    words = text.split()
+    if not words:
+        return [], min_font_size
+
+    x0 = min(max(rect.x0, 0.0), safe_bounds.width - MIN_WRAP_WIDTH_PT)
+    y0 = min(rect.y0, safe_bounds.height - 1.0)
+    wrap_width = max(MIN_WRAP_WIDTH_PT, min(rect.width, safe_bounds.width - x0 - 2.0))
+    available_height = max(1.0, safe_bounds.height - y0 - 2.0)
+
+    natural_font_size = max(min_font_size, min(max_font_size, rect.height * 0.88))
+    single_line = " ".join(words)
+    if font.text_length(single_line, fontsize=natural_font_size) <= wrap_width:
+        return [single_line], natural_font_size
+
+    lo, hi = FIT_MIN_FONT_SIZE_PT, natural_font_size
+    best_font_size = lo
+    best_lines = _wrap_words_to_width(font, words, wrap_width, lo)
+    for _ in range(BINARY_SEARCH_ITER):
+        mid = (lo + hi) / 2
+        lines = _wrap_words_to_width(font, words, wrap_width, mid)
+        if _fits_within_bounds(font, lines, mid, wrap_width, available_height):
+            best_font_size = mid
+            best_lines = lines
+            lo = mid
+        else:
+            hi = mid
+    return best_lines, best_font_size
+
+
+def _fits_within_bounds(
+    font: fitz.Font,
+    lines: list[str],
+    font_size: float,
+    wrap_width: float,
+    available_height: float,
+) -> bool:
+    if not lines:
+        return True
+    required_height = len(lines) * font_size * LINE_SPACING_FACTOR
+    if required_height > available_height + 1e-6:
+        return False
+    max_line_width = max(font.text_length(line, fontsize=font_size) for line in lines)
+    return max_line_width <= wrap_width + 0.5
+
+
+def _wrap_words_to_width(
+    font: fitz.Font, words: list[str], wrap_width: float, font_size: float
+) -> list[str]:
+    space_width = font.text_length(" ", fontsize=font_size) or font_size * 0.25
+    lines: list[list[str]] = []
+    current: list[str] = []
+    current_width = 0.0
+    for word in words:
+        word_width = font.text_length(word, fontsize=font_size)
+        candidate_width = (
+            word_width if not current else current_width + space_width + word_width
+        )
+        if current and candidate_width > wrap_width:
+            lines.append(current)
+            current = [word]
+            current_width = word_width
+        else:
+            current.append(word)
+            current_width = candidate_width
+    if current:
+        lines.append(current)
+    return [" ".join(line) for line in lines]
 
 
 def _page_relative_font_size_bounds(page_height_pt: float) -> tuple[float, float]:

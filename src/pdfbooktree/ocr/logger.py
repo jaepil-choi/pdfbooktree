@@ -3,19 +3,17 @@
 from __future__ import annotations
 
 import json
-import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Literal, Protocol
+from typing import Literal, Protocol, TextIO
 
-from rich.console import Console
-from rich.progress import BarColumn, Progress, TaskID, TextColumn, TimeElapsedColumn
+from tqdm import tqdm
 
 from pdfbooktree.utils.jsonio import to_jsonable
 
 
 OcrLogLevel = Literal["info", "warning", "error"]
-OcrLogMode = Literal["rich", "plain", "json", "none"]
+OcrLogMode = Literal["tqdm", "plain", "json", "none"]
 
 
 @dataclass(frozen=True)
@@ -97,45 +95,49 @@ class JsonStdoutOcrLogger:
         return None
 
 
-class RichOcrLogger:
-    """rich progress bar로 OCR 진행 상태를 표시한다."""
+class TqdmOcrLogger:
+    """page 진행 상태만 tqdm progress bar 하나로 보여준다.
 
-    def __init__(self) -> None:
-        self.console = Console(stderr=True)
-        self.progress = Progress(
-            TextColumn("{task.description}"),
-            BarColumn(),
-            TextColumn("{task.completed}/{task.total}"),
-            TextColumn("{task.fields[status]}"),
-            TimeElapsedColumn(),
-            console=self.console,
+    이전 rich 기반 logger는 event(render_start/ocr_call_start/insertable_build_done
+    등, page당 6~7개)마다 status 텍스트를 바꿔가며 갱신해서 너무 verbose했다. 이
+    logger는 ``completed_pages``가 실제로 늘어난 순간(page_done)에만 bar를
+    전진시키고, 나머지 event는 postfix로만 조용히 반영한다.
+    """
+
+    def __init__(
+        self,
+        *,
+        total_pages: int | None = None,
+        desc: str | None = None,
+        position: int = 0,
+        leave: bool = True,
+        file: TextIO | None = None,
+    ) -> None:
+        self._bar = tqdm(
+            total=total_pages,
+            desc=desc,
+            position=position,
+            leave=leave,
+            unit="page",
+            file=file,
         )
-        self.task_id: TaskID | None = None
-        self.progress.start()
+        self._completed = 0
 
     def emit(self, event: OcrLogEvent) -> None:
-        total = max(1, event.total_pages)
-        description = f"OCR overlay: {event.input_pdf.name}"
-        status = _rich_status(event)
-        if self.task_id is None:
-            self.task_id = self.progress.add_task(
-                description,
-                total=total,
-                completed=event.completed_pages,
-                status=status,
-            )
-        else:
-            self.progress.update(
-                self.task_id,
-                total=total,
-                completed=event.completed_pages,
-                status=status,
-            )
-        if event.event in {"failed", "done"}:
-            self.console.print(format_ocr_log_event(event))
+        if event.total_pages and self._bar.total != event.total_pages:
+            self._bar.total = event.total_pages
+        advance = event.completed_pages - self._completed
+        if advance > 0:
+            self._bar.update(advance)
+            self._completed = event.completed_pages
+        self._bar.set_postfix(
+            hit=event.cache_hit_count, miss=event.cache_miss_count, refresh=False
+        )
+        if event.event == "failed":
+            tqdm.write(format_ocr_log_event(event))
 
     def close(self) -> None:
-        self.progress.stop()
+        self._bar.close()
 
 
 class CompositeOcrLogger:
@@ -158,14 +160,15 @@ def build_ocr_logger(
     output_dir: Path,
     *,
     enable_file: bool = True,
+    desc: str | None = None,
 ) -> OcrLogger:
     """CLI 옵션에 맞는 OCR logger 조합을 만든다."""
 
     loggers: list[OcrLogger] = []
     if enable_file:
         loggers.append(JsonFileOcrLogger(output_dir))
-    if mode == "rich":
-        loggers.append(RichOcrLogger())
+    if mode == "tqdm":
+        loggers.append(TqdmOcrLogger(desc=desc or f"OCR overlay: {output_dir.name}"))
     elif mode == "plain":
         loggers.append(PlainTextOcrLogger())
     elif mode == "json":
@@ -226,19 +229,6 @@ def _progress_snapshot(payload: dict[str, object]) -> dict[str, object]:
     }
 
 
-def _rich_status(event: OcrLogEvent) -> str:
-    page = "-" if event.pdf_page is None else str(event.pdf_page)
-    eta = (
-        "?"
-        if event.estimated_remaining_sec is None
-        else _format_duration(event.estimated_remaining_sec)
-    )
-    return (
-        f"page {page} | {event.event} | eta {eta} | "
-        f"hit {event.cache_hit_count} miss {event.cache_miss_count}"
-    )
-
-
 def _format_duration(seconds: float) -> str:
     total = max(0, int(seconds))
     hours, remainder = divmod(total, 3600)
@@ -249,6 +239,147 @@ def _format_duration(seconds: float) -> str:
 
 
 def default_ocr_log_mode() -> OcrLogMode:
-    """실행 환경에 맞는 기본 CLI log mode를 고른다."""
+    """실행 환경에 맞는 기본 CLI log mode를 고른다.
 
-    return "rich" if sys.stderr.isatty() else "plain"
+    tqdm은 tty 여부를 스스로 감지해 non-tty에서는 갱신 빈도를 줄인 한 줄
+    출력으로 자연스럽게 대체하므로, rich/plain을 tty 여부로 나누던 이전 방식과
+    달리 항상 tqdm을 기본값으로 쓸 수 있다.
+    """
+
+    return "tqdm"
+
+
+class BatchOcrProgress(Protocol):
+    """OCR overlay batch 전체 진행 상태를 보여주는 progress 조립기 protocol이다."""
+
+    def logger_for_book(self, name: str, page_count: int, book_index: int) -> OcrLogger:
+        """지금 처리할 책의 page 단위 표시 logger를 만든다."""
+
+    def note_skip(self) -> None:
+        """target이 아니거나 처리하지 않을 책을 건너뛴다."""
+
+    def note_book_done(self, page_count: int, processed_page_count: int) -> None:
+        """책 하나의 처리(성공/실패 포함)가 끝났다."""
+
+    def close(self) -> None:
+        """progress 표시에 쓴 자원을 정리한다."""
+
+
+class NullBatchOcrProgress:
+    """아무 표시도 하지 않는 batch progress다."""
+
+    def logger_for_book(self, name: str, page_count: int, book_index: int) -> OcrLogger:
+        return NullOcrLogger()
+
+    def note_skip(self) -> None:
+        return None
+
+    def note_book_done(self, page_count: int, processed_page_count: int) -> None:
+        return None
+
+    def close(self) -> None:
+        return None
+
+
+class FlatBatchOcrProgress:
+    """책마다 독립된 flat logger(plain/json)를 그대로 쓰는 batch progress다."""
+
+    def __init__(self, mode: OcrLogMode) -> None:
+        self._mode = mode
+
+    def logger_for_book(self, name: str, page_count: int, book_index: int) -> OcrLogger:
+        return build_ocr_logger(self._mode, Path(name), enable_file=False)
+
+    def note_skip(self) -> None:
+        return None
+
+    def note_book_done(self, page_count: int, processed_page_count: int) -> None:
+        return None
+
+    def close(self) -> None:
+        return None
+
+
+class _BatchBookLoggerAdapter:
+    """책 하나의 page 진행을 batch 전체 outer bar에도 함께 반영한다."""
+
+    def __init__(self, inner: OcrLogger, outer_bar: tqdm) -> None:
+        self._inner = inner
+        self._outer_bar = outer_bar
+        self._completed = 0
+
+    def emit(self, event: OcrLogEvent) -> None:
+        self._inner.emit(event)
+        advance = event.completed_pages - self._completed
+        if advance > 0:
+            self._outer_bar.update(advance)
+            self._completed = event.completed_pages
+
+    def close(self) -> None:
+        self._inner.close()
+
+
+class TqdmBatchOcrProgress:
+    """batch 전체 page 진행(outer bar)과 현재 책 진행(inner bar)을 함께 보여준다.
+
+    outer bar의 total은 실제로 OCR을 돌릴 책들의 page 수 합이라, 남은 시간
+    추정이 "책 몇 권 남았는가"가 아니라 "전체 page 중 몇 page 남았는가"를
+    기준으로 계산된다(요청 사항).
+    """
+
+    def __init__(
+        self, total_pages: int, total_books: int, *, file: TextIO | None = None
+    ) -> None:
+        self._total_books = total_books
+        self._books_done = 0
+        self._skipped = 0
+        self._file = file
+        self._outer = tqdm(
+            total=total_pages,
+            desc=self._outer_desc(),
+            position=0,
+            unit="page",
+            file=file,
+        )
+
+    def logger_for_book(self, name: str, page_count: int, book_index: int) -> OcrLogger:
+        inner = TqdmOcrLogger(
+            total_pages=page_count,
+            desc=f"[{book_index}/{self._total_books}] {name}",
+            position=1,
+            leave=False,
+            file=self._file,
+        )
+        return _BatchBookLoggerAdapter(inner, self._outer)
+
+    def note_skip(self) -> None:
+        self._skipped += 1
+        self._outer.set_postfix(skipped=self._skipped, refresh=True)
+
+    def note_book_done(self, page_count: int, processed_page_count: int) -> None:
+        shortfall = max(0, page_count - processed_page_count)
+        if shortfall:
+            self._outer.update(shortfall)
+        self._books_done += 1
+        self._outer.set_description(self._outer_desc())
+        self._outer.set_postfix(skipped=self._skipped, refresh=True)
+
+    def close(self) -> None:
+        self._outer.close()
+
+    def _outer_desc(self) -> str:
+        return f"batch {self._books_done}/{self._total_books} books"
+
+
+def build_batch_ocr_progress(
+    mode: OcrLogMode, total_pages: int, total_books: int
+) -> BatchOcrProgress:
+    """CLI log mode에 맞는 batch progress 조립기를 만든다."""
+
+    if mode == "tqdm":
+        return TqdmBatchOcrProgress(total_pages, total_books)
+    if mode == "none":
+        return NullBatchOcrProgress()
+    if mode in ("plain", "json"):
+        return FlatBatchOcrProgress(mode)
+    raise ValueError(f"지원하지 않는 OCR log mode다: {mode}")

@@ -17,6 +17,24 @@ class TypographyConfig:
     max_heading_length: int = 160
     min_heading_confidence: float = 0.45
     heading_merge_gap_ratio: float = 1.5
+    bpe_min_pair_count: int = 15
+    bpe_max_iterations: int = 50
+    bpe_max_node_words: int = 30
+    bpe_level_pollution_ratio: float = 0.30
+    margin_band_ratio: float = 0.12
+    margin_position_tolerance_ratio: float = 0.015
+    margin_min_consecutive_pages: int = 10
+    margin_min_repeated_lines: int = 3
+    margin_max_page_number: int = 3000
+
+
+@dataclass(frozen=True)
+class MarkdownSplitConfig:
+    """계층 bookmark를 길이 제약 Markdown 파일로 나누는 공개 정책이다."""
+
+    max_words: int = 10_000
+    max_words_coverage: float = 0.95
+    prefer: Literal["coarsest"] = "coarsest"
 
 
 @dataclass(frozen=True)
@@ -27,3 +45,4 @@ class ProcessingConfig:
     write_artifacts: bool = True
     ocr_policy: Literal["never", "auto", "always"] = "never"
     typography: TypographyConfig = TypographyConfig()
+    markdown_split: MarkdownSplitConfig | None = None

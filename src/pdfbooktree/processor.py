@@ -8,16 +8,20 @@ import fitz
 
 from pdfbooktree.artifacts import write_artifact, write_jsonl_artifact
 from pdfbooktree.config import ProcessingConfig
-from pdfbooktree.export.markdown import export_markdown_tree, plan_markdown_dir_path
+from pdfbooktree.export.markdown import (
+    export_markdown_split,
+    export_markdown_tree,
+    plan_markdown_dir_path,
+)
 from pdfbooktree.export.pdf import export_bookmarked_pdf, plan_bookmarked_pdf_path
 from pdfbooktree.models import ConfidenceSummary, ProcessingResult
-from pdfbooktree.outline.infer import infer_outline
 from pdfbooktree.outline.plan import normalize_bookmark_plan
 from pdfbooktree.outline.validate import validate_bookmark_plan
 from pdfbooktree.pdf.outline import outline_to_plan, read_outline
 from pdfbooktree.report import write_processing_report
-from pdfbooktree.typography.headings import extract_heading_candidates
+from pdfbooktree.typography.bpe import extract_bpe_headings, infer_bpe_outline
 from pdfbooktree.typography.lines import extract_typography_lines
+from pdfbooktree.typography.margins import exclude_margin_artifacts
 from pdfbooktree.typography.tiers import compute_tier_set
 
 
@@ -45,13 +49,14 @@ class Processor:
         if existing_outline and self.config.skip_existing_bookmarks:
             return self._export_existing_outline(existing_outline, total_pages)
 
-        lines = extract_typography_lines(self.input_pdf, self.config.typography)
+        raw_lines = extract_typography_lines(self.input_pdf, self.config.typography)
+        lines = exclude_margin_artifacts(raw_lines, self.config.typography)
         font_tiers = compute_tier_set(lines, "font_size", self.config.typography)
         height_tiers = compute_tier_set(lines, "height", self.config.typography)
-        candidates = extract_heading_candidates(
-            lines, font_tiers, height_tiers, self.config.typography
+        candidates = extract_bpe_headings(lines, font_tiers, self.config.typography)
+        plan = normalize_bookmark_plan(
+            infer_bpe_outline(candidates, self.config.typography)
         )
-        plan = normalize_bookmark_plan(infer_outline(candidates))
         validation = validate_bookmark_plan(plan, total_pages)
 
         artifacts = self._write_artifacts(
@@ -65,12 +70,23 @@ class Processor:
 
         output_pdf = None
         output_markdown_dir = None
+        markdown_export = None
         status = "failed"
         if validation.valid:
             output_pdf = export_bookmarked_pdf(self.input_pdf, self.output_dir, plan)
-            output_markdown_dir = export_markdown_tree(
-                self.input_pdf, self.output_dir, plan, total_pages
-            )
+            if self.config.markdown_split is not None:
+                markdown_export = export_markdown_split(
+                    self.input_pdf,
+                    self.output_dir,
+                    plan,
+                    total_pages,
+                    self.config.markdown_split,
+                )
+                output_markdown_dir = markdown_export.output_dir
+            else:
+                output_markdown_dir = export_markdown_tree(
+                    self.input_pdf, self.output_dir, plan, total_pages
+                )
             status = "processed"
 
         result = ProcessingResult(
@@ -80,6 +96,7 @@ class Processor:
             or plan_bookmarked_pdf_path(self.input_pdf, self.output_dir),
             output_markdown_dir=output_markdown_dir
             or plan_markdown_dir_path(self.input_pdf, self.output_dir),
+            markdown_export=markdown_export,
             bookmark_count=len(plan),
             confidence_summary=ConfidenceSummary(
                 line_extraction=1.0 if lines else 0.0,
@@ -100,14 +117,26 @@ class Processor:
         plan = outline_to_plan(existing_outline)
         validation = validate_bookmark_plan(plan, total_pages)
         artifacts = self._write_existing_artifacts(plan, validation)
-        markdown_dir = export_markdown_tree(
-            self.input_pdf, self.output_dir, plan, total_pages
-        )
+        markdown_export = None
+        if self.config.markdown_split is not None:
+            markdown_export = export_markdown_split(
+                self.input_pdf,
+                self.output_dir,
+                plan,
+                total_pages,
+                self.config.markdown_split,
+            )
+            markdown_dir = markdown_export.output_dir
+        else:
+            markdown_dir = export_markdown_tree(
+                self.input_pdf, self.output_dir, plan, total_pages
+            )
         result = ProcessingResult(
             status="processed",
             input_pdf=self.input_pdf,
             output_pdf=None,
             output_markdown_dir=markdown_dir,
+            markdown_export=markdown_export,
             bookmark_count=len(plan),
             confidence_summary=ConfidenceSummary(outline=1.0),
             warnings=[
@@ -161,6 +190,7 @@ class Processor:
             input_pdf=result.input_pdf,
             output_pdf=result.output_pdf,
             output_markdown_dir=result.output_markdown_dir,
+            markdown_export=result.markdown_export,
             ocr_pdf=result.ocr_pdf,
             bookmark_count=result.bookmark_count,
             confidence_summary=result.confidence_summary,

@@ -1,12 +1,17 @@
 from __future__ import annotations
 
+import io
 import json
 from pathlib import Path
 
 from pdfbooktree.ocr.logger import (
     CompositeOcrLogger,
     JsonFileOcrLogger,
+    NullBatchOcrProgress,
     OcrLogEvent,
+    TqdmBatchOcrProgress,
+    TqdmOcrLogger,
+    build_batch_ocr_progress,
 )
 
 
@@ -71,3 +76,69 @@ def test_composite_ocr_logger_forwards_events() -> None:
 
     assert seen_left == ["page_done", "closed"]
     assert seen_right == ["page_done", "closed"]
+
+
+def test_tqdm_ocr_logger_advances_only_when_completed_pages_grows() -> None:
+    """render_start/ocr_call_start처럼 completed_pages가 그대로인 event는
+
+    bar를 전진시키지 않아야 한다. 이전 rich/plain logger는 이런 event마다
+    한 줄씩 출력해서 page당 6~7줄이 나왔다.
+    """
+
+    sink = io.StringIO()
+    logger = TqdmOcrLogger(total_pages=3, file=sink)
+
+    logger.emit(make_event("page_start", 0))
+    logger.emit(make_event("page_render_start", 0))
+    logger.emit(make_event("page_render_done", 0))
+    assert logger._bar.n == 0
+
+    logger.emit(make_event("page_done", 1))
+    assert logger._bar.n == 1
+
+    logger.emit(make_event("page_done", 2))
+    assert logger._bar.n == 2
+    logger.close()
+
+
+def test_tqdm_batch_progress_advances_outer_bar_across_books() -> None:
+    """batch 전체 outer bar가 여러 책의 page_done을 누적해서 전진해야 한다."""
+
+    sink = io.StringIO()
+    progress = TqdmBatchOcrProgress(total_pages=5, total_books=2, file=sink)
+
+    book1 = progress.logger_for_book("book1.pdf", 3, 1)
+    book1.emit(make_event("page_done", 1))
+    book1.emit(make_event("page_done", 2))
+    book1.emit(make_event("page_done", 3))
+    progress.note_book_done(3, 3)
+    assert progress._outer.n == 3
+
+    book2 = progress.logger_for_book("book2.pdf", 2, 2)
+    book2.emit(make_event("page_done", 1))
+    book2.emit(make_event("page_done", 2))
+    progress.note_book_done(2, 2)
+    assert progress._outer.n == 5
+    progress.close()
+
+
+def test_tqdm_batch_progress_reconciles_shortfall_on_failure() -> None:
+    """책 처리가 중간에 실패해도 outer bar가 그 책의 남은 page만큼 전진해서
+
+    batch 전체 progress가 멈추지 않아야 한다.
+    """
+
+    sink = io.StringIO()
+    progress = TqdmBatchOcrProgress(total_pages=4, total_books=1, file=sink)
+
+    book = progress.logger_for_book("book.pdf", 4, 1)
+    book.emit(make_event("page_done", 1))
+    assert progress._outer.n == 1
+
+    progress.note_book_done(4, 1)
+    assert progress._outer.n == 4
+    progress.close()
+
+
+def test_build_batch_ocr_progress_dispatches_by_mode() -> None:
+    assert isinstance(build_batch_ocr_progress("none", 10, 2), NullBatchOcrProgress)

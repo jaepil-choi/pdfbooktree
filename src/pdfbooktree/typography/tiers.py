@@ -33,9 +33,11 @@ def compute_tier_set(
             final_tier_count=0,
         )
     raw_peaks, raw_cuts = _cluster_by_density(values)
-    gap_peaks, gap_cuts = _merge_close_tiers(raw_peaks, raw_cuts, resolved.min_tier_gap)
+    # 가까운 peak를 연쇄 병합하면 11pt 본문과 12pt section heading처럼 서로 다른
+    # 역할의 tier가 하나로 합쳐질 수 있다. BPE body separator는 이 구분을 전제로
+    # 하므로, 069/080에서 검증한 대로 희소 tier만 병합한다.
     final_peaks, final_cuts = _merge_sparse_tiers(
-        values, gap_peaks, gap_cuts, resolved.min_tier_count
+        values, raw_peaks, raw_cuts, resolved.min_tier_count
     )
     tiers = _build_tiers(values, final_peaks, final_cuts)
     return TierSet(
@@ -43,7 +45,7 @@ def compute_tier_set(
         cut_points=[round(cut, 4) for cut in final_cuts],
         tiers=tiers,
         raw_tier_count=len(raw_peaks),
-        gap_merged_tier_count=len(gap_peaks),
+        gap_merged_tier_count=len(raw_peaks),
         final_tier_count=len(tiers),
     )
 

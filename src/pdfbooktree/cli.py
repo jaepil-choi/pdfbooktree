@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import cast
 
@@ -16,7 +17,14 @@ from pdfbooktree.classify import (
     build_classify_logger,
     default_classify_log_mode,
 )
-from pdfbooktree.config import ProcessingConfig, TypographyConfig
+from pdfbooktree.config import MarkdownSplitConfig, ProcessingConfig, TypographyConfig
+from pdfbooktree.inspection import (
+    inspect_bookmarks,
+    inspect_ocr_artifact,
+    inspect_page_count,
+    inspect_plan_artifact,
+    inspect_text,
+)
 from pdfbooktree.ocr import (
     OcrOverlayBatchConfig,
     OcrOverlayBatchRunner,
@@ -32,6 +40,8 @@ from pdfbooktree.utils.jsonio import to_jsonable
 app = typer.Typer(
     help="PDF 책의 typography hierarchy로 bookmark와 Markdown tree를 만든다."
 )
+inspect_app = typer.Typer(help="PDF와 처리 artifact를 읽기 전용으로 조사한다.")
+app.add_typer(inspect_app, name="inspect")
 
 
 def parse_page_ranges(value: str | None) -> list[int] | None:
@@ -71,6 +81,90 @@ def parse_engine_options(values: list[str]) -> dict[str, object]:
             raise typer.BadParameter("--engine-option key가 비어 있다.")
         options[key] = _coerce_engine_option_value(raw.strip())
     return options
+
+
+def print_inspection(result: dict[str, object], *, as_json: bool) -> None:
+    """inspection 결과를 사람용 또는 machine-readable JSON으로 출력한다."""
+
+    if as_json:
+        typer.echo(json.dumps(to_jsonable(result), ensure_ascii=False))
+        return
+    rich_print(result)
+
+
+def raise_inspection_error(error: Exception) -> None:
+    """agent가 다음 확인 작업을 고를 수 있는 CLI 오류로 바꾼다."""
+
+    raise typer.BadParameter(str(error)) from error
+
+
+@inspect_app.command("page-count")
+def inspect_page_count_cmd(
+    pdf: Path = typer.Argument(..., help="확인할 PDF 파일이다."),
+    as_json: bool = typer.Option(False, "--json", help="JSON 한 줄로 출력한다."),
+) -> None:
+    """PDF 총 page 수를 확인한다."""
+
+    try:
+        print_inspection(inspect_page_count(pdf), as_json=as_json)
+    except (FileNotFoundError, ValueError) as error:
+        raise_inspection_error(error)
+
+
+@inspect_app.command("text")
+def inspect_text_cmd(
+    pdf: Path = typer.Argument(..., help="확인할 PDF 파일이다."),
+    pages: str = typer.Option(..., "--pages", help="1-based page 목록이다. 예: 1-3,42"),
+    as_json: bool = typer.Option(False, "--json", help="JSON 한 줄로 출력한다."),
+) -> None:
+    """지정한 1-based page 범위의 text를 확인한다."""
+
+    try:
+        parsed_pages = parse_page_ranges(pages)
+        if parsed_pages is None:
+            raise ValueError("확인할 PDF page를 하나 이상 지정해야 한다.")
+        print_inspection(inspect_text(pdf, parsed_pages), as_json=as_json)
+    except (FileNotFoundError, ValueError) as error:
+        raise_inspection_error(error)
+
+
+@inspect_app.command("bookmarks")
+def inspect_bookmarks_cmd(
+    pdf: Path = typer.Argument(..., help="확인할 PDF 파일이다."),
+    as_json: bool = typer.Option(False, "--json", help="JSON 한 줄로 출력한다."),
+) -> None:
+    """PDF의 기존 bookmark를 확인한다."""
+
+    try:
+        print_inspection(inspect_bookmarks(pdf), as_json=as_json)
+    except (FileNotFoundError, ValueError) as error:
+        raise_inspection_error(error)
+
+
+@inspect_app.command("ocr")
+def inspect_ocr_cmd(
+    artifact_dir: Path = typer.Argument(..., help="OCR artifact directory다."),
+    as_json: bool = typer.Option(False, "--json", help="JSON 한 줄로 출력한다."),
+) -> None:
+    """OCR 진행 상태, cache, stats와 마지막 log event를 확인한다."""
+
+    try:
+        print_inspection(inspect_ocr_artifact(artifact_dir), as_json=as_json)
+    except (FileNotFoundError, ValueError) as error:
+        raise_inspection_error(error)
+
+
+@inspect_app.command("plan")
+def inspect_plan_cmd(
+    output_dir: Path = typer.Argument(..., help="process output directory다."),
+    as_json: bool = typer.Option(False, "--json", help="JSON 한 줄로 출력한다."),
+) -> None:
+    """bookmark plan validation과 Markdown export 결과를 확인한다."""
+
+    try:
+        print_inspection(inspect_plan_artifact(output_dir), as_json=as_json)
+    except (FileNotFoundError, ValueError) as error:
+        raise_inspection_error(error)
 
 
 def _coerce_engine_option_value(value: str) -> object:
@@ -137,7 +231,7 @@ def ocr_overlay(
     log_mode: str = typer.Option(
         "auto",
         "--log-mode",
-        help="OCR runtime 로그 출력 방식이다. auto, rich, plain, json, none 중 하나다.",
+        help="OCR runtime 로그 출력 방식이다. auto, tqdm, plain, json, none 중 하나다.",
     ),
     no_log_file: bool = typer.Option(
         False,
@@ -148,16 +242,19 @@ def ocr_overlay(
     """PDF 모든 page를 OCR parse한 뒤 invisible text layer를 다시 입힌다."""
 
     resolved_log_mode = default_ocr_log_mode() if log_mode == "auto" else log_mode
-    if resolved_log_mode not in {"rich", "plain", "json", "none"}:
+    if resolved_log_mode not in {"tqdm", "plain", "json", "none"}:
         raise typer.BadParameter(
-            "log-mode은 auto, rich, plain, json, none 중 하나여야 한다."
+            "log-mode은 auto, tqdm, plain, json, none 중 하나여야 한다."
         )
     if cache_policy not in {"reuse", "refresh", "only"}:
         raise typer.BadParameter(
             "cache-policy는 reuse, refresh, only 중 하나여야 한다."
         )
     logger = build_ocr_logger(
-        cast(OcrLogMode, resolved_log_mode), output_dir, enable_file=not no_log_file
+        cast(OcrLogMode, resolved_log_mode),
+        output_dir,
+        enable_file=not no_log_file,
+        desc=f"OCR overlay: {pdf.name}",
     )
     config = OcrOverlayConfig(
         input_pdf=pdf,
@@ -219,7 +316,11 @@ def ocr_overlay_batch_cmd(
     log_mode: str = typer.Option(
         "auto",
         "--log-mode",
-        help="파일별 OCR runtime 로그 출력 방식이다. auto, rich, plain, json, none 중 하나다.",
+        help=(
+            "OCR runtime 로그 출력 방식이다. auto, tqdm, plain, json, none 중 하나다. "
+            "tqdm은 전체 batch page 진행(outer bar)과 현재 책 page 진행(inner bar)을 "
+            "함께 보여주고, 남은 시간은 전체 대상 page 수 기준으로 추정한다."
+        ),
     ),
     no_log_file: bool = typer.Option(
         False,
@@ -230,9 +331,9 @@ def ocr_overlay_batch_cmd(
     """디렉터리 안 target PDF만 골라 OCR overlay를 batch 실행한다."""
 
     resolved_log_mode = default_ocr_log_mode() if log_mode == "auto" else log_mode
-    if resolved_log_mode not in {"rich", "plain", "json", "none"}:
+    if resolved_log_mode not in {"tqdm", "plain", "json", "none"}:
         raise typer.BadParameter(
-            "log-mode은 auto, rich, plain, json, none 중 하나여야 한다."
+            "log-mode은 auto, tqdm, plain, json, none 중 하나여야 한다."
         )
     config = OcrOverlayBatchConfig(
         input_dir=input_dir,
@@ -249,9 +350,8 @@ def ocr_overlay_batch_cmd(
     )
     runner = OcrOverlayBatchRunner(
         config,
-        ocr_logger_factory=lambda path: build_ocr_logger(
-            cast(OcrLogMode, resolved_log_mode), path, enable_file=not no_log_file
-        ),
+        log_mode=cast(OcrLogMode, resolved_log_mode),
+        enable_log_file=not no_log_file,
     )
     result = runner.run()
     rich_print(
@@ -292,13 +392,64 @@ def process(
     max_heading_tier: int = typer.Option(
         3, "--max-heading-tier", min=1, help="heading 후보로 볼 최대 tier 번호다."
     ),
+    bpe_max_node_words: int = typer.Option(
+        30,
+        "--bpe-max-node-words",
+        min=1,
+        help="이 단어 수를 초과한 BPE node는 hierarchy를 한 단계 낮춘다.",
+    ),
+    bpe_level_pollution_ratio: float = typer.Option(
+        0.30,
+        "--bpe-level-pollution-ratio",
+        min=0.0,
+        max=1.0,
+        help="장문 BPE node 비율이 이 값보다 큰 bookmark level은 본문으로 제외한다.",
+    ),
+    margin_band_ratio: float = typer.Option(
+        0.12,
+        "--margin-band-ratio",
+        min=0.01,
+        max=0.25,
+        help="반복 header/footer를 찾을 page 상·하단 영역 비율이다.",
+    ),
+    margin_min_consecutive_pages: int = typer.Option(
+        10,
+        "--margin-min-consecutive-pages",
+        min=2,
+        help="인쇄 쪽수 offset이 연속으로 유지되어야 하는 최소 page 수다.",
+    ),
+    max_words: int | None = typer.Option(
+        None,
+        "--max-words",
+        min=1,
+        help="지정하면 coverage 기반 단일 Markdown split export를 활성화한다.",
+    ),
+    max_words_coverage: float = typer.Option(
+        0.95,
+        "--max-words-coverage",
+        min=0.01,
+        max=1.0,
+        help="max-words 이하가 되어야 하는 Markdown 파일 비율이다.",
+    ),
 ) -> None:
     """단일 PDF를 typography hierarchy 기반으로 처리한다."""
 
     config = ProcessingConfig(
         skip_existing_bookmarks=skip_existing_bookmarks,
         typography=TypographyConfig(
-            min_tier_count=min_tier_count, max_heading_tier=max_heading_tier
+            min_tier_count=min_tier_count,
+            max_heading_tier=max_heading_tier,
+            bpe_max_node_words=bpe_max_node_words,
+            bpe_level_pollution_ratio=bpe_level_pollution_ratio,
+            margin_band_ratio=margin_band_ratio,
+            margin_min_consecutive_pages=margin_min_consecutive_pages,
+        ),
+        markdown_split=(
+            MarkdownSplitConfig(
+                max_words=max_words, max_words_coverage=max_words_coverage
+            )
+            if max_words is not None
+            else None
         ),
     )
     result = Processor(pdf, output_dir, config).run()

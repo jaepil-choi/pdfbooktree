@@ -5,14 +5,21 @@ from __future__ import annotations
 import csv
 import json
 import time
-from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
 from pdfbooktree.ocr.builder import OcrOverlayBuilder
 from pdfbooktree.ocr.config import OcrOverlayConfig
-from pdfbooktree.ocr.logger import NullOcrLogger, OcrLogger
+from pdfbooktree.ocr.logger import (
+    BatchOcrProgress,
+    CompositeOcrLogger,
+    JsonFileOcrLogger,
+    NullBatchOcrProgress,
+    OcrLogger,
+    OcrLogMode,
+    build_batch_ocr_progress,
+)
 from pdfbooktree.pdf.bookmarks import (
     extract_existing_bookmarks,
     has_meaningful_bookmark,
@@ -93,6 +100,26 @@ class OcrOverlayBatchResult:
     results: list[OcrOverlayBatchFileResult]
 
 
+@dataclass(frozen=True)
+class _Classification:
+    """batch 실행 전 미리 판정해 둔 PDF 1개의 target/처리 여부다.
+
+    OCR을 실제로 돌릴 page 수 합을 시작 전에 알아야 batch 전체 progress bar의
+    남은 시간을 book 개수가 아니라 page 개수 기준으로 추정할 수 있다(요청 사항).
+    그래서 classify_scan/bookmark 판정을 main loop보다 먼저 한 번에 끝낸다.
+    """
+
+    pdf_path: Path
+    relative_path: str
+    output_pdf: Path
+    artifact_dir: Path
+    page_count: int
+    is_target: bool
+    target_reject_reason: str
+    will_process: bool
+    error: str | None = None
+
+
 class OcrOverlayBatchRunner:
     """디렉터리 아래 target PDF에 OCR overlay를 순차 적용한다."""
 
@@ -100,39 +127,59 @@ class OcrOverlayBatchRunner:
         self,
         config: OcrOverlayBatchConfig,
         *,
-        ocr_logger_factory: Callable[[Path], OcrLogger] | None = None,
+        log_mode: OcrLogMode = "none",
+        enable_log_file: bool = True,
     ) -> None:
         self.config = config
         self.input_dir = Path(config.input_dir)
         self.output_dir = Path(config.output_dir)
         self.output_pdf_root = self.output_dir / "pdfs"
         self.artifact_root = self.output_dir / "artifacts"
-        self.ocr_logger_factory = ocr_logger_factory or (lambda _path: NullOcrLogger())
+        self.log_mode = log_mode
+        self.enable_log_file = enable_log_file
 
     def run(self) -> OcrOverlayBatchResult:
         """PDF를 찾아 target만 OCR overlay하고 report를 저장한다."""
 
         started_at = time.monotonic()
         pdf_paths = self._find_pdfs()
+        classifications = [self._classify(pdf_path) for pdf_path in pdf_paths]
+
+        total_pages = sum(c.page_count for c in classifications if c.will_process)
+        total_books = sum(1 for c in classifications if c.will_process)
+        progress: BatchOcrProgress = (
+            build_batch_ocr_progress(self.log_mode, total_pages, total_books)
+            if total_books
+            else NullBatchOcrProgress()
+        )
+
         self.output_dir.mkdir(parents=True, exist_ok=True)
         report_csv_path = self.output_dir / "ocr_overlay_batch_report.csv"
         detail_jsonl_path = self.output_dir / "ocr_overlay_batch_detail.jsonl"
         summary_path = self.output_dir / "ocr_overlay_batch_summary.json"
 
         results: list[OcrOverlayBatchFileResult] = []
-        with report_csv_path.open("w", encoding="utf-8-sig", newline="") as csv_file:
-            writer = csv.DictWriter(csv_file, fieldnames=CSV_FIELDS)
-            writer.writeheader()
-            with detail_jsonl_path.open("w", encoding="utf-8") as detail_file:
-                for pdf_path in pdf_paths:
-                    result = self._process_one(pdf_path)
-                    results.append(result)
-                    writer.writerow(_to_csv_row(result))
-                    csv_file.flush()
-                    detail_file.write(
-                        json.dumps(to_jsonable(result), ensure_ascii=False) + "\n"
-                    )
-                    detail_file.flush()
+        try:
+            with report_csv_path.open(
+                "w", encoding="utf-8-sig", newline=""
+            ) as csv_file:
+                writer = csv.DictWriter(csv_file, fieldnames=CSV_FIELDS)
+                writer.writeheader()
+                with detail_jsonl_path.open("w", encoding="utf-8") as detail_file:
+                    book_index = 0
+                    for classification in classifications:
+                        if classification.will_process:
+                            book_index += 1
+                        result = self._process_one(classification, progress, book_index)
+                        results.append(result)
+                        writer.writerow(_to_csv_row(result))
+                        csv_file.flush()
+                        detail_file.write(
+                            json.dumps(to_jsonable(result), ensure_ascii=False) + "\n"
+                        )
+                        detail_file.flush()
+        finally:
+            progress.close()
 
         batch_result = OcrOverlayBatchResult(
             total_pdf_count=len(results),
@@ -152,8 +199,7 @@ class OcrOverlayBatchRunner:
         write_json(summary_path, _summary_dict(batch_result))
         return batch_result
 
-    def _process_one(self, pdf_path: Path) -> OcrOverlayBatchFileResult:
-        started_at = time.monotonic()
+    def _classify(self, pdf_path: Path) -> _Classification:
         relative_path = str(pdf_path.relative_to(self.input_dir))
         output_pdf = self.output_pdf_root / relative_path
         artifact_dir = self.artifact_root / Path(relative_path).with_suffix("")
@@ -165,48 +211,104 @@ class OcrOverlayBatchRunner:
             target_reject_reason = _target_reject_reason(
                 scan.reject_reasons, meaningful
             )
+            will_process = (
+                is_target
+                and not self.config.dry_run
+                and not (output_pdf.exists() and not self.config.force)
+            )
+            return _Classification(
+                pdf_path=pdf_path,
+                relative_path=relative_path,
+                output_pdf=output_pdf,
+                artifact_dir=artifact_dir,
+                page_count=scan.page_count,
+                is_target=is_target,
+                target_reject_reason=target_reject_reason,
+                will_process=will_process,
+            )
+        except Exception as exc:  # noqa: BLE001 - 분류 실패도 개별 실패로 남기고 계속 진행한다.
+            return _Classification(
+                pdf_path=pdf_path,
+                relative_path=relative_path,
+                output_pdf=output_pdf,
+                artifact_dir=artifact_dir,
+                page_count=0,
+                is_target=False,
+                target_reject_reason="",
+                will_process=False,
+                error=str(exc),
+            )
 
-            if not is_target:
-                return OcrOverlayBatchFileResult(
-                    relative_path=relative_path,
-                    status="skipped",
-                    is_ocr_overwrite_target=False,
-                    target_reject_reason=target_reject_reason,
-                    input_pdf=pdf_path,
-                    output_pdf=output_pdf,
-                    artifact_dir=artifact_dir,
-                    page_count=scan.page_count,
-                    elapsed_sec=time.monotonic() - started_at,
-                )
+    def _process_one(
+        self,
+        classification: _Classification,
+        progress: BatchOcrProgress,
+        book_index: int,
+    ) -> OcrOverlayBatchFileResult:
+        started_at = time.monotonic()
+        relative_path = classification.relative_path
+        output_pdf = classification.output_pdf
+        artifact_dir = classification.artifact_dir
 
-            if self.config.dry_run:
-                return OcrOverlayBatchFileResult(
-                    relative_path=relative_path,
-                    status="dry_run",
-                    is_ocr_overwrite_target=True,
-                    target_reject_reason="",
-                    input_pdf=pdf_path,
-                    output_pdf=output_pdf,
-                    artifact_dir=artifact_dir,
-                    page_count=scan.page_count,
-                    elapsed_sec=time.monotonic() - started_at,
-                )
+        if classification.error is not None:
+            progress.note_skip()
+            return OcrOverlayBatchFileResult(
+                relative_path=relative_path,
+                status="failed",
+                is_ocr_overwrite_target=False,
+                target_reject_reason="",
+                input_pdf=classification.pdf_path,
+                output_pdf=output_pdf,
+                artifact_dir=artifact_dir,
+                error=classification.error,
+                elapsed_sec=time.monotonic() - started_at,
+            )
 
-            if output_pdf.exists() and not self.config.force:
-                return OcrOverlayBatchFileResult(
-                    relative_path=relative_path,
-                    status="skipped",
-                    is_ocr_overwrite_target=True,
-                    target_reject_reason="output_exists",
-                    input_pdf=pdf_path,
-                    output_pdf=output_pdf,
-                    artifact_dir=artifact_dir,
-                    page_count=scan.page_count,
-                    elapsed_sec=time.monotonic() - started_at,
-                )
+        if not classification.is_target:
+            progress.note_skip()
+            return OcrOverlayBatchFileResult(
+                relative_path=relative_path,
+                status="skipped",
+                is_ocr_overwrite_target=False,
+                target_reject_reason=classification.target_reject_reason,
+                input_pdf=classification.pdf_path,
+                output_pdf=output_pdf,
+                artifact_dir=artifact_dir,
+                page_count=classification.page_count,
+                elapsed_sec=time.monotonic() - started_at,
+            )
 
+        if self.config.dry_run:
+            progress.note_skip()
+            return OcrOverlayBatchFileResult(
+                relative_path=relative_path,
+                status="dry_run",
+                is_ocr_overwrite_target=True,
+                target_reject_reason="",
+                input_pdf=classification.pdf_path,
+                output_pdf=output_pdf,
+                artifact_dir=artifact_dir,
+                page_count=classification.page_count,
+                elapsed_sec=time.monotonic() - started_at,
+            )
+
+        if not classification.will_process:
+            progress.note_skip()
+            return OcrOverlayBatchFileResult(
+                relative_path=relative_path,
+                status="skipped",
+                is_ocr_overwrite_target=True,
+                target_reject_reason="output_exists",
+                input_pdf=classification.pdf_path,
+                output_pdf=output_pdf,
+                artifact_dir=artifact_dir,
+                page_count=classification.page_count,
+                elapsed_sec=time.monotonic() - started_at,
+            )
+
+        try:
             config = OcrOverlayConfig(
-                input_pdf=pdf_path,
+                input_pdf=classification.pdf_path,
                 output_pdf=output_pdf,
                 output_dir=artifact_dir,
                 engine=self.config.engine,
@@ -216,16 +318,24 @@ class OcrOverlayBatchRunner:
                 confirm_bookmark_ocr_overwrite=self.config.confirm_bookmark_ocr_overwrite,
                 stats_word_level=self.config.stats_word_level,
             )
-            overlay = OcrOverlayBuilder(
-                config,
-                logger=self.ocr_logger_factory(artifact_dir),
-            ).run()
+            display_logger = progress.logger_for_book(
+                relative_path, classification.page_count, book_index
+            )
+            logger: OcrLogger = display_logger
+            if self.enable_log_file:
+                logger = CompositeOcrLogger(
+                    [display_logger, JsonFileOcrLogger(artifact_dir)]
+                )
+            overlay = OcrOverlayBuilder(config, logger=logger).run()
+            progress.note_book_done(
+                classification.page_count, len(overlay.processed_pages)
+            )
             return OcrOverlayBatchFileResult(
                 relative_path=relative_path,
                 status="processed",
                 is_ocr_overwrite_target=True,
                 target_reject_reason="",
-                input_pdf=pdf_path,
+                input_pdf=classification.pdf_path,
                 output_pdf=overlay.output_pdf,
                 artifact_dir=overlay.output_dir,
                 page_count=overlay.page_count,
@@ -235,12 +345,13 @@ class OcrOverlayBatchRunner:
                 elapsed_sec=time.monotonic() - started_at,
             )
         except Exception as exc:  # noqa: BLE001 - 파일별 실패를 report에 남기고 계속 진행한다.
+            progress.note_book_done(classification.page_count, 0)
             return OcrOverlayBatchFileResult(
                 relative_path=relative_path,
                 status="failed",
-                is_ocr_overwrite_target=False,
+                is_ocr_overwrite_target=True,
                 target_reject_reason="",
-                input_pdf=pdf_path,
+                input_pdf=classification.pdf_path,
                 output_pdf=output_pdf,
                 artifact_dir=artifact_dir,
                 error=str(exc),
