@@ -11773,6 +11773,110 @@
           "merged_pairs": 74
         }
       },
+      "l2_markdown_export": {
+        "file_count": 220,
+        "total_word_count": 521594,
+        "min_word_count": 2,
+        "p50_word_count": 1211,
+        "p90_word_count": 5381,
+        "p95_word_count": 7307,
+        "max_word_count": 43693,
+        "mean_word_count": 2370.9,
+        "files_at_or_below_10000_words": 211,
+        "files_over_10000_words": 9,
+        "longest_files": [
+          {
+            "file": "l2_markdown\\220_L2_p958_of the CFA Institute.md",
+            "level": 2,
+            "title": "of the CFA Institute",
+            "start_page": 958,
+            "end_page_exclusive": 1042,
+            "word_count": 43693,
+            "heading_count": 63
+          },
+          {
+            "file": "l2_markdown\\065_L2_p148_Record.md",
+            "level": 2,
+            "title": "Record",
+            "start_page": 148,
+            "end_page_exclusive": 188,
+            "word_count": 19184,
+            "heading_count": 43
+          },
+          {
+            "file": "l2_markdown\\200_L2_p842_Evaluation.md",
+            "level": 2,
+            "title": "Evaluation",
+            "start_page": 842,
+            "end_page_exclusive": 882,
+            "word_count": 19117,
+            "heading_count": 36
+          },
+          {
+            "file": "l2_markdown\\045_L2_p58_Instruments.md",
+            "level": 2,
+            "title": "Instruments",
+            "start_page": 58,
+            "end_page_exclusive": 88,
+            "word_count": 15256,
+            "heading_count": 48
+          },
+          {
+            "file": "l2_markdown\\063_L2_p122_Companies.md",
+            "level": 2,
+            "title": "Companies",
+            "start_page": 122,
+            "end_page_exclusive": 148,
+            "word_count": 14311,
+            "heading_count": 22
+          },
+          {
+            "file": "l2_markdown\\108_L2_p400_Analysis.md",
+            "level": 2,
+            "title": "Analysis",
+            "start_page": 400,
+            "end_page_exclusive": 424,
+            "word_count": 12792,
+            "heading_count": 17
+          },
+          {
+            "file": "l2_markdown\\081_L2_p246_7.5 Risk Pooling, Risk Sharing, and Time Diversification.md",
+            "level": 2,
+            "title": "7.5 Risk Pooling, Risk Sharing, and Time Diversification",
+            "start_page": 246,
+            "end_page_exclusive": 272,
+            "word_count": 12637,
+            "heading_count": 24
+          },
+          {
+            "file": "l2_markdown\\097_L2_p336_of Risk and Return.md",
+            "level": 2,
+            "title": "of Risk and Return",
+            "start_page": 336,
+            "end_page_exclusive": 360,
+            "word_count": 12491,
+            "heading_count": 18
+          },
+          {
+            "file": "l2_markdown\\218_L2_p934_Management.md",
+            "level": 2,
+            "title": "Management",
+            "start_page": 934,
+            "end_page_exclusive": 958,
+            "word_count": 11774,
+            "heading_count": 31
+          },
+          {
+            "file": "l2_markdown\\147_L2_p578_17.6 Industry Analysis.md",
+            "level": 2,
+            "title": "17.6 Industry Analysis",
+            "start_page": 578,
+            "end_page_exclusive": 598,
+            "word_count": 9368,
+            "heading_count": 10
+          }
+        ]
+      },
       "results": {
         "baseline_global_bpe": {
           "candidate_count": 921,
@@ -13375,7 +13479,7 @@
                 "idx": 23,
                 "pdf_page": 13,
                 "level": 2,
-                "title": "Yield to Maturity versus Holding-Period Return / Zero- Security Analysis  537",
+                "title": "Yield to Maturity versus Holding-Period Return / Zero- Security Analysis 537",
                 "title_word_count": 11,
                 "parent_idx": 20,
                 "bookmark_match_count": 0,
@@ -13517,7 +13621,7 @@
                 "idx": 21,
                 "pdf_page": 9,
                 "level": 2,
-                "title": "Introduction  1 Treasury Notes and Bonds / Inflation-Protected Treasury",
+                "title": "Introduction 1 Treasury Notes and Bonds / Inflation-Protected Treasury",
                 "title_word_count": 9,
                 "parent_idx": 20,
                 "bookmark_match_count": 0,
@@ -13531,7 +13635,7 @@
                 "idx": 22,
                 "pdf_page": 11,
                 "level": 2,
-                "title": "Asset Allocation with Two Risky Asset Classes Markets  275",
+                "title": "Asset Allocation with Two Risky Asset Classes Markets 275",
                 "title_word_count": 9,
                 "parent_idx": 20,
                 "bookmark_match_count": 0,
@@ -13764,8 +13868,8 @@
           }
         }
       },
-      "finding": "baseline: candidates=921 recall=0.7894 level_accuracy=0.3099 parent_accuracy=0.7971 unmatched=325 bridge=40 | separator_spacing: candidates=956 recall=0.7907 level_accuracy=0.3158 parent_accuracy=0.8357 unmatched=337 bridge=44 | body_separators=43335 merged_pairs=74 broad_rejections=118",
-      "ran_at": "2026-07-12T11:21:24"
+      "finding": "baseline: candidates=921 recall=0.7894 level_accuracy=0.3099 parent_accuracy=0.7971 unmatched=325 bridge=40 | separator_spacing: candidates=956 recall=0.7907 level_accuracy=0.3158 parent_accuracy=0.8357 unmatched=337 bridge=44 | body_separators=43335 merged_pairs=74 broad_rejections=118 | l2_markdown: files=220 p90_words=5381 max_words=43693",
+      "ran_at": "2026-07-12T11:57:39"
     }
   ]
 }

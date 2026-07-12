@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import re
 import sys
 from collections import Counter, defaultdict
 from datetime import datetime
@@ -20,6 +21,7 @@ from pathlib import Path
 from statistics import median
 from typing import Any
 
+import fitz
 import numpy as np
 
 try:
@@ -43,6 +45,9 @@ BOOK_PDF = (
 )
 NO_TITLE_FILTER = 1_000_000
 MAX_BPE_ITERATIONS = 50
+_UNICODE_WHITESPACE = re.compile(r"\s+")
+_WORD_SPLIT = re.compile(r"\S+")
+_FILENAME_UNSAFE = re.compile(r"[<>:\"/\\|?*\x00-\x1f]+")
 
 
 def load_module(name: str, path: Path) -> Any:
@@ -53,6 +58,12 @@ def load_module(name: str, path: Path) -> Any:
     sys.modules[name] = module
     spec.loader.exec_module(module)
     return module
+
+
+def normalize_pdf_whitespace(text: str) -> str:
+    """PDF text layer의 en-space 등을 일반 공백 하나로 정규화한다."""
+
+    return _UNICODE_WHITESPACE.sub(" ", text).strip()
 
 
 def normalized_line_spacing(upper: dict[str, Any], lower: dict[str, Any]) -> float | None:
@@ -198,6 +209,10 @@ def build_separator_spacing_tree(source: Any) -> tuple[list[Any], dict[str, Any]
         )
         for index, node in enumerate(bpe_nodes)
     ]
+    # PDF 목차의 페이지 번호 앞에는 U+2002 같은 조판용 공백이 들어갈 수 있다.
+    # 후보 title을 만들 때 일반 공백으로 정규화해 bookmark 출력과 평가에 같은 텍스트를 쓴다.
+    for candidate in candidates:
+        candidate.text = normalize_pdf_whitespace(candidate.text)
     source.assign_levels_by_stack(candidates)
     return candidates, {
         "input_line_count": len(lines),
@@ -257,7 +272,158 @@ def run_variant(name: str, candidates: list[Any], eval_module: Any, audit_module
     }
 
 
-def record_experiment(results: dict[str, dict[str, Any]], metadata: dict[str, Any]) -> None:
+def write_hierarchical_bookmark_tree(candidates: list[Any], path: Path) -> None:
+    """사람이 확인할 수 있도록 후보 bookmark tree를 들여쓴 텍스트로 저장한다."""
+
+    children: dict[int | None, list[Any]] = defaultdict(list)
+    for candidate in candidates:
+        children[candidate.parent_idx].append(candidate)
+    for siblings in children.values():
+        siblings.sort(key=lambda candidate: candidate.idx)
+
+    lines = [
+        "# body separator + line-spacing BPE bookmark tree",
+        "# 형식: 들여쓰기- [L레벨, PDF 페이지] 제목",
+        "",
+    ]
+
+    def visit(candidate: Any) -> None:
+        indent = "  " * (candidate.level - 1)
+        lines.append(
+            f"{indent}- [L{candidate.level}, p.{candidate.pdf_page}] "
+            f"{normalize_pdf_whitespace(candidate.text)}"
+        )
+        for child in children.get(candidate.idx, []):
+            visit(child)
+
+    for root in children.get(None, []):
+        visit(root)
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def export_l2_split_markdown(candidates: list[Any]) -> dict[str, Any]:
+    """L1/L2를 파일 경계로, 그 아래 후보를 Markdown heading으로 내보낸다.
+
+    level 2 cutoff의 정의대로 level 1과 2 모두 다음 파일의 경계가 된다. 따라서 L1
+    제목 뒤에 바로 L2가 오면 L1 파일은 제목만 가진 짧은 Markdown이 될 수 있다.
+    이는 페이지 단위 본문 범위를 겹치지 않게 유지하는 의도된 동작이다.
+    """
+
+    export_dir = OUTPUT_DIR / "l2_markdown"
+    export_dir.mkdir(parents=True, exist_ok=True)
+    boundaries = [candidate for candidate in candidates if candidate.level <= 2]
+    candidate_by_idx = {candidate.idx: candidate for candidate in candidates}
+    children: dict[int | None, list[Any]] = defaultdict(list)
+    for candidate in candidates:
+        children[candidate.parent_idx].append(candidate)
+
+    def ancestry(candidate: Any) -> list[Any]:
+        result = [candidate]
+        parent_idx = candidate.parent_idx
+        while parent_idx is not None:
+            parent = candidate_by_idx[parent_idx]
+            result.append(parent)
+            parent_idx = parent.parent_idx
+        return list(reversed(result))
+
+    def markdown_heading(candidate: Any) -> str:
+        level = min(max(candidate.level, 1), 6)
+        return f"{'#' * level} {normalize_pdf_whitespace(candidate.text)}"
+
+    with fitz.open(BOOK_PDF) as document:
+        page_texts = {
+            page_index + 1: normalize_pdf_whitespace(document.load_page(page_index).get_text("text"))
+            for page_index in range(document.page_count)
+        }
+        page_count = document.page_count
+
+    file_rows: list[dict[str, Any]] = []
+    for position, boundary in enumerate(boundaries):
+        next_boundary = boundaries[position + 1] if position + 1 < len(boundaries) else None
+        end_page_exclusive = next_boundary.pdf_page if next_boundary else page_count + 1
+        end_idx_exclusive = next_boundary.idx if next_boundary else len(candidates)
+        segment_candidates = candidates[boundary.idx:end_idx_exclusive]
+        emitted_ids: set[int] = set()
+        markdown_lines: list[str] = []
+
+        # 파일 자체가 어느 L1/L2 경로에 속하는지 드러내기 위해 조상 heading을 먼저 둔다.
+        for ancestor in ancestry(boundary):
+            markdown_lines.extend([markdown_heading(ancestor), ""])
+            emitted_ids.add(ancestor.idx)
+
+        for page in range(boundary.pdf_page, end_page_exclusive):
+            page_headings = [
+                candidate
+                for candidate in segment_candidates
+                if candidate.pdf_page == page and candidate.idx not in emitted_ids
+            ]
+            for candidate in page_headings:
+                markdown_lines.extend([markdown_heading(candidate), ""])
+                emitted_ids.add(candidate.idx)
+            text = page_texts.get(page, "")
+            if text:
+                markdown_lines.extend([text, ""])
+
+        title_slug = _FILENAME_UNSAFE.sub("_", normalize_pdf_whitespace(boundary.text))
+        title_slug = title_slug.strip(" ._")[:60] or "untitled"
+        file_name = f"{position + 1:03d}_L{boundary.level}_p{boundary.pdf_page}_{title_slug}.md"
+        output_path = export_dir / file_name
+        markdown = "\n".join(markdown_lines).rstrip() + "\n"
+        output_path.write_text(markdown, encoding="utf-8")
+        file_rows.append(
+            {
+                "file": str(output_path.relative_to(OUTPUT_DIR)),
+                "level": boundary.level,
+                "title": normalize_pdf_whitespace(boundary.text),
+                "start_page": boundary.pdf_page,
+                "end_page_exclusive": end_page_exclusive,
+                "word_count": len(_WORD_SPLIT.findall(markdown)),
+                "heading_count": len(emitted_ids),
+            }
+        )
+
+    word_counts = [row["word_count"] for row in file_rows]
+    statistics = {
+        "file_count": len(file_rows),
+        "total_word_count": sum(word_counts),
+        "min_word_count": min(word_counts) if word_counts else None,
+        "p50_word_count": int(np.percentile(word_counts, 50)) if word_counts else None,
+        "p90_word_count": int(np.percentile(word_counts, 90)) if word_counts else None,
+        "p95_word_count": int(np.percentile(word_counts, 95)) if word_counts else None,
+        "max_word_count": max(word_counts) if word_counts else None,
+        "mean_word_count": round(float(np.mean(word_counts)), 1) if word_counts else None,
+        "files_at_or_below_10000_words": sum(count <= 10000 for count in word_counts),
+        "files_over_10000_words": sum(count > 10000 for count in word_counts),
+        "longest_files": sorted(file_rows, key=lambda row: row["word_count"], reverse=True)[:10],
+    }
+    (OUTPUT_DIR / "l2_markdown_stats.json").write_text(
+        json.dumps({"statistics": statistics, "files": file_rows}, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    summary_lines = [
+        "# L2 Markdown export statistics",
+        f"file_count: {statistics['file_count']}",
+        f"total_word_count: {statistics['total_word_count']}",
+        f"min/p50/p90/p95/max: {statistics['min_word_count']} / {statistics['p50_word_count']} / {statistics['p90_word_count']} / {statistics['p95_word_count']} / {statistics['max_word_count']}",
+        f"mean_word_count: {statistics['mean_word_count']}",
+        f"files_at_or_below_10000_words: {statistics['files_at_or_below_10000_words']}",
+        f"files_over_10000_words: {statistics['files_over_10000_words']}",
+        "",
+        "# Longest files",
+    ]
+    summary_lines.extend(
+        f"- {row['word_count']} words | p.{row['start_page']}-{row['end_page_exclusive'] - 1} | {row['title']} | {row['file']}"
+        for row in statistics["longest_files"]
+    )
+    (OUTPUT_DIR / "l2_markdown_stats.txt").write_text(
+        "\n".join(summary_lines) + "\n", encoding="utf-8"
+    )
+    return statistics
+
+
+def record_experiment(
+    results: dict[str, dict[str, Any]], metadata: dict[str, Any], l2_markdown_statistics: dict[str, Any]
+) -> None:
     baseline = results["baseline_global_bpe"]
     proposed = results["body_separator_spacing_bpe"]
     base_eval, new_eval = baseline["evaluation"], proposed["evaluation"]
@@ -271,7 +437,10 @@ def record_experiment(results: dict[str, dict[str, Any]], metadata: dict[str, An
         f"level_accuracy={new_eval['level_accuracy']} parent_accuracy={new_eval['parent_accuracy']} "
         f"unmatched={new_pollution['bookmark_unmatched_candidate_count']} bridge={new_pollution['unmatched_bridge_candidate_count']} | "
         f"body_separators={metadata['body_separator_count']} merged_pairs={metadata['bpe_stats'].get('merged_pairs', 0)} "
-        f"broad_rejections={metadata['bpe_stats'].get('broad_spacing_rejections', 0)}"
+        f"broad_rejections={metadata['bpe_stats'].get('broad_spacing_rejections', 0)} | "
+        f"l2_markdown: files={l2_markdown_statistics['file_count']} "
+        f"p90_words={l2_markdown_statistics['p90_word_count']} "
+        f"max_words={l2_markdown_statistics['max_word_count']}"
     )
     data = json.loads(EXPERIMENTS_JSON.read_text(encoding="utf-8"))
     entry = {
@@ -288,6 +457,7 @@ def record_experiment(results: dict[str, dict[str, Any]], metadata: dict[str, An
         "body_handling": "본문/주석 tier는 BPE 후보가 아닌 separator token으로 유지",
         "line_spacing_rule": "직접 인접한 non-body line의 상대 line spacing이 해당 페이지 body 중앙 spacing 이하일 때만 BPE pair 허용",
         "separator_spacing_metadata": metadata,
+        "l2_markdown_export": l2_markdown_statistics,
         "results": {
             name: {key: value for key, value in result.items() if key != "candidate_tree"}
             for name, result in results.items()
@@ -318,6 +488,9 @@ def main() -> None:
         raise RuntimeError("title filter가 적용되면 안 됩니다")
     print("... body separator + line-spacing BPE 생성 중")
     separator_candidates, metadata = build_separator_spacing_tree(source)
+    bookmark_tree_path = OUTPUT_DIR / "body_separator_spacing_bookmark_tree.txt"
+    write_hierarchical_bookmark_tree(separator_candidates, bookmark_tree_path)
+    l2_markdown_statistics = export_l2_split_markdown(separator_candidates)
     results = {
         "baseline_global_bpe": run_variant(
             "baseline", baseline_candidates, eval_module, audit_module, truth
@@ -330,8 +503,10 @@ def main() -> None:
         json.dumps({"separator_spacing_metadata": metadata, "results": results}, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
-    record_experiment(results, metadata)
+    record_experiment(results, metadata, l2_markdown_statistics)
     print(f"summary: {OUTPUT_DIR / 'separator_spacing_comparison.json'}")
+    print(f"bookmark tree: {bookmark_tree_path}")
+    print(f"L2 Markdown stats: {OUTPUT_DIR / 'l2_markdown_stats.txt'}")
 
 
 if __name__ == "__main__":
