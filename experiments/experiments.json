@@ -15588,193 +15588,6 @@
       "ran_at": "2026-07-13T09:46:49"
     },
     {
-      "id": "095_overlay_density_margin_joint_style",
-      "purpose": "global body tier 제거 전에 font-size ratio와 normalized top-left를 joint style로 만들고, 여러 page에 반복되는 style만 level 후보로 인정해 bookmark hierarchy를 복원할 수 있는지 검증한다. 기존 PDF bookmark는 near-answer weak reference로만 사용한다.",
-      "inputs": [
-        "showcase\\outputs\\017_interest_economics_ocr_overlay\\interest_economics_ocr.pdf"
-      ],
-      "outputs": "experiments\\outputs\\095_overlay_density_margin_joint_style",
-      "method": "여러 page의 normalized y 좌표를 overlay해 반복 component를 만들고, component 폭 중앙값보다 좁은 양끝 band를 margin으로 제거한 뒤, 모든 visual line의 top-left를 page-relative 좌표로 바꾸고 문서 median line-height를 단위로 환산했다. body font median과 font-size가 상대적으로 다른 line만 대상으로, font ratio와 x/y가 각각 dimensionless tolerance 안에 드는 joint style을 만들었다. 2개 이상 page에 반복되는 style만 남기고 style median font-size stack으로 level을 부여했다.",
-      "summary": {
-        "margin_report": {
-          "status": "filtered",
-          "page_count": 263,
-          "median_line_height_ratio": 0.020469195487789762,
-          "bin_width_ratio": 0.005117298871947441,
-          "minimum_page_support": 17,
-          "component_width_median_bins": 12.0,
-          "components": [
-            {
-              "lower_y_ratio": 0.0409,
-              "upper_y_ratio": 0.0563,
-              "width_bins": 4,
-              "content": false
-            },
-            {
-              "lower_y_ratio": 0.0819,
-              "upper_y_ratio": 0.133,
-              "width_bins": 11,
-              "content": true
-            },
-            {
-              "lower_y_ratio": 0.1484,
-              "upper_y_ratio": 0.1638,
-              "width_bins": 4,
-              "content": true
-            },
-            {
-              "lower_y_ratio": 0.1791,
-              "upper_y_ratio": 0.3736,
-              "width_bins": 39,
-              "content": true
-            },
-            {
-              "lower_y_ratio": 0.3889,
-              "upper_y_ratio": 0.7011,
-              "width_bins": 62,
-              "content": true
-            },
-            {
-              "lower_y_ratio": 0.7164,
-              "upper_y_ratio": 0.8188,
-              "width_bins": 21,
-              "content": true
-            },
-            {
-              "lower_y_ratio": 0.8341,
-              "upper_y_ratio": 0.8955,
-              "width_bins": 13,
-              "content": true
-            },
-            {
-              "lower_y_ratio": 0.9365,
-              "upper_y_ratio": 0.9467,
-              "width_bins": 3,
-              "content": false
-            }
-          ],
-          "inferred_content_y_ratio": [
-            0.0819,
-            0.8955
-          ],
-          "input_line_count": 8228,
-          "kept_line_count": 7680,
-          "removed_line_count": 548
-        },
-        "body_tier": 4,
-        "normalization": {
-          "body_font_size": 9.94,
-          "median_height_over_page_width": 0.032180385288966724,
-          "median_height_over_page_height": 0.0205761316872428
-        },
-        "truth_count": 0,
-        "label_quality": "no embedded labels; human review required",
-        "bookmark_tree_txt": "experiments\\outputs\\095_overlay_density_margin_joint_style\\bookmark_tree.txt",
-        "comparison": [
-          {
-            "position_ratio": 0.25,
-            "font_ratio": 0.05,
-            "candidates": 509,
-            "styles": 150,
-            "levels": {
-              "1": 69,
-              "2": 284,
-              "3": 135,
-              "4": 19,
-              "5": 2
-            },
-            "recall": 0.0,
-            "level_accuracy": 0.0,
-            "level_correct": 0
-          },
-          {
-            "position_ratio": 0.25,
-            "font_ratio": 0.1,
-            "candidates": 198,
-            "styles": 48,
-            "levels": {
-              "1": 78,
-              "2": 104,
-              "3": 16
-            },
-            "recall": 0.0,
-            "level_accuracy": 0.0,
-            "level_correct": 0
-          },
-          {
-            "position_ratio": 0.5,
-            "font_ratio": 0.05,
-            "candidates": 629,
-            "styles": 163,
-            "levels": {
-              "1": 88,
-              "2": 386,
-              "3": 125,
-              "4": 27,
-              "5": 3
-            },
-            "recall": 0.0,
-            "level_accuracy": 0.0,
-            "level_correct": 0
-          },
-          {
-            "position_ratio": 0.5,
-            "font_ratio": 0.1,
-            "candidates": 258,
-            "styles": 64,
-            "levels": {
-              "1": 97,
-              "2": 140,
-              "3": 18,
-              "4": 3
-            },
-            "recall": 0.0,
-            "level_accuracy": 0.0,
-            "level_correct": 0
-          },
-          {
-            "position_ratio": 1.0,
-            "font_ratio": 0.05,
-            "candidates": 725,
-            "styles": 149,
-            "levels": {
-              "1": 94,
-              "2": 407,
-              "3": 138,
-              "4": 85,
-              "5": 1
-            },
-            "recall": 0.0,
-            "level_accuracy": 0.0,
-            "level_correct": 0
-          },
-          {
-            "position_ratio": 1.0,
-            "font_ratio": 0.1,
-            "candidates": 293,
-            "styles": 68,
-            "levels": {
-              "1": 103,
-              "2": 129,
-              "3": 39,
-              "4": 21,
-              "5": 1
-            },
-            "recall": 0.0,
-            "level_accuracy": 0.0,
-            "level_correct": 0
-          }
-        ],
-        "best_config": {
-          "position_ratio": 0.25,
-          "font_ratio": 0.1
-        },
-        "finding": "body tier=4, body font median=9.9400, visual lines=7680, embedded bookmark=0. joint style 비교=[{'position_ratio': 0.25, 'font_ratio': 0.05, 'candidates': 509, 'styles': 150, 'levels': {1: 69, 2: 284, 3: 135, 4: 19, 5: 2}, 'recall': 0.0, 'level_accuracy': 0.0, 'level_correct': 0}, {'position_ratio': 0.25, 'font_ratio': 0.1, 'candidates': 198, 'styles': 48, 'levels': {1: 78, 2: 104, 3: 16}, 'recall': 0.0, 'level_accuracy': 0.0, 'level_correct': 0}, {'position_ratio': 0.5, 'font_ratio': 0.05, 'candidates': 629, 'styles': 163, 'levels': {1: 88, 2: 386, 3: 125, 4: 27, 5: 3}, 'recall': 0.0, 'level_accuracy': 0.0, 'level_correct': 0}, {'position_ratio': 0.5, 'font_ratio': 0.1, 'candidates': 258, 'styles': 64, 'levels': {1: 97, 2: 140, 3: 18, 4: 3}, 'recall': 0.0, 'level_accuracy': 0.0, 'level_correct': 0}, {'position_ratio': 1.0, 'font_ratio': 0.05, 'candidates': 725, 'styles': 149, 'levels': {1: 94, 2: 407, 3: 138, 4: 85, 5: 1}, 'recall': 0.0, 'level_accuracy': 0.0, 'level_correct': 0}, {'position_ratio': 1.0, 'font_ratio': 0.1, 'candidates': 293, 'styles': 68, 'levels': {1: 103, 2: 129, 3: 39, 4: 21, 5: 1}, 'recall': 0.0, 'level_accuracy': 0.0, 'level_correct': 0}]. label이 없으므로 자동 정답 설정은 선택하지 않았다. 사람이 먼저 읽을 conservative preview는 config={'position_ratio': 0.25, 'font_ratio': 0.1}, candidates=198, levels={1: 78, 2: 104, 3: 16}이다. 모든 config의 tree txt를 별도 저장했다."
-      },
-      "finding": "body tier=4, body font median=9.9400, visual lines=7680, embedded bookmark=0. joint style 비교=[{'position_ratio': 0.25, 'font_ratio': 0.05, 'candidates': 509, 'styles': 150, 'levels': {1: 69, 2: 284, 3: 135, 4: 19, 5: 2}, 'recall': 0.0, 'level_accuracy': 0.0, 'level_correct': 0}, {'position_ratio': 0.25, 'font_ratio': 0.1, 'candidates': 198, 'styles': 48, 'levels': {1: 78, 2: 104, 3: 16}, 'recall': 0.0, 'level_accuracy': 0.0, 'level_correct': 0}, {'position_ratio': 0.5, 'font_ratio': 0.05, 'candidates': 629, 'styles': 163, 'levels': {1: 88, 2: 386, 3: 125, 4: 27, 5: 3}, 'recall': 0.0, 'level_accuracy': 0.0, 'level_correct': 0}, {'position_ratio': 0.5, 'font_ratio': 0.1, 'candidates': 258, 'styles': 64, 'levels': {1: 97, 2: 140, 3: 18, 4: 3}, 'recall': 0.0, 'level_accuracy': 0.0, 'level_correct': 0}, {'position_ratio': 1.0, 'font_ratio': 0.05, 'candidates': 725, 'styles': 149, 'levels': {1: 94, 2: 407, 3: 138, 4: 85, 5: 1}, 'recall': 0.0, 'level_accuracy': 0.0, 'level_correct': 0}, {'position_ratio': 1.0, 'font_ratio': 0.1, 'candidates': 293, 'styles': 68, 'levels': {1: 103, 2: 129, 3: 39, 4: 21, 5: 1}, 'recall': 0.0, 'level_accuracy': 0.0, 'level_correct': 0}]. label이 없으므로 자동 정답 설정은 선택하지 않았다. 사람이 먼저 읽을 conservative preview는 config={'position_ratio': 0.25, 'font_ratio': 0.1}, candidates=198, levels={1: 78, 2: 104, 3: 16}이다. 모든 config의 tree txt를 별도 저장했다.",
-      "ran_at": "2026-07-13T09:51:23"
-    },
-    {
       "id": "096_pdf_md_harness_interest_economics",
       "purpose": "pdf-md-harness-clean의 PaddleOCR 경로로 텍스트 레이어와 bookmark가 없는 스캔 PDF '금리의 경제학' 전체를 Markdown으로 변환할 수 있는지 Windows 환경에서 검증한다.",
       "inputs": [
@@ -15793,6 +15606,202 @@
         "poppler": "26.02.0"
       },
       "ran_at": "2026-07-13T10:03:10+09:00"
+    },
+    {
+      "id": "095_overlay_density_margin_joint_style",
+      "purpose": "본문 font density band에서 line spacing을 추론해 OCR line을 chunk화하고, 연속 chunk anchor pattern과 font 후보를 독립적으로 비교한다.",
+      "inputs": [
+        "data\\native-pdf-indexed\\Zvi Bodie, Alex Kane, Alan Marcus - Investments-McGraw Hill (2021)[finance].pdf"
+      ],
+      "outputs": "experiments\\outputs\\095_overlay_density_margin_joint_style",
+      "method": "font-size 분포는 강건한 Silverman bandwidth KDE의 valley로 band를 나누고 문서 median이 속한 band를 본문으로 정했다. 본문 line spacing 중앙값이 속한 density band의 상한으로 chunk를 만들었다. 같은 page에서 연속되고 같은 non-body font 방향이며 bbox gap이 본문 spacing 이내인 chunk는 첫 anchor를 보존해 병합했다. position tolerance는 다른 page의 최근접 anchor pattern 거리 중앙값으로, 최소 반복 page 수는 support histogram의 최대 감소 지점으로 추론했다.",
+      "summary": {
+        "margin_report": {
+          "status": "filtered",
+          "page_count": 1040,
+          "median_line_height_ratio": 0.017458333333333333,
+          "bin_width_ratio": 0.004364583333333333,
+          "minimum_page_support": 33,
+          "components": [
+            {
+              "lower_y_ratio": 0.0567,
+              "upper_y_ratio": 0.0567,
+              "width_bins": 1,
+              "content": true
+            },
+            {
+              "lower_y_ratio": 0.0917,
+              "upper_y_ratio": 0.9122,
+              "width_bins": 189,
+              "content": true
+            },
+            {
+              "lower_y_ratio": 0.9297,
+              "upper_y_ratio": 0.9297,
+              "width_bins": 1,
+              "content": true
+            },
+            {
+              "lower_y_ratio": 0.9558,
+              "upper_y_ratio": 0.9558,
+              "width_bins": 1,
+              "content": true
+            }
+          ],
+          "inferred_content_y_ratio": [
+            0.0567,
+            0.9558
+          ],
+          "input_line_count": 44913,
+          "kept_line_count": 43943,
+          "removed_line_count": 970
+        },
+        "font_density": {
+          "font_size": 9.5,
+          "band_index": 11,
+          "lower": 9.291011235955056,
+          "upper": 9.659452857840742,
+          "bandwidth": 0.11875476088378056,
+          "cuts": [
+            3.2321934538348804,
+            3.8872007816316563,
+            4.05095261358085,
+            4.7468978993649245,
+            5.197215437225207,
+            5.688470933072789,
+            6.548168050806058,
+            7.366927210552027,
+            8.308500244259893,
+            8.717879824132877,
+            9.291011235955056,
+            9.659452857840742,
+            10.641963849535905,
+            11.215095261358083,
+            11.706350757205666,
+            12.68886174890083,
+            13.671372740595995,
+            14.490131900341964,
+            15.554518808011725,
+            16.41421592574499,
+            17.51954079140205,
+            18.502051783097215,
+            19.525500732779676,
+            22.022716170004884,
+            34.79535906204201,
+            37.04694675134343,
+            39.99447972642892
+          ],
+          "line_count": 2389
+        },
+        "body_spacing": {
+          "body_row_count": 2381,
+          "adjacent_pair_count": 2145,
+          "top_to_top_median": 12.0,
+          "font_excess_y_distance": 2.5,
+          "bbox_gap_median": -1.2699999999999818,
+          "density_bandwidth": 0.1953889988290577,
+          "density_valleys": [
+            6.687767464582311,
+            7.205842696629209,
+            7.9496140693698045,
+            8.734421104054709,
+            9.878290180752316,
+            11.129877870053733,
+            13.258602833414749,
+            14.85899364924279,
+            16.090063507572054
+          ],
+          "continuation_upper": 13.258602833414749
+        },
+        "visual_row_count": 43571,
+        "chunk_count": 4919,
+        "position_inference": {
+          "tolerance_line_spacings": 0.8158333333333285,
+          "nearest_distance_median": 0.8158333333333285,
+          "nearest_distance_q1": 0.22291666666666998,
+          "nearest_distance_q3": 1.4760416666666665
+        },
+        "pattern_support": {
+          "minimum_pages": 2,
+          "support_histogram": {
+            "1": 2058,
+            "2": 322,
+            "3": 97,
+            "4": 33,
+            "5": 18,
+            "6": 5,
+            "7": 2,
+            "8": 4,
+            "9": 1,
+            "10": 3,
+            "12": 2,
+            "14": 1,
+            "16": 2,
+            "17": 1,
+            "19": 2,
+            "20": 2,
+            "21": 1,
+            "22": 2,
+            "23": 2,
+            "24": 2,
+            "26": 1,
+            "27": 2,
+            "28": 3,
+            "30": 1,
+            "32": 1
+          },
+          "accepted_pattern_count": 510
+        },
+        "candidate_counts": {
+          "position": 1822,
+          "font": 4114,
+          "and": 1151
+        },
+        "truth_count": 793,
+        "match_threshold": 0.541015625,
+        "default_mode": "position AND font",
+        "bookmark_tree_txt": "experiments\\outputs\\095_overlay_density_margin_joint_style\\bookmark_tree.txt",
+        "finding": "visual lines=43943, visual rows=43571, chunks=4919, adjacent non-body merges=5829, body-only top-to-top median=12.000, body font=9.500, inferred position tolerance=0.816 line spacings, inferred minimum pages=2, position AND font candidates=1151, truth=793, match threshold=0.541. 수동 position/font tolerance는 사용하지 않았다.",
+        "adjacent_non_body_merge": {
+          "input_chunk_count": 10748,
+          "output_chunk_count": 4919,
+          "merge_count": 5829
+        },
+        "evaluation": {
+          "position": {
+            "truth_count": 793,
+            "candidate_count": 1822,
+            "matched": 188,
+            "precision": 0.1032,
+            "recall": 0.2371,
+            "f1": 0.1438,
+            "level_accuracy": 0.4202,
+            "unmatched_candidate_count": 1634
+          },
+          "font": {
+            "truth_count": 793,
+            "candidate_count": 4114,
+            "matched": 590,
+            "precision": 0.1434,
+            "recall": 0.744,
+            "f1": 0.2405,
+            "level_accuracy": 0.0881,
+            "unmatched_candidate_count": 3524
+          },
+          "and": {
+            "truth_count": 793,
+            "candidate_count": 1151,
+            "matched": 185,
+            "precision": 0.1607,
+            "recall": 0.2333,
+            "f1": 0.1903,
+            "level_accuracy": 0.4216,
+            "unmatched_candidate_count": 966
+          }
+        }
+      },
+      "finding": "visual lines=43943, visual rows=43571, chunks=4919, adjacent non-body merges=5829, body-only top-to-top median=12.000, body font=9.500, inferred position tolerance=0.816 line spacings, inferred minimum pages=2, position AND font candidates=1151, truth=793, match threshold=0.541. 수동 position/font tolerance는 사용하지 않았다.",
+      "ran_at": "2026-07-13T14:37:50"
     },
     {
       "id": "096_min5_text_coverage_font_tiers",

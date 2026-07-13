@@ -1,12 +1,12 @@
-"""experiment 095: font size와 normalized position을 joint style로 묶는다.
+"""experiment 095: chunk anchor pattern과 font size 후보를 독립적으로 비교한다.
 
-092는 global font tier에서 body tier를 먼저 제거해 실제 제목 57개 중 51개를
-geometry 검사 전에 잃었다. 이번 실험은 모든 visual line에서 body font와 상대적으로
-다른 font size를 가진 line을 고른 뒤, font-size ratio와 page-normalized top-left를
-동시에 style로 clustering한다. 여러 page에 반복되는 style만 level 후보로 인정하고
-style 대표 font size를 비교하는 stack으로 hierarchy를 만든다. PDF bookmark는 오류가
-섞인 near-answer weak reference로만 사용하고, 최종 판단은 bookmark_tree.txt를 직접
-읽어 수행한다.
+개별 OCR line의 좌표를 곧바로 position으로 사용하지 않는다. 먼저 같은 페이지에서
+문서의 median line spacing 안에 이어지는 line을 하나의 chunk로 묶고, chunk의 첫
+line top-left를 anchor로 사용한다. 현재 chunk와 다음 chunk의 anchor 쌍이 여러 page에
+반복되는 경우 현재 chunk를 position 후보로 인정한다.
+
+position 후보와 body font-size가 다른 후보는 독립적으로 만들며 position, font,
+position AND font 세 tree를 모두 저장한다. 기본 bookmark_tree.txt는 AND 결과다.
 
 실행:
     uv run python experiments/095_overlay_density_margin_joint_style.py
@@ -19,17 +19,17 @@ import re
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from datetime import datetime
-from math import ceil, sqrt
 from difflib import SequenceMatcher
+from math import ceil, sqrt
 from pathlib import Path
 from statistics import median
 from typing import Any
 
 import fitz
+import numpy as np
 
 from pdfbooktree.config import TypographyConfig
 from pdfbooktree.typography.lines import extract_typography_lines
-from pdfbooktree.typography.tiers import assign_tier, compute_tier_set
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
 EXPERIMENTS_JSON = ROOT_DIR / "experiments" / "experiments.json"
@@ -37,38 +37,56 @@ EXPERIMENT_ID = "095_overlay_density_margin_joint_style"
 OUTPUT_DIR = ROOT_DIR / "experiments" / "outputs" / EXPERIMENT_ID
 INPUT_PDF = (
     ROOT_DIR
-    / "showcase"
-    / "outputs"
-    / "017_interest_economics_ocr_overlay"
-    / "interest_economics_ocr.pdf"
+    / "data"
+    / "native-pdf-indexed"
+    / "Zvi Bodie, Alex Kane, Alan Marcus - Investments-McGraw Hill (2021)[finance].pdf"
 )
-POSITION_HEIGHT_RATIOS = [0.25, 0.5, 1.0]
+POSITION_TOLERANCES = [0.25, 0.5, 1.0]
 FONT_RELATIVE_TOLERANCES = [0.05, 0.1]
-MIN_DISTINCT_PAGES = 2
-MARGIN_MIN_CONSECUTIVE_PAGES = 3
-TITLE_MATCH_THRESHOLD = 70.0
+CHUNK_CONTINUATION_RATIO = 1.35
+MIN_PATTERN_PAGES = 3
 
 
 @dataclass(frozen=True)
-class StyleLine:
-    line: Any
-    x_unit: float
-    y_unit: float
-    font_ratio_to_body: float
+class VisualRow:
+    pdf_page: int
+    lines: tuple[Any, ...]
+    x0: float
+    y0: float
+    x1: float
+    y1: float
+    page_width: float
+    page_height: float
+    font_size: float
+    text: str
 
 
-@dataclass
-class StyleCluster:
-    cluster_id: int
-    items: list[StyleLine]
+@dataclass(frozen=True)
+class TextChunk:
+    chunk_id: int
+    pdf_page: int
+    rows: tuple[VisualRow, ...]
+    x0: float
+    y0: float
+    page_width: float
+    page_height: float
+    font_size: float
+    text: str
 
     @property
-    def font_size(self) -> float:
-        return float(median(item.line.font_size for item in self.items))
+    def line_count(self) -> int:
+        return len(self.rows)
 
     @property
-    def pages(self) -> set[int]:
-        return {item.line.pdf_page for item in self.items}
+    def y1(self) -> float:
+        return max(row.y1 for row in self.rows)
+
+
+@dataclass(frozen=True)
+class AnchorPattern:
+    current: TextChunk
+    following: TextChunk
+    values: tuple[float, float, float, float]
 
 
 def exclude_overlay_density_margins(
@@ -80,7 +98,6 @@ def exclude_overlay_density_margins(
         return [], {"status": "empty"}
     page_count = max(line.pdf_page for line in lines)
     median_height_ratio = median(line.height / line.page_height for line in lines)
-    # 한 line-height보다 세밀하게 반복 row를 보되 절대 좌표는 사용하지 않는다.
     bin_width = median_height_ratio / 4.0
     pages_by_bin: dict[int, set[int]] = defaultdict(set)
     for line in lines:
@@ -121,7 +138,6 @@ def exclude_overlay_density_margins(
         "median_line_height_ratio": median_height_ratio,
         "bin_width_ratio": bin_width,
         "minimum_page_support": minimum_page_support,
-        "component_width_median_bins": minimum_content_width,
         "components": [
             {
                 "lower_y_ratio": round(component[0] * bin_width, 4),
@@ -141,19 +157,421 @@ def exclude_overlay_density_margins(
     return kept, report
 
 
-def normalize_title(text: str) -> str:
-    return re.sub(r"[^0-9a-z가-힣]+", " ", text.casefold()).strip()
+def infer_density_bands(values: list[float]) -> dict[str, Any]:
+    """강건한 Silverman bandwidth와 density valley로 1차원 band를 찾는다."""
+
+    array = np.asarray(values, dtype=float)
+    q1, q3 = np.percentile(array, [25, 75])
+    robust_scale = min(float(np.std(array, ddof=1)), float((q3 - q1) / 1.34))
+    bandwidth = 0.9 * robust_scale * (len(array) ** -0.2)
+    grid = np.linspace(float(array.min()), float(array.max()), 2048)
+    density = np.zeros_like(grid)
+    for batch in np.array_split(array, max(1, ceil(len(array) / 4096))):
+        z = (grid[:, None] - batch[None, :]) / bandwidth
+        density += np.exp(-0.5 * z * z).sum(axis=1)
+    valley_indices = [
+        index
+        for index in range(1, len(density) - 1)
+        if density[index - 1] > density[index] < density[index + 1]
+    ]
+    cuts = [float(grid[index]) for index in valley_indices]
+    return {"bandwidth": bandwidth, "cuts": cuts}
 
 
-def title_score(left: str, right: str) -> float:
-    left_norm = normalize_title(left)
-    right_norm = normalize_title(right)
-    if left_norm and (left_norm in right_norm or right_norm in left_norm):
-        return 100.0
-    return 100.0 * SequenceMatcher(None, left_norm, right_norm).ratio()
+def band_index(value: float, cuts: list[float]) -> int:
+    return int(np.searchsorted(np.asarray(cuts), value, side="right"))
+
+
+def infer_body_font_band(lines: list[Any]) -> dict[str, Any]:
+    """font-size density에서 문서 median이 속한 band를 본문 font band로 삼는다."""
+
+    values = [float(line.font_size) for line in lines]
+    density = infer_density_bands(values)
+    cuts = density["cuts"]
+    document_median = float(median(values))
+    body_band = band_index(document_median, cuts)
+    lower = cuts[body_band - 1] if body_band > 0 else float("-inf")
+    upper = cuts[body_band] if body_band < len(cuts) else float("inf")
+    body_values = [value for value in values if band_index(value, cuts) == body_band]
+    return {
+        "font_size": float(median(body_values)),
+        "band_index": body_band,
+        "lower": lower,
+        "upper": upper,
+        "bandwidth": density["bandwidth"],
+        "cuts": cuts,
+        "line_count": len(body_values),
+    }
+
+
+def build_visual_rows(lines: list[Any]) -> tuple[list[VisualRow], float]:
+    """세로 bbox가 겹치고 가로 영역이 분리된 OCR 조각만 같은 인쇄 line으로 합친다."""
+
+    median_height = float(median(line.height for line in lines))
+    rows: list[VisualRow] = []
+    by_page: dict[int, list[Any]] = defaultdict(list)
+    for line in lines:
+        by_page[line.pdf_page].append(line)
+    for page, page_lines in sorted(by_page.items()):
+        groups: list[list[Any]] = []
+        for line in sorted(page_lines, key=lambda item: (item.y0, item.x0)):
+            target = next(
+                (
+                    group
+                    for group in reversed(groups)
+                    if min(line.y1, max(item.y1 for item in group))
+                    > max(line.y0, min(item.y0 for item in group))
+                    and all(line.x1 <= item.x0 or line.x0 >= item.x1 for item in group)
+                ),
+                None,
+            )
+            if target is None:
+                groups.append([line])
+            else:
+                target.append(line)
+        for group in groups:
+            ordered = sorted(group, key=lambda item: item.x0)
+            rows.append(
+                VisualRow(
+                    pdf_page=page,
+                    lines=tuple(ordered),
+                    x0=min(item.x0 for item in ordered),
+                    y0=min(item.y0 for item in ordered),
+                    x1=max(item.x1 for item in ordered),
+                    y1=max(item.y1 for item in ordered),
+                    page_width=ordered[0].page_width,
+                    page_height=ordered[0].page_height,
+                    font_size=float(median(item.font_size for item in ordered)),
+                    text=" ".join(
+                        item.text.strip() for item in ordered if item.text.strip()
+                    ),
+                )
+            )
+    return rows, median_height
+
+
+def estimate_line_spacing(
+    rows: list[VisualRow], body_font_band: dict[str, Any]
+) -> tuple[float, dict[str, Any]]:
+    """복원된 본문 line의 top-to-top 분포와 paragraph 내부 band를 구한다."""
+
+    body_rows = [
+        row
+        for row in rows
+        if body_font_band["lower"] <= row.font_size < body_font_band["upper"]
+    ]
+    by_page: dict[int, list[VisualRow]] = defaultdict(list)
+    for row in body_rows:
+        by_page[row.pdf_page].append(row)
+    gaps = []
+    bbox_gaps = []
+    for page_rows in by_page.values():
+        ordered = sorted(page_rows, key=lambda row: (row.y0, row.x0))
+        for left, right in zip(ordered, ordered[1:]):
+            if right.y0 <= left.y0:
+                continue
+            if max(left.x0, right.x0) >= min(left.x1, right.x1):
+                continue
+            gaps.append(right.y0 - left.y0)
+            bbox_gaps.append(right.y0 - left.y1)
+
+    top_step = float(median(gaps))
+    q1, q3 = np.percentile(gaps, [25, 75])
+    upper_fence = float(q3 + 1.5 * (q3 - q1))
+    core_gaps = [gap for gap in gaps if gap <= upper_fence]
+    gap_density = infer_density_bands(core_gaps)
+    upper_valleys = [cut for cut in gap_density["cuts"] if cut >= top_step]
+    continuation_upper = upper_valleys[0] if upper_valleys else float(max(core_gaps))
+    return top_step, {
+        "body_row_count": len(body_rows),
+        "adjacent_pair_count": len(gaps),
+        "top_to_top_median": top_step,
+        "font_excess_y_distance": top_step - body_font_band["font_size"],
+        "bbox_gap_median": float(median(bbox_gaps)),
+        "density_bandwidth": gap_density["bandwidth"],
+        "density_valleys": gap_density["cuts"],
+        "continuation_upper": continuation_upper,
+    }
+
+
+def build_chunks(rows: list[VisualRow], line_spacing: float) -> list[TextChunk]:
+    """median line spacing으로 이어지는 row들을 한 덩어리로 묶는다."""
+
+    by_page: dict[int, list[VisualRow]] = defaultdict(list)
+    for row in rows:
+        by_page[row.pdf_page].append(row)
+    chunks: list[TextChunk] = []
+    chunk_id = 1
+    for page, page_rows in sorted(by_page.items()):
+        groups: list[list[VisualRow]] = []
+        for row in sorted(page_rows, key=lambda item: (item.y0, item.x0)):
+            if groups and row.y0 - groups[-1][-1].y0 <= line_spacing:
+                groups[-1].append(row)
+            else:
+                groups.append([row])
+        for group in groups:
+            first = group[0]
+            chunks.append(
+                TextChunk(
+                    chunk_id=chunk_id,
+                    pdf_page=page,
+                    rows=tuple(group),
+                    x0=first.x0,
+                    y0=first.y0,
+                    page_width=first.page_width,
+                    page_height=first.page_height,
+                    font_size=float(median(row.font_size for row in group)),
+                    text=" ".join(row.text for row in group),
+                )
+            )
+            chunk_id += 1
+    return chunks
+
+
+def merge_adjacent_non_body_chunks(
+    chunks: list[TextChunk],
+    body_font_band: dict[str, Any],
+    body_line_spacing: float,
+) -> tuple[list[TextChunk], dict[str, Any]]:
+    """같은 page의 연속된 non-body chunk를 bbox gap과 font 방향으로 병합한다."""
+
+    def font_side(chunk: TextChunk) -> int:
+        if chunk.font_size < body_font_band["lower"]:
+            return -1
+        if chunk.font_size >= body_font_band["upper"]:
+            return 1
+        return 0
+
+    merged: list[TextChunk] = []
+    merge_pairs = []
+    for chunk in sorted(chunks, key=lambda item: (item.pdf_page, item.y0, item.x0)):
+        if not merged:
+            merged.append(chunk)
+            continue
+        previous = merged[-1]
+        vertical_gap = chunk.y0 - previous.y1
+        previous_side = font_side(previous)
+        should_merge = (
+            previous.pdf_page == chunk.pdf_page
+            and chunk.y0 > previous.y0
+            and vertical_gap <= body_line_spacing
+            and previous_side != 0
+            and previous_side == font_side(chunk)
+        )
+        if not should_merge:
+            merged.append(chunk)
+            continue
+        rows = tuple(
+            sorted(previous.rows + chunk.rows, key=lambda row: (row.y0, row.x0))
+        )
+        combined = TextChunk(
+            chunk_id=previous.chunk_id,
+            pdf_page=previous.pdf_page,
+            rows=rows,
+            x0=previous.x0,
+            y0=previous.y0,
+            page_width=previous.page_width,
+            page_height=previous.page_height,
+            font_size=float(median(row.font_size for row in rows)),
+            text=f"{previous.text} {chunk.text}".strip(),
+        )
+        merged[-1] = combined
+        merge_pairs.append(
+            {
+                "page": chunk.pdf_page,
+                "first_chunk_id": previous.chunk_id,
+                "second_chunk_id": chunk.chunk_id,
+                "vertical_gap": round(vertical_gap, 3),
+                "merged_text": combined.text[:160],
+            }
+        )
+    return merged, {
+        "input_chunk_count": len(chunks),
+        "output_chunk_count": len(merged),
+        "merge_count": len(merge_pairs),
+        "merges": merge_pairs,
+    }
+
+
+def build_anchor_patterns(
+    chunks: list[TextChunk], line_spacing: float
+) -> list[AnchorPattern]:
+    """현재 chunk와 바로 다음 chunk의 top-left anchor 쌍을 만든다."""
+
+    by_page: dict[int, list[TextChunk]] = defaultdict(list)
+    for chunk in chunks:
+        by_page[chunk.pdf_page].append(chunk)
+    patterns = []
+    for page_chunks in by_page.values():
+        ordered = sorted(page_chunks, key=lambda chunk: (chunk.y0, chunk.x0))
+        for current, following in zip(ordered, ordered[1:]):
+            patterns.append(
+                AnchorPattern(
+                    current=current,
+                    following=following,
+                    values=(
+                        (current.x0 / current.page_width)
+                        / (line_spacing / current.page_width),
+                        (current.y0 / current.page_height)
+                        / (line_spacing / current.page_height),
+                        (following.x0 / following.page_width)
+                        / (line_spacing / following.page_width),
+                        (following.y0 / following.page_height)
+                        / (line_spacing / following.page_height),
+                    ),
+                )
+            )
+    return patterns
+
+
+def cluster_patterns(
+    patterns: list[AnchorPattern], tolerance: float
+) -> list[list[AnchorPattern]]:
+    """anchor 네 좌표가 모두 tolerance 안에 드는 위치 패턴을 군집화한다."""
+
+    clusters: list[list[AnchorPattern]] = []
+    for pattern in sorted(patterns, key=lambda item: item.values):
+        target = next(
+            (
+                cluster
+                for cluster in clusters
+                if all(
+                    max(values) - min(values) <= tolerance
+                    for values in zip(
+                        *(item.values for item in cluster + [pattern]), strict=True
+                    )
+                )
+            ),
+            None,
+        )
+        if target is None:
+            clusters.append([pattern])
+        else:
+            target.append(pattern)
+    return clusters
+
+
+def infer_position_tolerance(patterns: list[AnchorPattern]) -> dict[str, Any]:
+    """다른 page에서 가장 가까운 pattern까지의 거리 중앙값으로 jitter를 추론한다."""
+
+    values = np.asarray([pattern.values for pattern in patterns], dtype=float)
+    pages = np.asarray([pattern.current.pdf_page for pattern in patterns], dtype=int)
+    nearest = []
+    for index, value in enumerate(values):
+        distances = np.max(np.abs(values - value), axis=1)
+        nearest.append(float(np.min(distances[pages != pages[index]])))
+    return {
+        "tolerance_line_spacings": float(median(nearest)),
+        "nearest_distance_median": float(median(nearest)),
+        "nearest_distance_q1": float(np.percentile(nearest, 25)),
+        "nearest_distance_q3": float(np.percentile(nearest, 75)),
+    }
+
+
+def infer_minimum_pattern_pages(
+    clusters: list[list[AnchorPattern]],
+) -> tuple[int, dict[int, int]]:
+    """page support histogram의 가장 큰 감소 지점 다음을 반복 경계로 삼는다."""
+
+    histogram = Counter(
+        len({item.current.pdf_page for item in cluster}) for cluster in clusters
+    )
+    consecutive = [
+        support
+        for support in sorted(histogram)
+        if support + 1 in histogram and histogram[support + 1] > 0
+    ]
+    if not consecutive:
+        return 2, dict(sorted(histogram.items()))
+    boundary = max(
+        consecutive,
+        key=lambda support: histogram[support] / histogram[support + 1],
+    )
+    return boundary + 1, dict(sorted(histogram.items()))
+
+
+def select_position_candidates(
+    patterns: list[AnchorPattern], tolerance: float
+) -> tuple[set[int], list[dict[str, Any]], dict[str, Any]]:
+    clusters = cluster_patterns(patterns, tolerance)
+    minimum_pages, support_histogram = infer_minimum_pattern_pages(clusters)
+    accepted = [
+        cluster
+        for cluster in clusters
+        if len({item.current.pdf_page for item in cluster}) >= minimum_pages
+    ]
+    candidate_ids = {item.current.chunk_id for cluster in accepted for item in cluster}
+    reports = [
+        {
+            "distinct_pages": len({item.current.pdf_page for item in cluster}),
+            "count": len(cluster),
+            "anchor_ranges": [
+                [round(min(values), 3), round(max(values), 3)]
+                for values in zip(*(item.values for item in cluster), strict=True)
+            ],
+            "examples": [item.current.text[:120] for item in cluster[:5]],
+        }
+        for cluster in accepted
+    ]
+    return (
+        candidate_ids,
+        reports,
+        {
+            "minimum_pages": minimum_pages,
+            "support_histogram": support_histogram,
+            "accepted_pattern_count": len(accepted),
+        },
+    )
+
+
+def select_font_candidates(
+    chunks: list[TextChunk], body_font_band: dict[str, Any]
+) -> set[int]:
+    """본문 density band 밖에 있는 chunk를 font 후보로 삼는다."""
+
+    return {
+        chunk.chunk_id
+        for chunk in chunks
+        if not (body_font_band["lower"] <= chunk.font_size < body_font_band["upper"])
+    }
+
+
+def assign_levels(
+    chunks: list[TextChunk], font_tolerance: float
+) -> list[tuple[TextChunk, int]]:
+    """선택과 독립적으로 대표 font size stack을 사용해 임시 level을 부여한다."""
+
+    stack: list[float] = []
+    result = []
+    for chunk in sorted(chunks, key=lambda item: (item.pdf_page, item.y0, item.x0)):
+        size = chunk.font_size
+        while stack and size > stack[-1] * (1.0 + font_tolerance):
+            stack.pop()
+        if stack and abs(size / stack[-1] - 1.0) <= font_tolerance:
+            level = len(stack)
+            stack[-1] = size
+        else:
+            stack.append(size)
+            level = len(stack)
+        result.append((chunk, level))
+    return result
+
+
+def write_tree(path: Path, chunks: list[TextChunk], font_tolerance: float) -> int:
+    inferred = assign_levels(chunks, font_tolerance)
+    lines = [
+        f"{'  ' * (level - 1)}[L{level}] [p.{chunk.pdf_page}] "
+        f"[anchor=({chunk.x0:.1f},{chunk.y0:.1f})] [rows={chunk.line_count}] "
+        f"[font={chunk.font_size:.2f}] {chunk.text}"
+        for chunk, level in inferred
+    ]
+    path.write_text("\n".join(lines) + ("\n" if lines else ""), encoding="utf-8")
+    return len(lines)
 
 
 def load_truth() -> list[dict[str, Any]]:
+    """embedded bookmark를 이번 clean PDF의 정답으로 읽는다."""
+
     with fitz.open(INPUT_PDF) as document:
         return [
             {"level": level, "title": title, "pdf_page": page}
@@ -162,249 +580,170 @@ def load_truth() -> list[dict[str, Any]]:
         ]
 
 
-def estimate_body_font_size(lines: list[Any], tiers: Any) -> tuple[int, float]:
-    tier_numbers = [assign_tier(line.font_size, tiers.cut_points) for line in lines]
-    body_tier = max(
-        Counter(tier_numbers), key=lambda tier: (Counter(tier_numbers)[tier], tier)
+def normalize_title(text: str) -> str:
+    return re.sub(r"[^0-9a-z]+", " ", text.casefold()).strip()
+
+
+def title_score(left: str, right: str) -> float:
+    """문자열 순서와 token 겹침을 함께 사용하는 제목 유사도다."""
+
+    left_norm = normalize_title(left)
+    right_norm = normalize_title(right)
+    if not left_norm or not right_norm:
+        return 0.0
+    if left_norm == right_norm:
+        return 1.0
+    if min(len(left_norm), len(right_norm)) >= 4 and (
+        left_norm in right_norm or right_norm in left_norm
+    ):
+        return 1.0
+    sequence = SequenceMatcher(None, left_norm, right_norm).ratio()
+    left_tokens = set(left_norm.split())
+    right_tokens = set(right_norm.split())
+    token_score = (
+        2.0 * len(left_tokens & right_tokens) / (len(left_tokens) + len(right_tokens))
     )
-    body_sizes = [
-        line.font_size
-        for line, tier in zip(lines, tier_numbers, strict=True)
-        if tier == body_tier
-    ]
-    return body_tier, float(median(body_sizes))
+    return max(sequence, token_score)
 
 
-def build_style_lines(
-    lines: list[Any], body_font_size: float
-) -> tuple[list[StyleLine], dict[str, float]]:
-    median_x_height = median(line.height / line.page_width for line in lines)
-    median_y_height = median(line.height / line.page_height for line in lines)
-    result = [
-        StyleLine(
-            line=line,
-            x_unit=(line.x0 / line.page_width) / median_x_height,
-            y_unit=(line.y0 / line.page_height) / median_y_height,
-            font_ratio_to_body=line.font_size / body_font_size,
-        )
-        for line in lines
-    ]
-    return result, {
-        "body_font_size": round(body_font_size, 4),
-        "median_height_over_page_width": median_x_height,
-        "median_height_over_page_height": median_y_height,
-    }
+def infer_match_threshold(best_scores: list[float]) -> float:
+    """Otsu between-class variance로 공통 title-match threshold를 추론한다."""
+
+    scores = np.asarray(best_scores, dtype=float)
+    histogram, edges = np.histogram(scores, bins=256, range=(0.0, 1.0))
+    probability = histogram / max(histogram.sum(), 1)
+    centers = (edges[:-1] + edges[1:]) / 2.0
+    cumulative_weight = np.cumsum(probability)
+    cumulative_mean = np.cumsum(probability * centers)
+    total_mean = cumulative_mean[-1]
+    denominator = cumulative_weight * (1.0 - cumulative_weight)
+    variance = np.zeros_like(denominator)
+    valid = denominator > 0
+    variance[valid] = (
+        total_mean * cumulative_weight[valid] - cumulative_mean[valid]
+    ) ** 2 / denominator[valid]
+    return float(centers[int(np.argmax(variance))])
 
 
-def cluster_joint_styles(
-    items: list[StyleLine], position_tolerance: float, font_tolerance: float
-) -> list[StyleCluster]:
-    clusters: list[list[StyleLine]] = []
-    ordered = sorted(
-        items,
-        key=lambda item: (
-            item.font_ratio_to_body,
-            item.x_unit,
-            item.y_unit,
-            item.line.pdf_page,
-        ),
-    )
-    for item in ordered:
-        target = next(
-            (
-                cluster
-                for cluster in clusters
-                if max(row.x_unit for row in cluster + [item])
-                - min(row.x_unit for row in cluster + [item])
-                <= position_tolerance
-                and max(row.y_unit for row in cluster + [item])
-                - min(row.y_unit for row in cluster + [item])
-                <= position_tolerance
-                and max(row.font_ratio_to_body for row in cluster + [item])
-                / min(row.font_ratio_to_body for row in cluster + [item])
-                - 1.0
-                <= font_tolerance
-            ),
-            None,
-        )
-        if target is None:
-            clusters.append([item])
-        else:
-            target.append(item)
-    return [
-        StyleCluster(index, cluster) for index, cluster in enumerate(clusters, start=1)
-    ]
-
-
-def select_repeated_styles(
-    style_lines: list[StyleLine], position_tolerance: float, font_tolerance: float
-) -> tuple[list[tuple[StyleLine, StyleCluster]], list[dict[str, Any]]]:
-    # 사용자 결정대로 본문 font와 다른 line만 level 후보로 허용한다.
-    non_body = [
-        item
-        for item in style_lines
-        if abs(item.font_ratio_to_body - 1.0) > font_tolerance
-    ]
-    clusters = cluster_joint_styles(non_body, position_tolerance, font_tolerance)
-    accepted = [
-        cluster for cluster in clusters if len(cluster.pages) >= MIN_DISTINCT_PAGES
-    ]
-    memberships = [(item, cluster) for cluster in accepted for item in cluster.items]
-    memberships.sort(
-        key=lambda row: (row[0].line.pdf_page, row[0].line.y0, row[0].line.x0)
-    )
-    reports = [
-        {
-            "cluster_id": cluster.cluster_id,
-            "count": len(cluster.items),
-            "distinct_pages": len(cluster.pages),
-            "font_size_median": round(cluster.font_size, 4),
-            "font_ratio_median": round(
-                median(item.font_ratio_to_body for item in cluster.items), 4
-            ),
-            "x_unit_range": [
-                round(min(item.x_unit for item in cluster.items), 4),
-                round(max(item.x_unit for item in cluster.items), 4),
-            ],
-            "y_unit_range": [
-                round(min(item.y_unit for item in cluster.items), 4),
-                round(max(item.y_unit for item in cluster.items), 4),
-            ],
-            "titles": [item.line.text for item in cluster.items[:8]],
-        }
-        for cluster in accepted
-    ]
-    return memberships, reports
-
-
-def run_style_stack(
-    memberships: list[tuple[StyleLine, StyleCluster]], font_tolerance: float
-) -> list[tuple[StyleLine, StyleCluster, int]]:
-    stack: list[tuple[StyleCluster, float]] = []
-    result: list[tuple[StyleLine, StyleCluster, int]] = []
-    for item, cluster in memberships:
-        size = cluster.font_size
-        while stack and size > stack[-1][1] * (1.0 + font_tolerance):
-            stack.pop()
-        if stack and abs(size / stack[-1][1] - 1.0) <= font_tolerance:
-            level = len(stack)
-            stack[-1] = (cluster, size)
-        else:
-            stack.append((cluster, size))
-            level = len(stack)
-        result.append((item, cluster, level))
-    return result
-
-
-def evaluate_truth(
-    inferred: list[tuple[StyleLine, StyleCluster, int]], truth: list[dict[str, Any]]
+def evaluate_mode(
+    truth: list[dict[str, Any]],
+    inferred: list[tuple[TextChunk, int]],
+    match_threshold: float,
 ) -> dict[str, Any]:
-    by_page: dict[int, list[tuple[StyleLine, StyleCluster, int]]] = defaultdict(list)
-    for row in inferred:
-        by_page[row[0].line.pdf_page].append(row)
+    """동일 page에서 truth와 candidate를 one-to-one greedy matching한다."""
+
+    pairs = []
+    for truth_index, entry in enumerate(truth):
+        for candidate_index, (chunk, level) in enumerate(inferred):
+            if chunk.pdf_page != entry["pdf_page"]:
+                continue
+            pairs.append(
+                (
+                    title_score(entry["title"], chunk.text),
+                    truth_index,
+                    candidate_index,
+                    level,
+                )
+            )
+    used_truth: set[int] = set()
+    used_candidates: set[int] = set()
     matches = []
-    unmatched = []
-    for entry in truth:
-        page_rows = by_page.get(entry["pdf_page"], [])
-        best = max(
-            page_rows,
-            key=lambda row: title_score(entry["title"], row[0].line.text),
-            default=None,
-        )
-        score = title_score(entry["title"], best[0].line.text) if best else 0.0
-        if best is None or score < TITLE_MATCH_THRESHOLD:
-            unmatched.append(entry)
+    for score, truth_index, candidate_index, level in sorted(pairs, reverse=True):
+        if score < match_threshold:
+            break
+        if truth_index in used_truth or candidate_index in used_candidates:
             continue
-        item, cluster, level = best
+        used_truth.add(truth_index)
+        used_candidates.add(candidate_index)
+        entry = truth[truth_index]
+        chunk = inferred[candidate_index][0]
         matches.append(
             {
                 "truth_title": entry["title"],
                 "truth_page": entry["pdf_page"],
                 "truth_level": entry["level"],
-                "candidate_title": item.line.text,
+                "candidate_title": chunk.text,
                 "candidate_level": level,
-                "style_cluster": cluster.cluster_id,
-                "style_font_size": round(cluster.font_size, 4),
-                "score": round(score, 1),
+                "candidate_chunk_id": chunk.chunk_id,
+                "score": round(score, 4),
                 "level_correct": level == entry["level"],
             }
         )
+    true_positive = len(matches)
+    precision = true_positive / len(inferred) if inferred else 0.0
+    recall = true_positive / len(truth) if truth else 0.0
+    f1 = 2.0 * precision * recall / (precision + recall) if precision + recall else 0.0
     return {
         "truth_count": len(truth),
-        "label_quality": "no embedded labels; human review required",
-        "bookmark_tree_txt": str(
-            (OUTPUT_DIR / "bookmark_tree.txt").relative_to(ROOT_DIR)
-        ),
-        "matched": len(matches),
-        "recall": round(len(matches) / len(truth), 4) if truth else 0.0,
-        "level_correct": sum(row["level_correct"] for row in matches),
+        "candidate_count": len(inferred),
+        "matched": true_positive,
+        "precision": round(precision, 4),
+        "recall": round(recall, 4),
+        "f1": round(f1, 4),
         "level_accuracy": round(
-            sum(row["level_correct"] for row in matches) / len(matches), 4
+            sum(match["level_correct"] for match in matches) / true_positive, 4
         )
-        if matches
+        if true_positive
         else 0.0,
         "matches": matches,
-        "unmatched": unmatched,
-    }
-
-
-def evaluate(
-    style_lines: list[StyleLine],
-    truth: list[dict[str, Any]],
-    position_tolerance: float,
-    font_tolerance: float,
-) -> dict[str, Any]:
-    memberships, clusters = select_repeated_styles(
-        style_lines, position_tolerance, font_tolerance
-    )
-    inferred = run_style_stack(memberships, font_tolerance)
-    truth_eval = evaluate_truth(inferred, truth)
-    return {
-        "position_tolerance_line_heights": position_tolerance,
-        "font_relative_tolerance": font_tolerance,
-        "candidate_count": len(memberships),
-        "accepted_style_count": len(clusters),
-        "level_counts": dict(
-            sorted(Counter(level for _, _, level in inferred).items())
-        ),
-        "truth_evaluation": truth_eval,
-        "accepted_styles": clusters,
-        "tree_preview": [
-            {
-                "page": item.line.pdf_page,
-                "level": level,
-                "style": cluster.cluster_id,
-                "font_size": round(cluster.font_size, 2),
-                "title": item.line.text,
-            }
-            for item, cluster, level in inferred[:100]
+        "unmatched_truth": [
+            entry for index, entry in enumerate(truth) if index not in used_truth
         ],
+        "unmatched_candidate_count": len(inferred) - true_positive,
     }
 
 
 def record_experiment(summary: dict[str, Any]) -> None:
-    data = json.loads(EXPERIMENTS_JSON.read_text(encoding="utf-8"))
-    compact = {
+    compact_summary = {
         key: summary[key]
         for key in (
             "margin_report",
-            "body_tier",
-            "normalization",
+            "font_density",
+            "body_spacing",
+            "visual_row_count",
+            "chunk_count",
+            "position_inference",
+            "pattern_support",
+            "candidate_counts",
             "truth_count",
-            "label_quality",
+            "match_threshold",
+            "default_mode",
             "bookmark_tree_txt",
-            "comparison",
-            "best_config",
             "finding",
         )
     }
+    compact_summary["adjacent_non_body_merge"] = {
+        key: value
+        for key, value in summary["adjacent_non_body_merge"].items()
+        if key != "merges"
+    }
+    compact_summary["evaluation"] = {
+        mode: {
+            key: value
+            for key, value in result.items()
+            if key not in ("matches", "unmatched_truth")
+        }
+        for mode, result in summary["evaluation"].items()
+    }
+    data = json.loads(EXPERIMENTS_JSON.read_text(encoding="utf-8"))
     entry = {
         "id": EXPERIMENT_ID,
-        "purpose": "global body tier 제거 전에 font-size ratio와 normalized top-left를 joint style로 만들고, 여러 page에 반복되는 style만 level 후보로 인정해 bookmark hierarchy를 복원할 수 있는지 검증한다. 기존 PDF bookmark는 near-answer weak reference로만 사용한다.",
+        "purpose": (
+            "본문 font density band에서 line spacing을 추론해 OCR line을 chunk화하고, "
+            "연속 chunk anchor pattern과 font 후보를 독립적으로 비교한다."
+        ),
         "inputs": [str(INPUT_PDF.relative_to(ROOT_DIR))],
         "outputs": str(OUTPUT_DIR.relative_to(ROOT_DIR)),
-        "method": "여러 page의 normalized y 좌표를 overlay해 반복 component를 만들고, component 폭 중앙값보다 좁은 양끝 band를 margin으로 제거한 뒤, 모든 visual line의 top-left를 page-relative 좌표로 바꾸고 문서 median line-height를 단위로 환산했다. body font median과 font-size가 상대적으로 다른 line만 대상으로, font ratio와 x/y가 각각 dimensionless tolerance 안에 드는 joint style을 만들었다. 2개 이상 page에 반복되는 style만 남기고 style median font-size stack으로 level을 부여했다.",
-        "summary": compact,
+        "method": (
+            "font-size 분포는 강건한 Silverman bandwidth KDE의 valley로 band를 "
+            "나누고 문서 median이 속한 band를 본문으로 정했다. 본문 line spacing "
+            "중앙값이 속한 density band의 상한으로 chunk를 만들었다. 같은 page에서 "
+            "연속되고 같은 non-body font 방향이며 bbox gap이 본문 spacing 이내인 "
+            "chunk는 첫 anchor를 보존해 병합했다. position tolerance는 다른 page의 "
+            "최근접 anchor pattern 거리 중앙값으로, 최소 반복 page 수는 support "
+            "histogram의 최대 감소 지점으로 추론했다."
+        ),
+        "summary": compact_summary,
         "finding": summary["finding"],
         "ran_at": datetime.now().isoformat(timespec="seconds"),
     }
@@ -421,107 +760,135 @@ def main() -> None:
     config = TypographyConfig()
     raw_lines = extract_typography_lines(INPUT_PDF, config)
     lines, margin_report = exclude_overlay_density_margins(raw_lines)
-    tiers = compute_tier_set(lines, "font_size", config)
-    body_tier, body_font_size = estimate_body_font_size(lines, tiers)
-    style_lines, normalization = build_style_lines(lines, body_font_size)
-    truth = load_truth()
-    results = [
-        evaluate(style_lines, truth, position_tolerance, font_tolerance)
-        for position_tolerance in POSITION_HEIGHT_RATIOS
-        for font_tolerance in FONT_RELATIVE_TOLERANCES
-    ]
-    tree_files: list[dict[str, Any]] = []
-    for result in results:
-        position_ratio = result["position_tolerance_line_heights"]
-        font_ratio = result["font_relative_tolerance"]
-        memberships, _styles = select_repeated_styles(
-            style_lines, position_ratio, font_ratio
-        )
-        inferred = run_style_stack(memberships, font_ratio)
-        tree_path = OUTPUT_DIR / (
-            f"bookmark_tree_position_{position_ratio:g}_font_{font_ratio:g}.txt"
-        )
-        tree_lines = [
-            f"{'  ' * (level - 1)}[L{level}] [p.{item.line.pdf_page}] "
-            f"[style={cluster.cluster_id}] [font={cluster.font_size:.2f}] "
-            f"{item.line.text}"
-            for item, cluster, level in inferred
-        ]
-        tree_path.write_text(
-            "\n".join(tree_lines) + ("\n" if tree_lines else ""), encoding="utf-8"
-        )
-        tree_files.append(
-            {
-                "position_ratio": position_ratio,
-                "font_ratio": font_ratio,
-                "path": str(tree_path.relative_to(ROOT_DIR)),
-                "line_count": len(tree_lines),
-            }
-        )
-    comparison = [
-        {
-            "position_ratio": result["position_tolerance_line_heights"],
-            "font_ratio": result["font_relative_tolerance"],
-            "candidates": result["candidate_count"],
-            "styles": result["accepted_style_count"],
-            "levels": result["level_counts"],
-            "recall": result["truth_evaluation"]["recall"],
-            "level_accuracy": result["truth_evaluation"]["level_accuracy"],
-            "level_correct": result["truth_evaluation"]["level_correct"],
-        }
-        for result in results
-    ]
-    best = min(results, key=lambda result: result["candidate_count"])
-    best_config = {
-        "position_ratio": best["position_tolerance_line_heights"],
-        "font_ratio": best["font_relative_tolerance"],
+    body_font_band = infer_body_font_band(lines)
+    rows, median_line_height = build_visual_rows(lines)
+    line_spacing, spacing_report = estimate_line_spacing(rows, body_font_band)
+    initial_chunks = build_chunks(rows, spacing_report["continuation_upper"])
+    chunks, adjacent_merge_report = merge_adjacent_non_body_chunks(
+        initial_chunks, body_font_band, line_spacing
+    )
+    patterns = build_anchor_patterns(chunks, line_spacing)
+
+    position_inference = infer_position_tolerance(patterns)
+    position_ids, pattern_reports, pattern_support = select_position_candidates(
+        patterns, position_inference["tolerance_line_spacings"]
+    )
+    font_ids = select_font_candidates(chunks, body_font_band)
+    mode_ids = {
+        "position": position_ids,
+        "font": font_ids,
+        "and": position_ids & font_ids,
     }
-    best_memberships, _best_styles = select_repeated_styles(
-        style_lines,
-        best["position_tolerance_line_heights"],
-        best["font_relative_tolerance"],
-    )
-    best_tree = run_style_stack(best_memberships, best["font_relative_tolerance"])
-    tree_lines = [
-        f"{'  ' * (level - 1)}[L{level}] [p.{item.line.pdf_page}] "
-        f"[style={cluster.cluster_id}] [font={cluster.font_size:.2f}] "
-        f"{item.line.text}"
-        for item, cluster, level in best_tree
+    level_tolerance = body_font_band["bandwidth"] / body_font_band["font_size"]
+    truth = load_truth()
+    files = {}
+    for mode, candidate_ids in mode_ids.items():
+        selected = [chunk for chunk in chunks if chunk.chunk_id in candidate_ids]
+        path = OUTPUT_DIR / f"bookmark_tree_{mode}.txt"
+        files[mode] = {
+            "path": str(path.relative_to(ROOT_DIR)),
+            "count": write_tree(path, selected, level_tolerance),
+        }
+    inferred_by_mode = {
+        mode: assign_levels(
+            [chunk for chunk in chunks if chunk.chunk_id in candidate_ids],
+            level_tolerance,
+        )
+        for mode, candidate_ids in mode_ids.items()
+    }
+    union_chunks = [
+        chunk for chunk in chunks if chunk.chunk_id in (position_ids | font_ids)
     ]
-    (OUTPUT_DIR / "bookmark_tree.txt").write_text(
-        "\n".join(tree_lines) + ("\n" if tree_lines else ""), encoding="utf-8"
+    best_scores = [
+        max(
+            (
+                title_score(entry["title"], chunk.text)
+                for chunk in union_chunks
+                if chunk.pdf_page == entry["pdf_page"]
+            ),
+            default=0.0,
+        )
+        for entry in truth
+    ]
+    match_threshold = infer_match_threshold(best_scores)
+    evaluation = {
+        mode: evaluate_mode(truth, inferred, match_threshold)
+        for mode, inferred in inferred_by_mode.items()
+    }
+    (OUTPUT_DIR / "evaluation.json").write_text(
+        json.dumps(evaluation, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
     )
+    default_chunks = [chunk for chunk in chunks if chunk.chunk_id in mode_ids["and"]]
+    write_tree(OUTPUT_DIR / "bookmark_tree.txt", default_chunks, level_tolerance)
+
+    candidate_counts = {
+        mode: len(candidate_ids) for mode, candidate_ids in mode_ids.items()
+    }
     finding = (
-        f"body tier={body_tier}, body font median={body_font_size:.4f}, "
-        f"visual lines={len(lines)}, embedded bookmark=0. joint style 비교={comparison}. "
-        f"label이 없으므로 자동 정답 설정은 선택하지 않았다. 사람이 먼저 읽을 "
-        f"conservative preview는 config={best_config}, candidates={best['candidate_count']}, "
-        f"levels={best['level_counts']}이다. 모든 config의 tree txt를 별도 저장했다."
+        f"visual lines={len(lines)}, visual rows={len(rows)}, chunks={len(chunks)}, "
+        f"adjacent non-body merges={adjacent_merge_report['merge_count']}, "
+        f"body-only top-to-top median={line_spacing:.3f}, "
+        f"body font={body_font_band['font_size']:.3f}, "
+        f"inferred position tolerance="
+        f"{position_inference['tolerance_line_spacings']:.3f} line spacings, "
+        f"inferred minimum pages={pattern_support['minimum_pages']}, "
+        f"position AND font candidates={candidate_counts['and']}, "
+        f"truth={len(truth)}, match threshold={match_threshold:.3f}. "
+        "수동 position/font tolerance는 사용하지 않았다."
     )
     summary = {
         "input_pdf": str(INPUT_PDF.relative_to(ROOT_DIR)),
+        "margin_report": margin_report,
         "raw_line_count": len(raw_lines),
         "line_count": len(lines),
-        "margin_report": margin_report,
-        "body_tier": body_tier,
-        "normalization": normalization,
+        "visual_row_count": len(rows),
+        "chunk_count": len(chunks),
+        "adjacent_non_body_merge": adjacent_merge_report,
+        "median_line_height": median_line_height,
+        "font_density": body_font_band,
+        "body_spacing": spacing_report,
+        "position_inference": position_inference,
+        "pattern_support": pattern_support,
+        "candidate_counts": candidate_counts,
         "truth_count": len(truth),
-        "label_quality": "no embedded labels; human review required",
+        "match_threshold": match_threshold,
+        "evaluation": evaluation,
+        "accepted_position_patterns": pattern_reports,
+        "files": files,
+        "default_mode": "position AND font",
         "bookmark_tree_txt": str(
             (OUTPUT_DIR / "bookmark_tree.txt").relative_to(ROOT_DIR)
         ),
-        "comparison": comparison,
-        "best_config": best_config,
-        "results": results,
         "finding": finding,
     }
     (OUTPUT_DIR / "summary.json").write_text(
         json.dumps(summary, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
     )
     record_experiment(summary)
+    compact_evaluation = {
+        mode: {
+            key: value
+            for key, value in result.items()
+            if key not in ("matches", "unmatched_truth")
+        }
+        for mode, result in evaluation.items()
+    }
     print(
         json.dumps(
-            {"comparison": comparison, "finding": finding}, ensure_ascii=False, indent=2
+            {
+                "body_font_band": body_font_band,
+                "body_spacing": spacing_report,
+                "position_inference": position_inference,
+                "pattern_support": pattern_support,
+                "candidate_counts": candidate_counts,
+                "truth_count": len(truth),
+                "match_threshold": match_threshold,
+                "evaluation": compact_evaluation,
+                "finding": finding,
+            },
+            ensure_ascii=False,
+            indent=2,
         )
     )
 
