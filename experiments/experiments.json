@@ -15793,6 +15793,612 @@
         "poppler": "26.02.0"
       },
       "ran_at": "2026-07-13T10:03:10+09:00"
+    },
+    {
+      "id": "096_min5_text_coverage_font_tiers",
+      "purpose": "font tier를 text length 95% 누적으로 본문/후보로 나누고 OCR line을 chunk화한 뒤, position tolerance를 기존 추론값·본문 font size·본문 line spacing·본문 척도 clamp로 바꿔 position AND font 후보 품질을 비교한다.",
+      "inputs": [
+        "data\\native-pdf-indexed\\Zvi Bodie, Alex Kane, Alan Marcus - Investments-McGraw Hill (2021)[finance].pdf"
+      ],
+      "outputs": "experiments\\outputs\\096_min5_text_coverage_font_tiers",
+      "method": "font-size 분포는 강건한 Silverman bandwidth KDE의 valley로 tier를 나누고 text length가 큰 tier부터 누적해 95% 이상을 본문으로 정했다. 본문 line spacing 중앙값이 속한 density band의 상한으로 chunk를 만들었다. 같은 page에서 연속되고 같은 non-body font 방향이며 bbox gap이 본문 spacing 이내인 chunk는 첫 anchor를 보존해 병합했다. position pattern은 최소 5개 page에서 반복되게 고정했다. position tolerance만 다른 page 최근접 pattern 거리 중앙값, 본문 font size, 본문 line spacing, 그리고 추론값을 두 본문 척도 범위로 clamp한 값으로 바꿨다. 같은 font 후보와 동일 embedded near-answer label로 비교했다.",
+      "summary": {
+        "margin_report": {
+          "status": "filtered",
+          "page_count": 1040,
+          "median_line_height_ratio": 0.017458333333333333,
+          "bin_width_ratio": 0.004364583333333333,
+          "minimum_page_support": 33,
+          "components": [
+            {
+              "lower_y_ratio": 0.0567,
+              "upper_y_ratio": 0.0567,
+              "width_bins": 1,
+              "content": true
+            },
+            {
+              "lower_y_ratio": 0.0917,
+              "upper_y_ratio": 0.9122,
+              "width_bins": 189,
+              "content": true
+            },
+            {
+              "lower_y_ratio": 0.9297,
+              "upper_y_ratio": 0.9297,
+              "width_bins": 1,
+              "content": true
+            },
+            {
+              "lower_y_ratio": 0.9558,
+              "upper_y_ratio": 0.9558,
+              "width_bins": 1,
+              "content": true
+            }
+          ],
+          "inferred_content_y_ratio": [
+            0.0567,
+            0.9558
+          ],
+          "input_line_count": 44913,
+          "kept_line_count": 43943,
+          "removed_line_count": 970
+        },
+        "font_density": {
+          "font_size": 9.5,
+          "bandwidth": 0.11875476088378056,
+          "cuts": [
+            3.2321934538348804,
+            3.8872007816316563,
+            4.05095261358085,
+            4.7468978993649245,
+            5.197215437225207,
+            5.688470933072789,
+            6.548168050806058,
+            7.366927210552027,
+            8.308500244259893,
+            8.717879824132877,
+            9.291011235955056,
+            9.659452857840742,
+            10.641963849535905,
+            11.215095261358083,
+            11.706350757205666,
+            12.68886174890083,
+            13.671372740595995,
+            14.490131900341964,
+            15.554518808011725,
+            16.41421592574499,
+            17.51954079140205,
+            18.502051783097215,
+            19.525500732779676,
+            22.022716170004884,
+            34.79535906204201,
+            37.04694675134343,
+            39.99447972642892
+          ],
+          "body_band_indices": [
+            7,
+            8,
+            9,
+            10,
+            11,
+            12
+          ],
+          "candidate_band_indices": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27
+          ],
+          "target_body_text_ratio": 0.95,
+          "actual_body_text_ratio": 0.9683035670141248,
+          "candidate_text_ratio": 0.03169643298587521,
+          "total_text_length": 2831612,
+          "tier_report": [
+            {
+              "tier": 12,
+              "text_length": 1409859,
+              "text_ratio": 0.4979,
+              "line_count": 19424,
+              "body": true
+            },
+            {
+              "tier": 10,
+              "text_length": 574213,
+              "text_ratio": 0.202787,
+              "line_count": 8392,
+              "body": true
+            },
+            {
+              "tier": 8,
+              "text_length": 368865,
+              "text_ratio": 0.130267,
+              "line_count": 8026,
+              "body": true
+            },
+            {
+              "tier": 11,
+              "text_length": 172389,
+              "text_ratio": 0.06088,
+              "line_count": 2389,
+              "body": true
+            },
+            {
+              "tier": 9,
+              "text_length": 157397,
+              "text_ratio": 0.055586,
+              "line_count": 2364,
+              "body": true
+            },
+            {
+              "tier": 7,
+              "text_length": 59137,
+              "text_ratio": 0.020885,
+              "line_count": 993,
+              "body": true
+            },
+            {
+              "tier": 6,
+              "text_length": 26352,
+              "text_ratio": 0.009306,
+              "line_count": 719,
+              "body": false
+            },
+            {
+              "tier": 15,
+              "text_length": 17269,
+              "text_ratio": 0.006099,
+              "line_count": 646,
+              "body": false
+            },
+            {
+              "tier": 3,
+              "text_length": 9232,
+              "text_ratio": 0.00326,
+              "line_count": 144,
+              "body": false
+            },
+            {
+              "tier": 5,
+              "text_length": 8486,
+              "text_ratio": 0.002997,
+              "line_count": 144,
+              "body": false
+            },
+            {
+              "tier": 1,
+              "text_length": 5937,
+              "text_ratio": 0.002097,
+              "line_count": 69,
+              "body": false
+            },
+            {
+              "tier": 14,
+              "text_length": 5239,
+              "text_ratio": 0.00185,
+              "line_count": 138,
+              "body": false
+            },
+            {
+              "tier": 20,
+              "text_length": 5059,
+              "text_ratio": 0.001787,
+              "line_count": 167,
+              "body": false
+            },
+            {
+              "tier": 13,
+              "text_length": 3548,
+              "text_ratio": 0.001253,
+              "line_count": 67,
+              "body": false
+            },
+            {
+              "tier": 4,
+              "text_length": 2371,
+              "text_ratio": 0.000837,
+              "line_count": 35,
+              "body": false
+            },
+            {
+              "tier": 2,
+              "text_length": 1482,
+              "text_ratio": 0.000523,
+              "line_count": 26,
+              "body": false
+            },
+            {
+              "tier": 25,
+              "text_length": 1060,
+              "text_ratio": 0.000374,
+              "line_count": 57,
+              "body": false
+            },
+            {
+              "tier": 0,
+              "text_length": 927,
+              "text_ratio": 0.000327,
+              "line_count": 20,
+              "body": false
+            },
+            {
+              "tier": 18,
+              "text_length": 859,
+              "text_ratio": 0.000303,
+              "line_count": 31,
+              "body": false
+            },
+            {
+              "tier": 16,
+              "text_length": 695,
+              "text_ratio": 0.000245,
+              "line_count": 39,
+              "body": false
+            },
+            {
+              "tier": 22,
+              "text_length": 515,
+              "text_ratio": 0.000182,
+              "line_count": 13,
+              "body": false
+            },
+            {
+              "tier": 21,
+              "text_length": 262,
+              "text_ratio": 9.3e-05,
+              "line_count": 12,
+              "body": false
+            },
+            {
+              "tier": 17,
+              "text_length": 134,
+              "text_ratio": 4.7e-05,
+              "line_count": 5,
+              "body": false
+            },
+            {
+              "tier": 27,
+              "text_length": 115,
+              "text_ratio": 4.1e-05,
+              "line_count": 11,
+              "body": false
+            },
+            {
+              "tier": 23,
+              "text_length": 100,
+              "text_ratio": 3.5e-05,
+              "line_count": 7,
+              "body": false
+            },
+            {
+              "tier": 24,
+              "text_length": 56,
+              "text_ratio": 2e-05,
+              "line_count": 3,
+              "body": false
+            },
+            {
+              "tier": 19,
+              "text_length": 44,
+              "text_ratio": 1.6e-05,
+              "line_count": 1,
+              "body": false
+            },
+            {
+              "tier": 26,
+              "text_length": 10,
+              "text_ratio": 4e-06,
+              "line_count": 1,
+              "body": false
+            }
+          ]
+        },
+        "body_spacing": {
+          "body_row_count": 41279,
+          "adjacent_pair_count": 39637,
+          "top_to_top_median": 12.0,
+          "font_excess_y_distance": 2.5,
+          "bbox_gap_median": -1.580000000000041,
+          "density_bandwidth": 0.08442945959140231,
+          "density_valleys": [
+            0.21426477772350921,
+            0.6873473375671829,
+            1.0815828041035778,
+            1.3246946751343545,
+            1.751783097215449,
+            2.0671714704445647,
+            2.3102833414753414,
+            2.730801172447496,
+            3.0790425012213114,
+            3.5521250610649853,
+            3.7558133854421225,
+            4.176331216414277,
+            4.4654372252076335,
+            4.951660967269187,
+            5.575867122618479,
+            5.805837811431376,
+            6.108085002442611,
+            6.344626282364448,
+            6.863702979970701,
+            7.133097215437238,
+            7.395920859794835,
+            7.67188568637031,
+            8.204103566194444,
+            8.710039081582817,
+            9.452515876893028,
+            10.234416218856877,
+            10.687787005373732,
+            11.305422569614082,
+            11.57481680508062,
+            12.711529066927223,
+            13.316023448949696
+          ],
+          "continuation_upper": 12.711529066927223
+        },
+        "visual_row_count": 43571,
+        "chunk_count": 11508,
+        "position_inference": {
+          "tolerance_line_spacings": 0.5658333333333321,
+          "nearest_distance_median": 0.5658333333333321,
+          "nearest_distance_q1": 0.22083333333333321,
+          "nearest_distance_q3": 1.0
+        },
+        "tolerance_policies": {
+          "inferred": {
+            "points": 6.789999999999985,
+            "line_spacings": 0.5658333333333321
+          },
+          "body_font": {
+            "points": 9.5,
+            "line_spacings": 0.7916666666666666
+          },
+          "body_line_spacing": {
+            "points": 12.0,
+            "line_spacings": 1.0
+          },
+          "clamped": {
+            "points": 9.5,
+            "line_spacings": 0.7916666666666666
+          }
+        },
+        "pattern_support": {
+          "inferred": {
+            "minimum_pages": 5,
+            "support_histogram": {
+              "1": 5558,
+              "2": 980,
+              "3": 311,
+              "4": 133,
+              "5": 75,
+              "6": 28,
+              "7": 14,
+              "8": 11,
+              "9": 9,
+              "10": 6,
+              "11": 4,
+              "12": 3,
+              "14": 1,
+              "16": 1,
+              "17": 2,
+              "18": 1,
+              "20": 2,
+              "21": 1,
+              "22": 3,
+              "23": 1,
+              "25": 2,
+              "26": 1,
+              "27": 3,
+              "29": 3,
+              "30": 2
+            },
+            "accepted_pattern_count": 173
+          },
+          "body_font": {
+            "minimum_pages": 5,
+            "support_histogram": {
+              "1": 4172,
+              "2": 984,
+              "3": 397,
+              "4": 190,
+              "5": 111,
+              "6": 43,
+              "7": 34,
+              "8": 33,
+              "9": 13,
+              "10": 9,
+              "11": 8,
+              "12": 7,
+              "13": 2,
+              "14": 4,
+              "16": 1,
+              "17": 2,
+              "18": 2,
+              "19": 1,
+              "20": 2,
+              "21": 1,
+              "22": 2,
+              "23": 2,
+              "24": 3,
+              "25": 1,
+              "26": 1,
+              "27": 4,
+              "28": 1,
+              "29": 3
+            },
+            "accepted_pattern_count": 290
+          },
+          "body_line_spacing": {
+            "minimum_pages": 5,
+            "support_histogram": {
+              "1": 2781,
+              "2": 981,
+              "3": 363,
+              "4": 206,
+              "5": 122,
+              "6": 72,
+              "7": 52,
+              "8": 40,
+              "9": 38,
+              "10": 23,
+              "11": 25,
+              "12": 12,
+              "13": 8,
+              "14": 7,
+              "15": 3,
+              "16": 1,
+              "17": 5,
+              "18": 1,
+              "19": 3,
+              "21": 1,
+              "22": 3,
+              "24": 3,
+              "25": 1,
+              "26": 3,
+              "27": 4,
+              "28": 3,
+              "29": 3,
+              "30": 1,
+              "31": 1,
+              "35": 1,
+              "36": 1
+            },
+            "accepted_pattern_count": 437
+          },
+          "clamped": {
+            "minimum_pages": 5,
+            "support_histogram": {
+              "1": 4172,
+              "2": 984,
+              "3": 397,
+              "4": 190,
+              "5": 111,
+              "6": 43,
+              "7": 34,
+              "8": 33,
+              "9": 13,
+              "10": 9,
+              "11": 8,
+              "12": 7,
+              "13": 2,
+              "14": 4,
+              "16": 1,
+              "17": 2,
+              "18": 2,
+              "19": 1,
+              "20": 2,
+              "21": 1,
+              "22": 2,
+              "23": 2,
+              "24": 3,
+              "25": 1,
+              "26": 1,
+              "27": 4,
+              "28": 1,
+              "29": 3
+            },
+            "accepted_pattern_count": 290
+          }
+        },
+        "candidate_counts": {
+          "position_inferred": 1486,
+          "font": 1088,
+          "and_inferred": 384,
+          "and_body_font": 590,
+          "and_body_line_spacing": 731,
+          "and_clamped": 590
+        },
+        "truth_count": 793,
+        "match_threshold": 0.626953125,
+        "default_mode": "and_inferred",
+        "bookmark_tree_txt": "experiments\\outputs\\096_min5_text_coverage_font_tiers\\bookmark_tree.txt",
+        "finding": "body spacing=12.000pt, body font=9.500pt, inferred tolerance=6.790pt, clamped tolerance=9.500pt. AND inferred candidates=384, precision=0.7995, recall=0.3871, F1=0.5217; AND clamped candidates=590, precision=0.7373, recall=0.5485, F1=0.6291; AND line-spacing candidates=731, precision=0.7004, recall=0.6456, F1=0.6719, level accuracy=0.5137. minimum repeated pages=5, truth is near-answer label.",
+        "adjacent_non_body_merge": {
+          "input_chunk_count": 11685,
+          "output_chunk_count": 11508,
+          "merge_count": 177
+        },
+        "evaluation": {
+          "position_inferred": {
+            "truth_count": 793,
+            "candidate_count": 1486,
+            "matched": 319,
+            "precision": 0.2147,
+            "recall": 0.4023,
+            "f1": 0.2799,
+            "level_accuracy": 0.3699,
+            "unmatched_candidate_count": 1167
+          },
+          "font": {
+            "truth_count": 793,
+            "candidate_count": 1088,
+            "matched": 593,
+            "precision": 0.545,
+            "recall": 0.7478,
+            "f1": 0.6305,
+            "level_accuracy": 0.0051,
+            "unmatched_candidate_count": 495
+          },
+          "and_inferred": {
+            "truth_count": 793,
+            "candidate_count": 384,
+            "matched": 307,
+            "precision": 0.7995,
+            "recall": 0.3871,
+            "f1": 0.5217,
+            "level_accuracy": 0.3746,
+            "unmatched_candidate_count": 77
+          },
+          "and_body_font": {
+            "truth_count": 793,
+            "candidate_count": 590,
+            "matched": 435,
+            "precision": 0.7373,
+            "recall": 0.5485,
+            "f1": 0.6291,
+            "level_accuracy": 0.423,
+            "unmatched_candidate_count": 155
+          },
+          "and_body_line_spacing": {
+            "truth_count": 793,
+            "candidate_count": 731,
+            "matched": 512,
+            "precision": 0.7004,
+            "recall": 0.6456,
+            "f1": 0.6719,
+            "level_accuracy": 0.5137,
+            "unmatched_candidate_count": 219
+          },
+          "and_clamped": {
+            "truth_count": 793,
+            "candidate_count": 590,
+            "matched": 435,
+            "precision": 0.7373,
+            "recall": 0.5485,
+            "f1": 0.6291,
+            "level_accuracy": 0.423,
+            "unmatched_candidate_count": 155
+          }
+        }
+      },
+      "finding": "body spacing=12.000pt, body font=9.500pt, inferred tolerance=6.790pt, clamped tolerance=9.500pt. AND inferred candidates=384, precision=0.7995, recall=0.3871, F1=0.5217; AND clamped candidates=590, precision=0.7373, recall=0.5485, F1=0.6291; AND line-spacing candidates=731, precision=0.7004, recall=0.6456, F1=0.6719, level accuracy=0.5137. minimum repeated pages=5, truth is near-answer label.",
+      "ran_at": "2026-07-13T15:54:01"
     }
   ]
 }
