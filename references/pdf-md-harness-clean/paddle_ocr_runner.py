@@ -16,6 +16,11 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
+    # Windows 인증서 저장소를 사용해 사내 프록시의 신뢰된 CA도 검증한다.
+    import truststore
+
+    truststore.inject_into_ssl()
+
     from paddleocr import PaddleOCR
 
     args = parse_args()
@@ -25,6 +30,7 @@ def main() -> int:
         use_doc_orientation_classify=False,
         use_doc_unwarping=False,
         use_textline_orientation=False,
+        enable_mkldnn=False,
     )
 
     for image in args.images:

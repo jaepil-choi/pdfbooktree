@@ -15773,6 +15773,26 @@
       },
       "finding": "body tier=4, body font median=9.9400, visual lines=7680, embedded bookmark=0. joint style 비교=[{'position_ratio': 0.25, 'font_ratio': 0.05, 'candidates': 509, 'styles': 150, 'levels': {1: 69, 2: 284, 3: 135, 4: 19, 5: 2}, 'recall': 0.0, 'level_accuracy': 0.0, 'level_correct': 0}, {'position_ratio': 0.25, 'font_ratio': 0.1, 'candidates': 198, 'styles': 48, 'levels': {1: 78, 2: 104, 3: 16}, 'recall': 0.0, 'level_accuracy': 0.0, 'level_correct': 0}, {'position_ratio': 0.5, 'font_ratio': 0.05, 'candidates': 629, 'styles': 163, 'levels': {1: 88, 2: 386, 3: 125, 4: 27, 5: 3}, 'recall': 0.0, 'level_accuracy': 0.0, 'level_correct': 0}, {'position_ratio': 0.5, 'font_ratio': 0.1, 'candidates': 258, 'styles': 64, 'levels': {1: 97, 2: 140, 3: 18, 4: 3}, 'recall': 0.0, 'level_accuracy': 0.0, 'level_correct': 0}, {'position_ratio': 1.0, 'font_ratio': 0.05, 'candidates': 725, 'styles': 149, 'levels': {1: 94, 2: 407, 3: 138, 4: 85, 5: 1}, 'recall': 0.0, 'level_accuracy': 0.0, 'level_correct': 0}, {'position_ratio': 1.0, 'font_ratio': 0.1, 'candidates': 293, 'styles': 68, 'levels': {1: 103, 2: 129, 3: 39, 4: 21, 5: 1}, 'recall': 0.0, 'level_accuracy': 0.0, 'level_correct': 0}]. label이 없으므로 자동 정답 설정은 선택하지 않았다. 사람이 먼저 읽을 conservative preview는 config={'position_ratio': 0.25, 'font_ratio': 0.1}, candidates=198, levels={1: 78, 2: 104, 3: 16}이다. 모든 config의 tree txt를 별도 저장했다.",
       "ran_at": "2026-07-13T09:51:23"
+    },
+    {
+      "id": "096_pdf_md_harness_interest_economics",
+      "purpose": "pdf-md-harness-clean의 PaddleOCR 경로로 텍스트 레이어와 bookmark가 없는 스캔 PDF '금리의 경제학' 전체를 Markdown으로 변환할 수 있는지 Windows 환경에서 검증한다.",
+      "inputs": [
+        "data\\scanned-pdf-not-indexed\\금리의_경제학_-_홍완표.pdf"
+      ],
+      "outputs": "experiments\\outputs\\금리의_경제학_pdf_md_harness",
+      "runner": "scripts\\test-flight-pdf-md-tool.ps1",
+      "status": "failed",
+      "finding": "전체 책 Markdown 산출물을 생성하지 못해 실패로 판정했다. Poppler 실행 파일 경로를 명시한 뒤 PaddleOCR 3.7.0/PaddlePaddle 3.3.1/PaddleX 3.7.2 환경을 구성했다. 모델 다운로드 과정에서는 사설 인증서 체인 때문에 TLS 검증이 실패해 truststore로 Windows 인증서 저장소를 주입했고, 한글 사용자 홈 경로가 Paddle C++ 계층에서 깨지는 문제는 PADDLE_PDX_CACHE_HOME과 TEMP/TMP를 ASCII 경로로 고정해 우회했다. 이후 PP-OCRv5_server_det와 korean_PP-OCRv5_mobile_rec 모델 다운로드 및 초기화에는 성공했지만 첫 페이지 추론에서 Windows oneDNN이 pir::ArrayAttribute<pir::DoubleAttribute>를 지원하지 않아 NotImplementedError가 발생했다. enable_mkldnn=False 우회는 적용했으나 반복된 플랫폼 호환성 문제로 사용자가 실험 중단을 결정했으며 완주 여부는 검증하지 않았다. run.log와 job-status.json에 마지막 실패 상태가 남아 있다.",
+      "environment": {
+        "os": "Windows",
+        "python": "3.12.13",
+        "paddleocr": "3.7.0",
+        "paddlepaddle": "3.3.1",
+        "paddlex": "3.7.2",
+        "poppler": "26.02.0"
+      },
+      "ran_at": "2026-07-13T10:03:10+09:00"
     }
   ]
 }
