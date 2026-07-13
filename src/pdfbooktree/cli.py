@@ -270,7 +270,20 @@ def ocr_overlay(
         stats_word_level=stats_word_level,
     )
     result = OcrOverlayBuilder(config, logger=logger).run()
-    rich_print(to_jsonable(result))
+    rich_print(
+        to_jsonable(
+            {
+                "status": result.status,
+                "page_count": result.page_count,
+                "processed_page_count": len(result.processed_pages),
+                "cache_hit_count": result.cache_hit_count,
+                "cache_miss_count": result.cache_miss_count,
+                "output_pdf": result.output_pdf,
+                "output_dir": result.output_dir,
+                "page_stats_path": result.page_stats_path,
+            }
+        )
+    )
 
 
 @app.command("ocr-overlay-batch")
