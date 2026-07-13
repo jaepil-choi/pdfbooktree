@@ -15796,12 +15796,12 @@
     },
     {
       "id": "096_min5_text_coverage_font_tiers",
-      "purpose": "font tier를 text length 95% 누적으로 본문/후보로 나누고 OCR line을 chunk화한 뒤, position tolerance를 기존 추론값·본문 font size·본문 line spacing·본문 척도 clamp로 바꿔 position AND font 후보 품질을 비교한다.",
+      "purpose": "font tier를 text length 95% 누적으로 본문/후보로 나누고 OCR line을 chunk화한 뒤, position tolerance를 기존 추론값·본문 font size·본문 line spacing·line spacing-font size·본문 척도 clamp로 바꿔 position AND font 후보 품질을 비교한다.",
       "inputs": [
         "data\\native-pdf-indexed\\Zvi Bodie, Alex Kane, Alan Marcus - Investments-McGraw Hill (2021)[finance].pdf"
       ],
       "outputs": "experiments\\outputs\\096_min5_text_coverage_font_tiers",
-      "method": "font-size 분포는 강건한 Silverman bandwidth KDE의 valley로 tier를 나누고 text length가 큰 tier부터 누적해 95% 이상을 본문으로 정했다. 본문 line spacing 중앙값이 속한 density band의 상한으로 chunk를 만들었다. 같은 page에서 연속되고 같은 non-body font 방향이며 bbox gap이 본문 spacing 이내인 chunk는 첫 anchor를 보존해 병합했다. position pattern은 최소 5개 page에서 반복되게 고정했다. position tolerance만 다른 page 최근접 pattern 거리 중앙값, 본문 font size, 본문 line spacing, 그리고 추론값을 두 본문 척도 범위로 clamp한 값으로 바꿨다. 같은 font 후보와 동일 embedded near-answer label로 비교했다.",
+      "method": "font-size 분포는 강건한 Silverman bandwidth KDE의 valley로 tier를 나누고 text length가 큰 tier부터 누적해 95% 이상을 본문으로 정했다. 본문 line spacing 중앙값이 속한 density band의 상한으로 chunk를 만들었다. 같은 page에서 연속되고 같은 non-body font 방향이며 bbox gap이 본문 spacing 이내인 chunk는 첫 anchor를 보존해 병합했다. position pattern은 최소 5개 page에서 반복되게 고정했다. position tolerance만 다른 page 최근접 pattern 거리 중앙값, 본문 font size, 본문 line spacing, line spacing-font size, 그리고 추론값을 두 본문 척도 범위로 clamp한 값으로 바꿨다. 같은 font 후보와 동일 embedded near-answer label로 비교했다.",
       "summary": {
         "margin_report": {
           "status": "filtered",
@@ -16173,6 +16173,10 @@
             "points": 12.0,
             "line_spacings": 1.0
           },
+          "line_spacing_minus_font": {
+            "points": 2.5,
+            "line_spacings": 0.20833333333333334
+          },
           "clamped": {
             "points": 9.5,
             "line_spacings": 0.7916666666666666
@@ -16281,6 +16285,35 @@
             },
             "accepted_pattern_count": 437
           },
+          "line_spacing_minus_font": {
+            "minimum_pages": 5,
+            "support_histogram": {
+              "1": 8034,
+              "2": 556,
+              "3": 124,
+              "4": 32,
+              "5": 21,
+              "6": 9,
+              "7": 6,
+              "8": 6,
+              "9": 1,
+              "10": 5,
+              "11": 2,
+              "12": 2,
+              "13": 1,
+              "15": 2,
+              "16": 1,
+              "17": 1,
+              "19": 2,
+              "21": 5,
+              "22": 1,
+              "23": 2,
+              "24": 1,
+              "26": 4,
+              "27": 2
+            },
+            "accepted_pattern_count": 74
+          },
           "clamped": {
             "minimum_pages": 5,
             "support_histogram": {
@@ -16322,13 +16355,14 @@
           "and_inferred": 384,
           "and_body_font": 590,
           "and_body_line_spacing": 731,
+          "and_line_spacing_minus_font": 195,
           "and_clamped": 590
         },
         "truth_count": 793,
         "match_threshold": 0.626953125,
         "default_mode": "and_inferred",
         "bookmark_tree_txt": "experiments\\outputs\\096_min5_text_coverage_font_tiers\\bookmark_tree.txt",
-        "finding": "body spacing=12.000pt, body font=9.500pt, inferred tolerance=6.790pt, clamped tolerance=9.500pt. AND inferred candidates=384, precision=0.7995, recall=0.3871, F1=0.5217; AND clamped candidates=590, precision=0.7373, recall=0.5485, F1=0.6291; AND line-spacing candidates=731, precision=0.7004, recall=0.6456, F1=0.6719, level accuracy=0.5137. minimum repeated pages=5, truth is near-answer label.",
+        "finding": "body spacing=12.000pt, body font=9.500pt, inferred tolerance=6.790pt, clamped tolerance=9.500pt. AND inferred candidates=384, precision=0.7995, recall=0.3871, F1=0.5217; AND clamped candidates=590, precision=0.7373, recall=0.5485, F1=0.6291; AND line-spacing candidates=731, precision=0.7004, recall=0.6456, F1=0.6719, level accuracy=0.5137; AND spacing-minus-font tolerance=2.500pt, candidates=195, precision=0.7333, recall=0.1803, F1=0.2895, level accuracy=0.3497. minimum repeated pages=5, truth is near-answer label.",
         "adjacent_non_body_merge": {
           "input_chunk_count": 11685,
           "output_chunk_count": 11508,
@@ -16385,6 +16419,16 @@
             "level_accuracy": 0.5137,
             "unmatched_candidate_count": 219
           },
+          "and_line_spacing_minus_font": {
+            "truth_count": 793,
+            "candidate_count": 195,
+            "matched": 143,
+            "precision": 0.7333,
+            "recall": 0.1803,
+            "f1": 0.2895,
+            "level_accuracy": 0.3497,
+            "unmatched_candidate_count": 52
+          },
           "and_clamped": {
             "truth_count": 793,
             "candidate_count": 590,
@@ -16397,8 +16441,8 @@
           }
         }
       },
-      "finding": "body spacing=12.000pt, body font=9.500pt, inferred tolerance=6.790pt, clamped tolerance=9.500pt. AND inferred candidates=384, precision=0.7995, recall=0.3871, F1=0.5217; AND clamped candidates=590, precision=0.7373, recall=0.5485, F1=0.6291; AND line-spacing candidates=731, precision=0.7004, recall=0.6456, F1=0.6719, level accuracy=0.5137. minimum repeated pages=5, truth is near-answer label.",
-      "ran_at": "2026-07-13T15:54:01"
+      "finding": "body spacing=12.000pt, body font=9.500pt, inferred tolerance=6.790pt, clamped tolerance=9.500pt. AND inferred candidates=384, precision=0.7995, recall=0.3871, F1=0.5217; AND clamped candidates=590, precision=0.7373, recall=0.5485, F1=0.6291; AND line-spacing candidates=731, precision=0.7004, recall=0.6456, F1=0.6719, level accuracy=0.5137; AND spacing-minus-font tolerance=2.500pt, candidates=195, precision=0.7333, recall=0.1803, F1=0.2895, level accuracy=0.3497. minimum repeated pages=5, truth is near-answer label.",
+      "ran_at": "2026-07-13T16:06:51"
     }
   ]
 }

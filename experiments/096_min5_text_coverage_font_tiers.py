@@ -6,8 +6,9 @@ line top-left를 anchor로 사용한다. 현재 chunk와 다음 chunk의 anchor 
 반복되는 경우 현재 chunk를 position 후보로 인정한다.
 
 position 후보와 body font-size가 다른 후보는 독립적으로 만든다. position tolerance만
-기존 최근접-pattern 중앙값, 본문 font size, 본문 line spacing, 두 본문 척도 안으로
-clamp한 값으로 바꿔 position AND font 결과를 A/B 비교하고 tree를 모두 저장한다.
+기존 최근접-pattern 중앙값, 본문 font size, 본문 line spacing, line spacing에서
+font size를 뺀 값, 두 본문 척도 안으로 clamp한 값으로 바꿔 position AND font
+결과를 A/B 비교하고 tree를 모두 저장한다.
 
 실행:
     uv run python experiments/096_min5_text_coverage_font_tiers.py
@@ -755,8 +756,9 @@ def record_experiment(summary: dict[str, Any]) -> None:
         "id": EXPERIMENT_ID,
         "purpose": (
             "font tier를 text length 95% 누적으로 본문/후보로 나누고 OCR line을 chunk화한 뒤, "
-            "position tolerance를 기존 추론값·본문 font size·본문 line spacing·본문 척도 "
-            "clamp로 바꿔 position AND font 후보 품질을 비교한다."
+            "position tolerance를 기존 추론값·본문 font size·본문 line spacing·"
+            "line spacing-font size·본문 척도 clamp로 바꿔 position AND font 후보 "
+            "품질을 비교한다."
         ),
         "inputs": [str(INPUT_PDF.relative_to(ROOT_DIR))],
         "outputs": str(OUTPUT_DIR.relative_to(ROOT_DIR)),
@@ -767,8 +769,9 @@ def record_experiment(summary: dict[str, Any]) -> None:
             "연속되고 같은 non-body font 방향이며 bbox gap이 본문 spacing 이내인 "
             "chunk는 첫 anchor를 보존해 병합했다. position pattern은 최소 5개 page에서 "
             "반복되게 고정했다. position tolerance만 다른 page 최근접 pattern 거리 중앙값, "
-            "본문 font size, 본문 line spacing, 그리고 추론값을 두 본문 척도 범위로 clamp한 "
-            "값으로 바꿨다. 같은 font 후보와 동일 embedded near-answer label로 비교했다."
+            "본문 font size, 본문 line spacing, line spacing-font size, 그리고 추론값을 "
+            "두 본문 척도 범위로 clamp한 값으로 바꿨다. 같은 font 후보와 동일 "
+            "embedded near-answer label로 비교했다."
         ),
         "summary": compact_summary,
         "finding": summary["finding"],
@@ -802,6 +805,7 @@ def main() -> None:
     lower_points = min(body_font_points, line_spacing)
     upper_points = max(body_font_points, line_spacing)
     clamped_points = min(max(inferred_points, lower_points), upper_points)
+    line_spacing_minus_font_points = max(line_spacing - body_font_points, 0.0)
     tolerance_policies = {
         "inferred": {
             "points": inferred_points,
@@ -814,6 +818,10 @@ def main() -> None:
         "body_line_spacing": {
             "points": line_spacing,
             "line_spacings": 1.0,
+        },
+        "line_spacing_minus_font": {
+            "points": line_spacing_minus_font_points,
+            "line_spacings": line_spacing_minus_font_points / line_spacing,
         },
         "clamped": {
             "points": clamped_points,
@@ -896,6 +904,7 @@ def main() -> None:
     inferred_eval = evaluation["and_inferred"]
     clamped_eval = evaluation["and_clamped"]
     line_spacing_eval = evaluation["and_body_line_spacing"]
+    spacing_minus_font_eval = evaluation["and_line_spacing_minus_font"]
     finding = (
         f"body spacing={line_spacing:.3f}pt, body font={body_font_points:.3f}pt, "
         f"inferred tolerance={inferred_points:.3f}pt, clamped tolerance={clamped_points:.3f}pt. "
@@ -907,7 +916,13 @@ def main() -> None:
         f"AND line-spacing candidates={candidate_counts['and_body_line_spacing']}, "
         f"precision={line_spacing_eval['precision']:.4f}, "
         f"recall={line_spacing_eval['recall']:.4f}, F1={line_spacing_eval['f1']:.4f}, "
-        f"level accuracy={line_spacing_eval['level_accuracy']:.4f}. "
+        f"level accuracy={line_spacing_eval['level_accuracy']:.4f}; "
+        f"AND spacing-minus-font tolerance={line_spacing_minus_font_points:.3f}pt, "
+        f"candidates={candidate_counts['and_line_spacing_minus_font']}, "
+        f"precision={spacing_minus_font_eval['precision']:.4f}, "
+        f"recall={spacing_minus_font_eval['recall']:.4f}, "
+        f"F1={spacing_minus_font_eval['f1']:.4f}, "
+        f"level accuracy={spacing_minus_font_eval['level_accuracy']:.4f}. "
         f"minimum repeated pages={MIN_PATTERN_PAGES}, truth is near-answer label."
     )
     summary = {
