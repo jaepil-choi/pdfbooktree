@@ -24,17 +24,18 @@ def _make_book_pdf(path: Path) -> None:
     try:
         for page_no in range(1, 7):
             page = document.new_page(width=PAGE_WIDTH, height=PAGE_HEIGHT)
-            if page_no == 1:
-                page.insert_text((72, 90), "Chapter 1 Introduction", fontsize=28)
-                page.insert_text((72, 155), "1.1 Motivation", fontsize=16)
-            elif page_no == 4:
-                page.insert_text((72, 90), "Chapter 2 Methods", fontsize=28)
-                page.insert_text((72, 155), "2.1 Measurements", fontsize=16)
-            else:
-                page.insert_text((72, 90), f"Body page {page_no}", fontsize=10)
-            page.insert_text(
-                (72, 300), "This is ordinary body text for the chapter.", fontsize=10
-            )
+            chapter_title = {
+                1: "Chapter 1 Introduction",
+                4: "Chapter 2 Methods",
+            }.get(page_no, f"Chapter {page_no} Introduction")
+            page.insert_text((72, 90), chapter_title, fontsize=28)
+            page.insert_text((72, 155), f"{page_no}.1 Motivation", fontsize=16)
+            for row in range(20):
+                page.insert_text(
+                    (72, 300 + row * 15),
+                    "This is ordinary body text for the chapter.",
+                    fontsize=10,
+                )
         document.save(path)
     finally:
         document.close()

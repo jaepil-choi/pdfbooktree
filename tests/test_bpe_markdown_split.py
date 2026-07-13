@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import fitz
 
 from pdfbooktree.config import MarkdownSplitConfig, TypographyConfig
+from pdfbooktree.export.fallback import choose_deepest_available_level
 from pdfbooktree.export.markdown import export_markdown_split
 from pdfbooktree.models import BookmarkPlanItem, Tier, TierSet, TypographyLine
 from pdfbooktree.typography.bpe import (
@@ -176,13 +178,33 @@ def test_split_export_selects_coarsest_level_that_meets_coverage(
     )
 
     assert result.constraint_satisfied is True
+    assert result.fallback_used is False
+    assert result.fallback_reason is None
     assert result.chosen_level == 2
     assert result.file_count == 2
     assert result.manifest_path is not None and result.manifest_path.exists()
     assert result.overflow_files == []
 
 
-def test_split_export_reports_unsatisfied_constraint(tmp_path: Path) -> None:
+def test_deepest_level_fallback은_문서가_있는_가장_깊은_level을_고른다():
+    decision = choose_deepest_available_level({1: [object()], 2: [object()], 3: []})
+
+    assert decision.chosen_level == 2
+    assert decision.used is True
+    assert decision.reason == "coverage_target_unsatisfied"
+
+
+def test_deepest_level_fallback은_문서가_없으면_level을_고르지_않는다():
+    decision = choose_deepest_available_level({1: [], 2: []})
+
+    assert decision.chosen_level is None
+    assert decision.used is False
+    assert decision.reason == "no_documents_at_any_level"
+
+
+def test_split_export는_constraint_실패시_가장_깊은_level을_export한다(
+    tmp_path: Path,
+) -> None:
     pdf = tmp_path / "book.pdf"
     document = fitz.open()
     try:
@@ -201,5 +223,13 @@ def test_split_export_reports_unsatisfied_constraint(tmp_path: Path) -> None:
     )
 
     assert result.constraint_satisfied is False
-    assert result.chosen_level is None
-    assert result.file_count == 0
+    assert result.fallback_used is True
+    assert result.fallback_reason == "coverage_target_unsatisfied"
+    assert result.chosen_level == 1
+    assert result.file_count == 1
+    assert len(result.overflow_files) == 1
+    assert result.manifest_path is not None
+    manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
+    assert manifest["fallback_used"] is True
+    assert manifest["chosen_level"] == 1
+    assert manifest["statistics"]["coverage"] == 0.0

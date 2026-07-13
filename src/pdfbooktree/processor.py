@@ -19,7 +19,11 @@ from pdfbooktree.outline.plan import normalize_bookmark_plan
 from pdfbooktree.outline.validate import validate_bookmark_plan
 from pdfbooktree.pdf.outline import outline_to_plan, read_outline
 from pdfbooktree.report import write_processing_report
-from pdfbooktree.typography.bpe import extract_bpe_headings, infer_bpe_outline
+from pdfbooktree.typography.bpe import infer_bpe_outline
+from pdfbooktree.typography.geometry import (
+    compute_geometry_font_tier_set,
+    extract_geometry_headings,
+)
 from pdfbooktree.typography.lines import extract_typography_lines
 from pdfbooktree.typography.margins import exclude_margin_artifacts
 from pdfbooktree.typography.tiers import compute_tier_set
@@ -39,7 +43,7 @@ class Processor:
         self.config = config or ProcessingConfig()
 
     def run(self) -> ProcessingResult:
-        """font size/height hierarchy 기반 처리 파이프라인을 실행한다."""
+        """geometry와 font coverage 기반 처리 파이프라인을 실행한다."""
 
         self.output_dir.mkdir(parents=True, exist_ok=True)
         with fitz.open(self.input_pdf) as document:
@@ -51,9 +55,11 @@ class Processor:
 
         raw_lines = extract_typography_lines(self.input_pdf, self.config.typography)
         lines = exclude_margin_artifacts(raw_lines, self.config.typography)
-        font_tiers = compute_tier_set(lines, "font_size", self.config.typography)
+        font_tiers = compute_geometry_font_tier_set(lines)
         height_tiers = compute_tier_set(lines, "height", self.config.typography)
-        candidates = extract_bpe_headings(lines, font_tiers, self.config.typography)
+        candidates = extract_geometry_headings(
+            lines, font_tiers, self.config.typography
+        )
         plan = normalize_bookmark_plan(
             infer_bpe_outline(candidates, self.config.typography)
         )

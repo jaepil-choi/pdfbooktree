@@ -7,6 +7,7 @@ from pathlib import Path
 import numpy as np
 
 from pdfbooktree.config import MarkdownSplitConfig
+from pdfbooktree.export.fallback import choose_deepest_available_level
 from pdfbooktree.models import (
     BookmarkPlanItem,
     BookmarkTreeNode,
@@ -78,12 +79,18 @@ def export_markdown_split(
         ),
         None,
     )
+    constraint_satisfied = chosen_level is not None
+    fallback = choose_deepest_available_level(trials) if chosen_level is None else None
+    if fallback is not None:
+        chosen_level = fallback.chosen_level
     if chosen_level is None:
         manifest_path = root_dir / "manifest.json"
         write_json(
             manifest_path,
             {
                 "constraint_satisfied": False,
+                "fallback_used": False,
+                "fallback_reason": (fallback.reason if fallback is not None else None),
                 "max_words": config.max_words,
                 "max_words_coverage": config.max_words_coverage,
                 "levels": {
@@ -98,9 +105,10 @@ def export_markdown_split(
             constraint_satisfied=False,
             file_count=0,
             total_word_count=0,
+            fallback_used=False,
+            fallback_reason=(fallback.reason if fallback is not None else None),
             manifest_path=manifest_path,
         )
-
     documents = trials[chosen_level]
     file_stats: list[MarkdownFileStat] = []
     for index, document in enumerate(documents, start=1):
@@ -126,20 +134,28 @@ def export_markdown_split(
     write_json(
         manifest_path,
         {
-            "constraint_satisfied": True,
+            "constraint_satisfied": constraint_satisfied,
+            "fallback_used": fallback.used if fallback is not None else False,
+            "fallback_reason": fallback.reason if fallback is not None else None,
             "chosen_level": chosen_level,
             "max_words": config.max_words,
             "max_words_coverage": config.max_words_coverage,
             "statistics": statistics,
+            "levels": {
+                str(level): _statistics(documents, config.max_words)
+                for level, documents in trials.items()
+            },
             "files": file_stats,
         },
     )
     return MarkdownExportResult(
         output_dir=root_dir,
         chosen_level=chosen_level,
-        constraint_satisfied=True,
+        constraint_satisfied=constraint_satisfied,
         file_count=len(file_stats),
         total_word_count=sum(stat.word_count for stat in file_stats),
+        fallback_used=fallback.used if fallback is not None else False,
+        fallback_reason=fallback.reason if fallback is not None else None,
         word_count_stats=statistics,
         overflow_files=overflow,
         manifest_path=manifest_path,

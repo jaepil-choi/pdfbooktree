@@ -24,6 +24,8 @@ class BpeHeading:
     merged_line_count: int
     is_pollution: bool = False
     confidence: float = 0.8
+    source: str = "bpe_typography"
+    evidence: tuple[str, ...] = ()
 
 
 @dataclass
@@ -121,9 +123,10 @@ def infer_bpe_outline(
                 title=heading.title,
                 level=item_level,
                 pdf_page=heading.pdf_page,
-                source="bpe_typography",
-                confidence=0.8,
-                evidence=[
+                source=heading.source,
+                confidence=heading.confidence,
+                evidence=list(heading.evidence)
+                or [
                     "body_separator",
                     "body_line_spacing",
                     f"font_tier_{heading.tier}",
