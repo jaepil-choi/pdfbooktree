@@ -207,6 +207,18 @@
       "finding": "기존 bookmark 482개(전부 level 1, 진짜 목차 아님)를 무시하고 재추출: status=processed, bookmark 670개(levels={1: 7, 2: 41, 3: 82, 4: 214, 5: 135, 6: 94, 7: 85, 8: 12}) 추출, outline confidence=0.8",
       "command": "uv run python showcase/015_bpe_toc_extraction_ocr_merged.py",
       "ran_at": "2026-07-12T21:45:15+09:00"
+    },
+    {
+      "id": "019_geometry_ocr_markdown_split_live",
+      "purpose": "실제 금리의 경제학 264쪽과 통계학원론 481쪽 OCR overlay PDF를 하나의 showcase에서 공개 Processor로 재추출하고, 본문 line-spacing position tolerance와 10,000단어 이하 95% Markdown coverage, 조건 실패 시 가장 깊은 level을 export하는 명시적 fallback을 검증한다.",
+      "inputs": [
+        "showcase\\outputs\\017_interest_economics_ocr_overlay\\interest_economics_ocr.pdf",
+        "showcase\\outputs\\018_statistics_principles_ocr_overlay\\statistics_principles_ocr.pdf"
+      ],
+      "outputs": "showcase\\outputs\\019_geometry_ocr_markdown_split_fallback_live\\result.json",
+      "finding": "금리의 경제학: bookmarks=79, Markdown files=45, 10K satisfied=True, fallback=False, level=1, coverage=1.0, tolerance evidence=79/79 | 통계학원론: bookmarks=33, Markdown files=33, 10K satisfied=False, fallback=True, level=2, coverage=0.8788, tolerance evidence=33/33",
+      "command": "uv run python showcase/019_geometry_ocr_markdown_split_live.py",
+      "ran_at": "2026-07-13T18:00:28+09:00"
     }
   ]
 }
