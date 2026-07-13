@@ -15463,6 +15463,316 @@
       },
       "finding": "body tier=2, body font median=9.0500, visual lines=3832, truth=57. joint style 비교=[{'position_ratio': 0.25, 'font_ratio': 0.05, 'candidates': 1256, 'styles': 544, 'levels': {1: 272, 2: 246, 3: 351, 4: 242, 5: 103, 6: 34, 7: 7, 8: 1}, 'recall': 0.2281, 'level_accuracy': 0.3077, 'level_correct': 4}, {'position_ratio': 0.25, 'font_ratio': 0.1, 'candidates': 975, 'styles': 423, 'levels': {1: 312, 2: 259, 3: 271, 4: 107, 5: 23, 6: 3}, 'recall': 0.2105, 'level_accuracy': 0.4167, 'level_correct': 5}, {'position_ratio': 0.5, 'font_ratio': 0.05, 'candidates': 2088, 'styles': 781, 'levels': {1: 453, 2: 405, 3: 526, 4: 420, 5: 220, 6: 58, 7: 6}, 'recall': 0.5088, 'level_accuracy': 0.4138, 'level_correct': 12}, {'position_ratio': 0.5, 'font_ratio': 0.1, 'candidates': 1607, 'styles': 606, 'levels': {1: 255, 2: 388, 3: 409, 4: 338, 5: 179, 6: 37, 7: 1}, 'recall': 0.4912, 'level_accuracy': 0.25, 'level_correct': 7}, {'position_ratio': 1.0, 'font_ratio': 0.05, 'candidates': 2480, 'styles': 704, 'levels': {1: 491, 2: 479, 3: 619, 4: 508, 5: 275, 6: 99, 7: 8, 8: 1}, 'recall': 0.6667, 'level_accuracy': 0.3947, 'level_correct': 15}, {'position_ratio': 1.0, 'font_ratio': 0.1, 'candidates': 1874, 'styles': 520, 'levels': {1: 127, 2: 532, 3: 485, 4: 448, 5: 213, 6: 63, 7: 6}, 'recall': 0.4912, 'level_accuracy': 0.2143, 'level_correct': 6}]. near-answer level을 가장 많이 맞힌 config={'position_ratio': 1.0, 'font_ratio': 0.05}, recall=0.6667, level_accuracy=0.3947, level_correct=15/57이다.",
       "ran_at": "2026-07-13T09:18:48"
+    },
+    {
+      "id": "094_interest_economics_joint_style",
+      "purpose": "global body tier 제거 전에 font-size ratio와 normalized top-left를 joint style로 만들고, 여러 page에 반복되는 style만 level 후보로 인정해 bookmark hierarchy를 복원할 수 있는지 검증한다. 기존 PDF bookmark는 near-answer weak reference로만 사용한다.",
+      "inputs": [
+        "showcase\\outputs\\017_interest_economics_ocr_overlay\\interest_economics_ocr.pdf"
+      ],
+      "outputs": "experiments\\outputs\\094_interest_economics_joint_style",
+      "method": "production exclude_margin_artifacts를 연속 page-number run 3페이지로 적용한 뒤, 모든 visual line의 top-left를 page-relative 좌표로 바꾸고 문서 median line-height를 단위로 환산했다. body font median과 font-size가 상대적으로 다른 line만 대상으로, font ratio와 x/y가 각각 dimensionless tolerance 안에 드는 joint style을 만들었다. 2개 이상 page에 반복되는 style만 남기고 style median font-size stack으로 level을 부여했다.",
+      "summary": {
+        "margin_min_consecutive_pages": 3,
+        "body_tier": 4,
+        "normalization": {
+          "body_font_size": 9.95,
+          "median_height_over_page_width": 0.032180385288966724,
+          "median_height_over_page_height": 0.020575939098964182
+        },
+        "truth_count": 0,
+        "label_quality": "no embedded labels; human review required",
+        "bookmark_tree_txt": "experiments\\outputs\\094_interest_economics_joint_style\\bookmark_tree.txt",
+        "comparison": [
+          {
+            "position_ratio": 0.25,
+            "font_ratio": 0.05,
+            "candidates": 501,
+            "styles": 154,
+            "levels": {
+              "1": 69,
+              "2": 286,
+              "3": 119,
+              "4": 23,
+              "5": 4
+            },
+            "recall": 0.0,
+            "level_accuracy": 0.0,
+            "level_correct": 0
+          },
+          {
+            "position_ratio": 0.25,
+            "font_ratio": 0.1,
+            "candidates": 208,
+            "styles": 54,
+            "levels": {
+              "1": 69,
+              "2": 115,
+              "3": 24
+            },
+            "recall": 0.0,
+            "level_accuracy": 0.0,
+            "level_correct": 0
+          },
+          {
+            "position_ratio": 0.5,
+            "font_ratio": 0.05,
+            "candidates": 627,
+            "styles": 168,
+            "levels": {
+              "1": 87,
+              "2": 385,
+              "3": 123,
+              "4": 26,
+              "5": 6
+            },
+            "recall": 0.0,
+            "level_accuracy": 0.0,
+            "level_correct": 0
+          },
+          {
+            "position_ratio": 0.5,
+            "font_ratio": 0.1,
+            "candidates": 272,
+            "styles": 69,
+            "levels": {
+              "1": 87,
+              "2": 156,
+              "3": 25,
+              "4": 4
+            },
+            "recall": 0.0,
+            "level_accuracy": 0.0,
+            "level_correct": 0
+          },
+          {
+            "position_ratio": 1.0,
+            "font_ratio": 0.05,
+            "candidates": 731,
+            "styles": 159,
+            "levels": {
+              "1": 93,
+              "2": 408,
+              "3": 138,
+              "4": 88,
+              "5": 4
+            },
+            "recall": 0.0,
+            "level_accuracy": 0.0,
+            "level_correct": 0
+          },
+          {
+            "position_ratio": 1.0,
+            "font_ratio": 0.1,
+            "candidates": 307,
+            "styles": 71,
+            "levels": {
+              "1": 93,
+              "2": 142,
+              "3": 50,
+              "4": 21,
+              "5": 1
+            },
+            "recall": 0.0,
+            "level_accuracy": 0.0,
+            "level_correct": 0
+          }
+        ],
+        "best_config": {
+          "position_ratio": 0.25,
+          "font_ratio": 0.1
+        },
+        "finding": "body tier=4, body font median=9.9500, visual lines=7740, embedded bookmark=0. joint style 비교=[{'position_ratio': 0.25, 'font_ratio': 0.05, 'candidates': 501, 'styles': 154, 'levels': {1: 69, 2: 286, 3: 119, 4: 23, 5: 4}, 'recall': 0.0, 'level_accuracy': 0.0, 'level_correct': 0}, {'position_ratio': 0.25, 'font_ratio': 0.1, 'candidates': 208, 'styles': 54, 'levels': {1: 69, 2: 115, 3: 24}, 'recall': 0.0, 'level_accuracy': 0.0, 'level_correct': 0}, {'position_ratio': 0.5, 'font_ratio': 0.05, 'candidates': 627, 'styles': 168, 'levels': {1: 87, 2: 385, 3: 123, 4: 26, 5: 6}, 'recall': 0.0, 'level_accuracy': 0.0, 'level_correct': 0}, {'position_ratio': 0.5, 'font_ratio': 0.1, 'candidates': 272, 'styles': 69, 'levels': {1: 87, 2: 156, 3: 25, 4: 4}, 'recall': 0.0, 'level_accuracy': 0.0, 'level_correct': 0}, {'position_ratio': 1.0, 'font_ratio': 0.05, 'candidates': 731, 'styles': 159, 'levels': {1: 93, 2: 408, 3: 138, 4: 88, 5: 4}, 'recall': 0.0, 'level_accuracy': 0.0, 'level_correct': 0}, {'position_ratio': 1.0, 'font_ratio': 0.1, 'candidates': 307, 'styles': 71, 'levels': {1: 93, 2: 142, 3: 50, 4: 21, 5: 1}, 'recall': 0.0, 'level_accuracy': 0.0, 'level_correct': 0}]. label이 없으므로 자동 정답 설정은 선택하지 않았다. 사람이 먼저 읽을 conservative preview는 config={'position_ratio': 0.25, 'font_ratio': 0.1}, candidates=208, levels={1: 69, 2: 115, 3: 24}이다. 모든 config의 tree txt를 별도 저장했다."
+      },
+      "finding": "body tier=4, body font median=9.9500, visual lines=7740, embedded bookmark=0. joint style 비교=[{'position_ratio': 0.25, 'font_ratio': 0.05, 'candidates': 501, 'styles': 154, 'levels': {1: 69, 2: 286, 3: 119, 4: 23, 5: 4}, 'recall': 0.0, 'level_accuracy': 0.0, 'level_correct': 0}, {'position_ratio': 0.25, 'font_ratio': 0.1, 'candidates': 208, 'styles': 54, 'levels': {1: 69, 2: 115, 3: 24}, 'recall': 0.0, 'level_accuracy': 0.0, 'level_correct': 0}, {'position_ratio': 0.5, 'font_ratio': 0.05, 'candidates': 627, 'styles': 168, 'levels': {1: 87, 2: 385, 3: 123, 4: 26, 5: 6}, 'recall': 0.0, 'level_accuracy': 0.0, 'level_correct': 0}, {'position_ratio': 0.5, 'font_ratio': 0.1, 'candidates': 272, 'styles': 69, 'levels': {1: 87, 2: 156, 3: 25, 4: 4}, 'recall': 0.0, 'level_accuracy': 0.0, 'level_correct': 0}, {'position_ratio': 1.0, 'font_ratio': 0.05, 'candidates': 731, 'styles': 159, 'levels': {1: 93, 2: 408, 3: 138, 4: 88, 5: 4}, 'recall': 0.0, 'level_accuracy': 0.0, 'level_correct': 0}, {'position_ratio': 1.0, 'font_ratio': 0.1, 'candidates': 307, 'styles': 71, 'levels': {1: 93, 2: 142, 3: 50, 4: 21, 5: 1}, 'recall': 0.0, 'level_accuracy': 0.0, 'level_correct': 0}]. label이 없으므로 자동 정답 설정은 선택하지 않았다. 사람이 먼저 읽을 conservative preview는 config={'position_ratio': 0.25, 'font_ratio': 0.1}, candidates=208, levels={1: 69, 2: 115, 3: 24}이다. 모든 config의 tree txt를 별도 저장했다.",
+      "ran_at": "2026-07-13T09:46:49"
+    },
+    {
+      "id": "095_overlay_density_margin_joint_style",
+      "purpose": "global body tier 제거 전에 font-size ratio와 normalized top-left를 joint style로 만들고, 여러 page에 반복되는 style만 level 후보로 인정해 bookmark hierarchy를 복원할 수 있는지 검증한다. 기존 PDF bookmark는 near-answer weak reference로만 사용한다.",
+      "inputs": [
+        "showcase\\outputs\\017_interest_economics_ocr_overlay\\interest_economics_ocr.pdf"
+      ],
+      "outputs": "experiments\\outputs\\095_overlay_density_margin_joint_style",
+      "method": "여러 page의 normalized y 좌표를 overlay해 반복 component를 만들고, component 폭 중앙값보다 좁은 양끝 band를 margin으로 제거한 뒤, 모든 visual line의 top-left를 page-relative 좌표로 바꾸고 문서 median line-height를 단위로 환산했다. body font median과 font-size가 상대적으로 다른 line만 대상으로, font ratio와 x/y가 각각 dimensionless tolerance 안에 드는 joint style을 만들었다. 2개 이상 page에 반복되는 style만 남기고 style median font-size stack으로 level을 부여했다.",
+      "summary": {
+        "margin_report": {
+          "status": "filtered",
+          "page_count": 263,
+          "median_line_height_ratio": 0.020469195487789762,
+          "bin_width_ratio": 0.005117298871947441,
+          "minimum_page_support": 17,
+          "component_width_median_bins": 12.0,
+          "components": [
+            {
+              "lower_y_ratio": 0.0409,
+              "upper_y_ratio": 0.0563,
+              "width_bins": 4,
+              "content": false
+            },
+            {
+              "lower_y_ratio": 0.0819,
+              "upper_y_ratio": 0.133,
+              "width_bins": 11,
+              "content": true
+            },
+            {
+              "lower_y_ratio": 0.1484,
+              "upper_y_ratio": 0.1638,
+              "width_bins": 4,
+              "content": true
+            },
+            {
+              "lower_y_ratio": 0.1791,
+              "upper_y_ratio": 0.3736,
+              "width_bins": 39,
+              "content": true
+            },
+            {
+              "lower_y_ratio": 0.3889,
+              "upper_y_ratio": 0.7011,
+              "width_bins": 62,
+              "content": true
+            },
+            {
+              "lower_y_ratio": 0.7164,
+              "upper_y_ratio": 0.8188,
+              "width_bins": 21,
+              "content": true
+            },
+            {
+              "lower_y_ratio": 0.8341,
+              "upper_y_ratio": 0.8955,
+              "width_bins": 13,
+              "content": true
+            },
+            {
+              "lower_y_ratio": 0.9365,
+              "upper_y_ratio": 0.9467,
+              "width_bins": 3,
+              "content": false
+            }
+          ],
+          "inferred_content_y_ratio": [
+            0.0819,
+            0.8955
+          ],
+          "input_line_count": 8228,
+          "kept_line_count": 7680,
+          "removed_line_count": 548
+        },
+        "body_tier": 4,
+        "normalization": {
+          "body_font_size": 9.94,
+          "median_height_over_page_width": 0.032180385288966724,
+          "median_height_over_page_height": 0.0205761316872428
+        },
+        "truth_count": 0,
+        "label_quality": "no embedded labels; human review required",
+        "bookmark_tree_txt": "experiments\\outputs\\095_overlay_density_margin_joint_style\\bookmark_tree.txt",
+        "comparison": [
+          {
+            "position_ratio": 0.25,
+            "font_ratio": 0.05,
+            "candidates": 509,
+            "styles": 150,
+            "levels": {
+              "1": 69,
+              "2": 284,
+              "3": 135,
+              "4": 19,
+              "5": 2
+            },
+            "recall": 0.0,
+            "level_accuracy": 0.0,
+            "level_correct": 0
+          },
+          {
+            "position_ratio": 0.25,
+            "font_ratio": 0.1,
+            "candidates": 198,
+            "styles": 48,
+            "levels": {
+              "1": 78,
+              "2": 104,
+              "3": 16
+            },
+            "recall": 0.0,
+            "level_accuracy": 0.0,
+            "level_correct": 0
+          },
+          {
+            "position_ratio": 0.5,
+            "font_ratio": 0.05,
+            "candidates": 629,
+            "styles": 163,
+            "levels": {
+              "1": 88,
+              "2": 386,
+              "3": 125,
+              "4": 27,
+              "5": 3
+            },
+            "recall": 0.0,
+            "level_accuracy": 0.0,
+            "level_correct": 0
+          },
+          {
+            "position_ratio": 0.5,
+            "font_ratio": 0.1,
+            "candidates": 258,
+            "styles": 64,
+            "levels": {
+              "1": 97,
+              "2": 140,
+              "3": 18,
+              "4": 3
+            },
+            "recall": 0.0,
+            "level_accuracy": 0.0,
+            "level_correct": 0
+          },
+          {
+            "position_ratio": 1.0,
+            "font_ratio": 0.05,
+            "candidates": 725,
+            "styles": 149,
+            "levels": {
+              "1": 94,
+              "2": 407,
+              "3": 138,
+              "4": 85,
+              "5": 1
+            },
+            "recall": 0.0,
+            "level_accuracy": 0.0,
+            "level_correct": 0
+          },
+          {
+            "position_ratio": 1.0,
+            "font_ratio": 0.1,
+            "candidates": 293,
+            "styles": 68,
+            "levels": {
+              "1": 103,
+              "2": 129,
+              "3": 39,
+              "4": 21,
+              "5": 1
+            },
+            "recall": 0.0,
+            "level_accuracy": 0.0,
+            "level_correct": 0
+          }
+        ],
+        "best_config": {
+          "position_ratio": 0.25,
+          "font_ratio": 0.1
+        },
+        "finding": "body tier=4, body font median=9.9400, visual lines=7680, embedded bookmark=0. joint style 비교=[{'position_ratio': 0.25, 'font_ratio': 0.05, 'candidates': 509, 'styles': 150, 'levels': {1: 69, 2: 284, 3: 135, 4: 19, 5: 2}, 'recall': 0.0, 'level_accuracy': 0.0, 'level_correct': 0}, {'position_ratio': 0.25, 'font_ratio': 0.1, 'candidates': 198, 'styles': 48, 'levels': {1: 78, 2: 104, 3: 16}, 'recall': 0.0, 'level_accuracy': 0.0, 'level_correct': 0}, {'position_ratio': 0.5, 'font_ratio': 0.05, 'candidates': 629, 'styles': 163, 'levels': {1: 88, 2: 386, 3: 125, 4: 27, 5: 3}, 'recall': 0.0, 'level_accuracy': 0.0, 'level_correct': 0}, {'position_ratio': 0.5, 'font_ratio': 0.1, 'candidates': 258, 'styles': 64, 'levels': {1: 97, 2: 140, 3: 18, 4: 3}, 'recall': 0.0, 'level_accuracy': 0.0, 'level_correct': 0}, {'position_ratio': 1.0, 'font_ratio': 0.05, 'candidates': 725, 'styles': 149, 'levels': {1: 94, 2: 407, 3: 138, 4: 85, 5: 1}, 'recall': 0.0, 'level_accuracy': 0.0, 'level_correct': 0}, {'position_ratio': 1.0, 'font_ratio': 0.1, 'candidates': 293, 'styles': 68, 'levels': {1: 103, 2: 129, 3: 39, 4: 21, 5: 1}, 'recall': 0.0, 'level_accuracy': 0.0, 'level_correct': 0}]. label이 없으므로 자동 정답 설정은 선택하지 않았다. 사람이 먼저 읽을 conservative preview는 config={'position_ratio': 0.25, 'font_ratio': 0.1}, candidates=198, levels={1: 78, 2: 104, 3: 16}이다. 모든 config의 tree txt를 별도 저장했다."
+      },
+      "finding": "body tier=4, body font median=9.9400, visual lines=7680, embedded bookmark=0. joint style 비교=[{'position_ratio': 0.25, 'font_ratio': 0.05, 'candidates': 509, 'styles': 150, 'levels': {1: 69, 2: 284, 3: 135, 4: 19, 5: 2}, 'recall': 0.0, 'level_accuracy': 0.0, 'level_correct': 0}, {'position_ratio': 0.25, 'font_ratio': 0.1, 'candidates': 198, 'styles': 48, 'levels': {1: 78, 2: 104, 3: 16}, 'recall': 0.0, 'level_accuracy': 0.0, 'level_correct': 0}, {'position_ratio': 0.5, 'font_ratio': 0.05, 'candidates': 629, 'styles': 163, 'levels': {1: 88, 2: 386, 3: 125, 4: 27, 5: 3}, 'recall': 0.0, 'level_accuracy': 0.0, 'level_correct': 0}, {'position_ratio': 0.5, 'font_ratio': 0.1, 'candidates': 258, 'styles': 64, 'levels': {1: 97, 2: 140, 3: 18, 4: 3}, 'recall': 0.0, 'level_accuracy': 0.0, 'level_correct': 0}, {'position_ratio': 1.0, 'font_ratio': 0.05, 'candidates': 725, 'styles': 149, 'levels': {1: 94, 2: 407, 3: 138, 4: 85, 5: 1}, 'recall': 0.0, 'level_accuracy': 0.0, 'level_correct': 0}, {'position_ratio': 1.0, 'font_ratio': 0.1, 'candidates': 293, 'styles': 68, 'levels': {1: 103, 2: 129, 3: 39, 4: 21, 5: 1}, 'recall': 0.0, 'level_accuracy': 0.0, 'level_correct': 0}]. label이 없으므로 자동 정답 설정은 선택하지 않았다. 사람이 먼저 읽을 conservative preview는 config={'position_ratio': 0.25, 'font_ratio': 0.1}, candidates=198, levels={1: 78, 2: 104, 3: 16}이다. 모든 config의 tree txt를 별도 저장했다.",
+      "ran_at": "2026-07-13T09:51:23"
     }
   ]
 }
