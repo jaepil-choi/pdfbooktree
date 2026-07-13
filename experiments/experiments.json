@@ -15132,6 +15132,337 @@
       },
       "finding": "초기: heading candidate 1375개, tier 4개, purity={1:1.0, 2:0.6919, 3:0.7223, 4:0.46}. 반복 제거로 tier [4, 2, 3]를 순서대로 제거했고(iteration 4회), 최종적으로 27개 candidate, bookmark 27개가 남았다. level_counts={1: 27}.",
       "ran_at": "2026-07-12T21:42:02"
+    },
+    {
+      "id": "091_geometry_repeated_top_left_level",
+      "purpose": "font tier만으로 level 후보를 고를 때 equation/figure의 무작위 큰 글씨가 섞이는 문제를 줄이기 위해, 여러 페이지에서 같은 top-left 위치가 반복되는 font tier만 level로 인정하는 geometry rule을 검증한다.",
+      "inputs": [
+        "showcase\\outputs\\011_heading_line_merge_live\\Zvi Bodie, Alex Kane, Alan Marcus - Investments-McGraw Hill (2021)[finance]_bookmarked.pdf"
+      ],
+      "outputs": "experiments\\outputs\\091_geometry_repeated_top_left_level",
+      "method": "showcase 011의 실제 Zvi Bodie 교재 PDF에서 기존 typography line, margin 제거, font tier, BPE 추출을 그대로 수행했다. BPE 결과는 병합 첫 조각의 y0를 보존하므로 원본 line을 (page,y0)로 역참조해 첫 조각 x0를 복원했다. 같은 font tier이면서 top-left의 x0/y0 차이가 각각 tolerance 이내인 cluster가 최소 2개 서로 다른 page에 등장할 때만 level 후보로 인정했다. tolerance 0/1/2/4/8pt를 비교했다.",
+      "summary": {
+        "initial_bpe_heading_count": 1094,
+        "positioned_heading_count": 1094,
+        "coordinate_lookup_miss_count": 0,
+        "minimum_distinct_pages": 2,
+        "comparison": [
+          {
+            "tolerance": 0.0,
+            "candidates": 231,
+            "pages": 203,
+            "tiers": {
+              "1": 2,
+              "2": 24,
+              "3": 13,
+              "4": 54,
+              "8": 138
+            },
+            "levels": {
+              "1": 27,
+              "2": 77,
+              "3": 88,
+              "4": 35,
+              "5": 4
+            },
+            "clusters": 51,
+            "anchor_hit_count": 0
+          },
+          {
+            "tolerance": 1.0,
+            "candidates": 502,
+            "pages": 380,
+            "tiers": {
+              "1": 2,
+              "2": 31,
+              "3": 13,
+              "4": 92,
+              "5": 2,
+              "8": 362
+            },
+            "levels": {
+              "1": 26,
+              "2": 96,
+              "3": 281,
+              "4": 92,
+              "5": 7
+            },
+            "clusters": 155,
+            "anchor_hit_count": 2
+          },
+          {
+            "tolerance": 2.0,
+            "candidates": 636,
+            "pages": 445,
+            "tiers": {
+              "1": 2,
+              "2": 32,
+              "3": 13,
+              "4": 108,
+              "5": 2,
+              "8": 479
+            },
+            "levels": {
+              "1": 29,
+              "2": 101,
+              "3": 367,
+              "4": 131,
+              "5": 8
+            },
+            "clusters": 199,
+            "anchor_hit_count": 2
+          },
+          {
+            "tolerance": 4.0,
+            "candidates": 775,
+            "pages": 507,
+            "tiers": {
+              "1": 3,
+              "2": 32,
+              "3": 13,
+              "4": 128,
+              "5": 2,
+              "8": 597
+            },
+            "levels": {
+              "1": 31,
+              "2": 112,
+              "3": 415,
+              "4": 206,
+              "5": 11
+            },
+            "clusters": 237,
+            "anchor_hit_count": 3
+          },
+          {
+            "tolerance": 8.0,
+            "candidates": 908,
+            "pages": 557,
+            "tiers": {
+              "1": 3,
+              "2": 34,
+              "3": 13,
+              "4": 154,
+              "5": 2,
+              "7": 2,
+              "8": 700
+            },
+            "levels": {
+              "1": 29,
+              "2": 125,
+              "3": 496,
+              "4": 244,
+              "5": 14
+            },
+            "clusters": 228,
+            "anchor_hit_count": 3
+          }
+        ],
+        "recommended_tolerance_pt": 4.0,
+        "finding": "초기 BPE font-tier 후보 1094개 중 top-left 반복 조건 결과는 [{'tolerance': 0.0, 'candidates': 231, 'pages': 203, 'tiers': {1: 2, 2: 24, 3: 13, 4: 54, 8: 138}, 'levels': {1: 27, 2: 77, 3: 88, 4: 35, 5: 4}, 'clusters': 51, 'anchor_hit_count': 0}, {'tolerance': 1.0, 'candidates': 502, 'pages': 380, 'tiers': {1: 2, 2: 31, 3: 13, 4: 92, 5: 2, 8: 362}, 'levels': {1: 26, 2: 96, 3: 281, 4: 92, 5: 7}, 'clusters': 155, 'anchor_hit_count': 2}, {'tolerance': 2.0, 'candidates': 636, 'pages': 445, 'tiers': {1: 2, 2: 32, 3: 13, 4: 108, 5: 2, 8: 479}, 'levels': {1: 29, 2: 101, 3: 367, 4: 131, 5: 8}, 'clusters': 199, 'anchor_hit_count': 2}, {'tolerance': 4.0, 'candidates': 775, 'pages': 507, 'tiers': {1: 3, 2: 32, 3: 13, 4: 128, 5: 2, 8: 597}, 'levels': {1: 31, 2: 112, 3: 415, 4: 206, 5: 11}, 'clusters': 237, 'anchor_hit_count': 3}, {'tolerance': 8.0, 'candidates': 908, 'pages': 557, 'tiers': {1: 3, 2: 34, 3: 13, 4: 154, 5: 2, 7: 2, 8: 700}, 'levels': {1: 29, 2: 125, 3: 496, 4: 244, 5: 14}, 'clusters': 228, 'anchor_hit_count': 3}]이다. 알려진 실제 제목 anchor 보존을 우선하고 후보 수를 최소화하면 4.0pt가 이 입력에서 가장 유리했다. 대표 결과는 775개 후보, 507개 page, tier={1: 3, 2: 32, 3: 13, 4: 128, 5: 2, 8: 597}, level={1: 31, 2: 112, 3: 415, 4: 206, 5: 11}이다."
+      },
+      "finding": "초기 BPE font-tier 후보 1094개 중 top-left 반복 조건 결과는 [{'tolerance': 0.0, 'candidates': 231, 'pages': 203, 'tiers': {1: 2, 2: 24, 3: 13, 4: 54, 8: 138}, 'levels': {1: 27, 2: 77, 3: 88, 4: 35, 5: 4}, 'clusters': 51, 'anchor_hit_count': 0}, {'tolerance': 1.0, 'candidates': 502, 'pages': 380, 'tiers': {1: 2, 2: 31, 3: 13, 4: 92, 5: 2, 8: 362}, 'levels': {1: 26, 2: 96, 3: 281, 4: 92, 5: 7}, 'clusters': 155, 'anchor_hit_count': 2}, {'tolerance': 2.0, 'candidates': 636, 'pages': 445, 'tiers': {1: 2, 2: 32, 3: 13, 4: 108, 5: 2, 8: 479}, 'levels': {1: 29, 2: 101, 3: 367, 4: 131, 5: 8}, 'clusters': 199, 'anchor_hit_count': 2}, {'tolerance': 4.0, 'candidates': 775, 'pages': 507, 'tiers': {1: 3, 2: 32, 3: 13, 4: 128, 5: 2, 8: 597}, 'levels': {1: 31, 2: 112, 3: 415, 4: 206, 5: 11}, 'clusters': 237, 'anchor_hit_count': 3}, {'tolerance': 8.0, 'candidates': 908, 'pages': 557, 'tiers': {1: 3, 2: 34, 3: 13, 4: 154, 5: 2, 7: 2, 8: 700}, 'levels': {1: 29, 2: 125, 3: 496, 4: 244, 5: 14}, 'clusters': 228, 'anchor_hit_count': 3}]이다. 알려진 실제 제목 anchor 보존을 우선하고 후보 수를 최소화하면 4.0pt가 이 입력에서 가장 유리했다. 대표 결과는 775개 후보, 507개 page, tier={1: 3, 2: 32, 3: 13, 4: 128, 5: 2, 8: 597}, level={1: 31, 2: 112, 3: 415, 4: 206, 5: 11}이다.",
+      "ran_at": "2026-07-13T08:39:12"
+    },
+    {
+      "id": "092_normalized_geometry_font_level",
+      "purpose": "절대 pt 없이 page-relative top-left와 문서 중앙 line-height 단위로 geometry 반복 조건을 만들고 font tier stack bookmark의 recall과 level 정확도를 실제 bookmark 57개에 대해 검증한다.",
+      "inputs": [
+        "showcase\\outputs\\016_econometrics_note1_ocr_overlay\\kim_econometrics_note1_ocr.pdf"
+      ],
+      "outputs": "experiments\\outputs\\092_normalized_geometry_font_level",
+      "method": "BPE merge 첫 line의 top-left를 page width/height로 정규화한 뒤, 전체 heading 후보의 median line-height를 1 geometry unit으로 정의했다. 같은 font tier에서 cluster 전체 x/y 폭이 0.25/0.5/1.0 line-height 이내이고 2개 이상 page에 반복되는 후보만 tier stack에 넣었다.",
+      "summary": {
+        "initial_candidate_count": 178,
+        "coordinate_lookup_miss_count": 0,
+        "normalization": {
+          "median_height_over_page_width": 0.04545940170940171,
+          "median_height_over_page_height": 0.030204042744718027
+        },
+        "all_line_truth_evaluation": {
+          "truth_count": 57,
+          "matched_line_count": 56,
+          "line_recall": 0.9825,
+          "matched_font_tier_counts": {
+            "1": 5,
+            "2": 51
+          }
+        },
+        "comparison": [
+          {
+            "ratio": 0.25,
+            "candidates": 84,
+            "retention": 0.4719,
+            "levels": {
+              "1": 84
+            },
+            "recall": 0.0702,
+            "level_accuracy": 0.5
+          },
+          {
+            "ratio": 0.5,
+            "candidates": 137,
+            "retention": 0.7697,
+            "levels": {
+              "1": 137
+            },
+            "recall": 0.0702,
+            "level_accuracy": 0.5
+          },
+          {
+            "ratio": 1.0,
+            "candidates": 161,
+            "retention": 0.9045,
+            "levels": {
+              "1": 161
+            },
+            "recall": 0.0702,
+            "level_accuracy": 0.5
+          }
+        ],
+        "best_ratio": 0.25,
+        "finding": "초기 BPE 후보 178개와 bookmark 정답 57개를 비교했다. 전체 visual line에서는 56/57개 제목을 찾았고 그 font tier 분포는 {1: 5, 2: 51}이다. 정규화 geometry 결과는 [{'ratio': 0.25, 'candidates': 84, 'retention': 0.4719, 'levels': {1: 84}, 'recall': 0.0702, 'level_accuracy': 0.5}, {'ratio': 0.5, 'candidates': 137, 'retention': 0.7697, 'levels': {1: 137}, 'recall': 0.0702, 'level_accuracy': 0.5}, {'ratio': 1.0, 'candidates': 161, 'retention': 0.9045, 'levels': {1: 161}, 'recall': 0.0702, 'level_accuracy': 0.5}]이다. 정답 level을 가장 많이 맞힌 설정은 0.25 line-height이며 candidate=84, recall=0.0702, matched-level-accuracy=0.5이다."
+      },
+      "finding": "초기 BPE 후보 178개와 bookmark 정답 57개를 비교했다. 전체 visual line에서는 56/57개 제목을 찾았고 그 font tier 분포는 {1: 5, 2: 51}이다. 정규화 geometry 결과는 [{'ratio': 0.25, 'candidates': 84, 'retention': 0.4719, 'levels': {1: 84}, 'recall': 0.0702, 'level_accuracy': 0.5}, {'ratio': 0.5, 'candidates': 137, 'retention': 0.7697, 'levels': {1: 137}, 'recall': 0.0702, 'level_accuracy': 0.5}, {'ratio': 1.0, 'candidates': 161, 'retention': 0.9045, 'levels': {1: 161}, 'recall': 0.0702, 'level_accuracy': 0.5}]이다. 정답 level을 가장 많이 맞힌 설정은 0.25 line-height이며 candidate=84, recall=0.0702, matched-level-accuracy=0.5이다.",
+      "ran_at": "2026-07-13T09:05:30"
+    },
+    {
+      "id": "093_joint_position_font_style_level",
+      "purpose": "global body tier 제거 전에 font-size ratio와 normalized top-left를 joint style로 만들고, 여러 page에 반복되는 style만 level 후보로 인정해 bookmark hierarchy를 복원할 수 있는지 검증한다. 기존 PDF bookmark는 near-answer weak reference로만 사용한다.",
+      "inputs": [
+        "showcase\\outputs\\016_econometrics_note1_ocr_overlay\\kim_econometrics_note1_ocr.pdf"
+      ],
+      "outputs": "experiments\\outputs\\093_joint_position_font_style_level",
+      "method": "모든 visual line의 top-left를 page-relative 좌표로 바꾸고 문서 median line-height를 단위로 환산했다. body font median과 font-size가 상대적으로 다른 line만 대상으로, font ratio와 x/y가 각각 dimensionless tolerance 안에 드는 joint style을 만들었다. 2개 이상 page에 반복되는 style만 남기고 style median font-size stack으로 level을 부여했다.",
+      "summary": {
+        "body_tier": 2,
+        "normalization": {
+          "body_font_size": 9.05,
+          "median_height_over_page_width": 0.022646092298899845,
+          "median_height_over_page_height": 0.01508292867414861
+        },
+        "truth_count": 57,
+        "label_quality": "near-answer weak reference; human review required",
+        "bookmark_tree_txt": "experiments\\outputs\\093_joint_position_font_style_level\\bookmark_tree.txt",
+        "comparison": [
+          {
+            "position_ratio": 0.25,
+            "font_ratio": 0.05,
+            "candidates": 1256,
+            "styles": 544,
+            "levels": {
+              "1": 272,
+              "2": 246,
+              "3": 351,
+              "4": 242,
+              "5": 103,
+              "6": 34,
+              "7": 7,
+              "8": 1
+            },
+            "recall": 0.2281,
+            "level_accuracy": 0.3077,
+            "level_correct": 4
+          },
+          {
+            "position_ratio": 0.25,
+            "font_ratio": 0.1,
+            "candidates": 975,
+            "styles": 423,
+            "levels": {
+              "1": 312,
+              "2": 259,
+              "3": 271,
+              "4": 107,
+              "5": 23,
+              "6": 3
+            },
+            "recall": 0.2105,
+            "level_accuracy": 0.4167,
+            "level_correct": 5
+          },
+          {
+            "position_ratio": 0.5,
+            "font_ratio": 0.05,
+            "candidates": 2088,
+            "styles": 781,
+            "levels": {
+              "1": 453,
+              "2": 405,
+              "3": 526,
+              "4": 420,
+              "5": 220,
+              "6": 58,
+              "7": 6
+            },
+            "recall": 0.5088,
+            "level_accuracy": 0.4138,
+            "level_correct": 12
+          },
+          {
+            "position_ratio": 0.5,
+            "font_ratio": 0.1,
+            "candidates": 1607,
+            "styles": 606,
+            "levels": {
+              "1": 255,
+              "2": 388,
+              "3": 409,
+              "4": 338,
+              "5": 179,
+              "6": 37,
+              "7": 1
+            },
+            "recall": 0.4912,
+            "level_accuracy": 0.25,
+            "level_correct": 7
+          },
+          {
+            "position_ratio": 1.0,
+            "font_ratio": 0.05,
+            "candidates": 2480,
+            "styles": 704,
+            "levels": {
+              "1": 491,
+              "2": 479,
+              "3": 619,
+              "4": 508,
+              "5": 275,
+              "6": 99,
+              "7": 8,
+              "8": 1
+            },
+            "recall": 0.6667,
+            "level_accuracy": 0.3947,
+            "level_correct": 15
+          },
+          {
+            "position_ratio": 1.0,
+            "font_ratio": 0.1,
+            "candidates": 1874,
+            "styles": 520,
+            "levels": {
+              "1": 127,
+              "2": 532,
+              "3": 485,
+              "4": 448,
+              "5": 213,
+              "6": 63,
+              "7": 6
+            },
+            "recall": 0.4912,
+            "level_accuracy": 0.2143,
+            "level_correct": 6
+          }
+        ],
+        "best_config": {
+          "position_ratio": 1.0,
+          "font_ratio": 0.05
+        },
+        "finding": "body tier=2, body font median=9.0500, visual lines=3832, truth=57. joint style 비교=[{'position_ratio': 0.25, 'font_ratio': 0.05, 'candidates': 1256, 'styles': 544, 'levels': {1: 272, 2: 246, 3: 351, 4: 242, 5: 103, 6: 34, 7: 7, 8: 1}, 'recall': 0.2281, 'level_accuracy': 0.3077, 'level_correct': 4}, {'position_ratio': 0.25, 'font_ratio': 0.1, 'candidates': 975, 'styles': 423, 'levels': {1: 312, 2: 259, 3: 271, 4: 107, 5: 23, 6: 3}, 'recall': 0.2105, 'level_accuracy': 0.4167, 'level_correct': 5}, {'position_ratio': 0.5, 'font_ratio': 0.05, 'candidates': 2088, 'styles': 781, 'levels': {1: 453, 2: 405, 3: 526, 4: 420, 5: 220, 6: 58, 7: 6}, 'recall': 0.5088, 'level_accuracy': 0.4138, 'level_correct': 12}, {'position_ratio': 0.5, 'font_ratio': 0.1, 'candidates': 1607, 'styles': 606, 'levels': {1: 255, 2: 388, 3: 409, 4: 338, 5: 179, 6: 37, 7: 1}, 'recall': 0.4912, 'level_accuracy': 0.25, 'level_correct': 7}, {'position_ratio': 1.0, 'font_ratio': 0.05, 'candidates': 2480, 'styles': 704, 'levels': {1: 491, 2: 479, 3: 619, 4: 508, 5: 275, 6: 99, 7: 8, 8: 1}, 'recall': 0.6667, 'level_accuracy': 0.3947, 'level_correct': 15}, {'position_ratio': 1.0, 'font_ratio': 0.1, 'candidates': 1874, 'styles': 520, 'levels': {1: 127, 2: 532, 3: 485, 4: 448, 5: 213, 6: 63, 7: 6}, 'recall': 0.4912, 'level_accuracy': 0.2143, 'level_correct': 6}]. near-answer level을 가장 많이 맞힌 config={'position_ratio': 1.0, 'font_ratio': 0.05}, recall=0.6667, level_accuracy=0.3947, level_correct=15/57이다."
+      },
+      "finding": "body tier=2, body font median=9.0500, visual lines=3832, truth=57. joint style 비교=[{'position_ratio': 0.25, 'font_ratio': 0.05, 'candidates': 1256, 'styles': 544, 'levels': {1: 272, 2: 246, 3: 351, 4: 242, 5: 103, 6: 34, 7: 7, 8: 1}, 'recall': 0.2281, 'level_accuracy': 0.3077, 'level_correct': 4}, {'position_ratio': 0.25, 'font_ratio': 0.1, 'candidates': 975, 'styles': 423, 'levels': {1: 312, 2: 259, 3: 271, 4: 107, 5: 23, 6: 3}, 'recall': 0.2105, 'level_accuracy': 0.4167, 'level_correct': 5}, {'position_ratio': 0.5, 'font_ratio': 0.05, 'candidates': 2088, 'styles': 781, 'levels': {1: 453, 2: 405, 3: 526, 4: 420, 5: 220, 6: 58, 7: 6}, 'recall': 0.5088, 'level_accuracy': 0.4138, 'level_correct': 12}, {'position_ratio': 0.5, 'font_ratio': 0.1, 'candidates': 1607, 'styles': 606, 'levels': {1: 255, 2: 388, 3: 409, 4: 338, 5: 179, 6: 37, 7: 1}, 'recall': 0.4912, 'level_accuracy': 0.25, 'level_correct': 7}, {'position_ratio': 1.0, 'font_ratio': 0.05, 'candidates': 2480, 'styles': 704, 'levels': {1: 491, 2: 479, 3: 619, 4: 508, 5: 275, 6: 99, 7: 8, 8: 1}, 'recall': 0.6667, 'level_accuracy': 0.3947, 'level_correct': 15}, {'position_ratio': 1.0, 'font_ratio': 0.1, 'candidates': 1874, 'styles': 520, 'levels': {1: 127, 2: 532, 3: 485, 4: 448, 5: 213, 6: 63, 7: 6}, 'recall': 0.4912, 'level_accuracy': 0.2143, 'level_correct': 6}]. near-answer level을 가장 많이 맞힌 config={'position_ratio': 1.0, 'font_ratio': 0.05}, recall=0.6667, level_accuracy=0.3947, level_correct=15/57이다.",
+      "ran_at": "2026-07-13T09:18:48"
     }
   ]
 }
