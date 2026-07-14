@@ -81,6 +81,9 @@ def test_ocr_overlay_cli_parses_options(monkeypatch, tmp_path: Path) -> None:
     assert captured["log_output_dir"] == tmp_path / "artifacts"
     assert captured["enable_file"] is False
     assert captured["desc"] == "OCR overlay: book.pdf"
+    assert "'processed_page_count': 4" in result.stdout
+    assert "'processed_pages'" not in result.stdout
+    assert "book_ocr.pdf" in result.stdout
 
 
 def test_ocr_overlay_batch_cli_parses_options(monkeypatch, tmp_path: Path) -> None:

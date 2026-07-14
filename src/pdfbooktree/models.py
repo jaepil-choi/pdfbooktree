@@ -148,6 +148,8 @@ class MarkdownExportResult:
     constraint_satisfied: bool
     file_count: int
     total_word_count: int
+    fallback_used: bool = False
+    fallback_reason: str | None = None
     word_count_stats: dict[str, int | float | None] = field(default_factory=dict)
     overflow_files: list[MarkdownFileStat] = field(default_factory=list)
     manifest_path: Path | None = None

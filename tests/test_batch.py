@@ -13,9 +13,15 @@ from pdfbooktree.config import ProcessingConfig, TypographyConfig
 def _write_pdf(path: Path, title: str) -> None:
     document = fitz.open()
     try:
-        page = document.new_page()
-        page.insert_text((72, 90), title, fontsize=28)
-        page.insert_text((72, 160), "Body text", fontsize=10)
+        for page_no in range(1, 6):
+            page = document.new_page()
+            page.insert_text((72, 90), f"{title} {page_no}", fontsize=28)
+            for row in range(10):
+                page.insert_text(
+                    (72, 160 + row * 15),
+                    "Repeated ordinary body text for coverage.",
+                    fontsize=10,
+                )
         document.save(path)
     finally:
         document.close()

@@ -10,6 +10,11 @@ from typing import Literal
 class TypographyConfig:
     """책 전체 typography 기반 outline 추론 설정이다."""
 
+    heading_candidate_mode: Literal["position", "font", "position_and_font"] = (
+        "position_and_font"
+    )
+    body_font_text_coverage: float = 0.95
+    position_min_repeated_pages: int = 5
     line_y_tolerance_ratio: float = 0.55
     min_tier_gap: float = 2.0
     min_tier_count: int = 5

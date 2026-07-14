@@ -270,7 +270,20 @@ def ocr_overlay(
         stats_word_level=stats_word_level,
     )
     result = OcrOverlayBuilder(config, logger=logger).run()
-    rich_print(to_jsonable(result))
+    rich_print(
+        to_jsonable(
+            {
+                "status": result.status,
+                "page_count": result.page_count,
+                "processed_page_count": len(result.processed_pages),
+                "cache_hit_count": result.cache_hit_count,
+                "cache_miss_count": result.cache_miss_count,
+                "output_pdf": result.output_pdf,
+                "output_dir": result.output_dir,
+                "page_stats_path": result.page_stats_path,
+            }
+        )
+    )
 
 
 @app.command("ocr-overlay-batch")
@@ -383,6 +396,24 @@ def process(
         "--skip-existing-bookmarks/--no-skip-existing-bookmarks",
         help="기존 outline이 있으면 typography 추론 대신 Markdown export만 수행한다.",
     ),
+    heading_candidate_mode: str = typer.Option(
+        "position_and_font",
+        "--heading-candidate-mode",
+        help="heading 후보 필터다: position, font, position_and_font.",
+    ),
+    body_font_text_coverage: float = typer.Option(
+        0.95,
+        "--body-font-text-coverage",
+        min=0.01,
+        max=1.0,
+        help="text length 누적으로 본문 font tier를 포함할 목표 비율이다.",
+    ),
+    position_min_repeated_pages: int = typer.Option(
+        5,
+        "--position-min-repeated-pages",
+        min=1,
+        help="동일 anchor pattern이 반복되어야 하는 최소 page 수다.",
+    ),
     min_tier_count: int = typer.Option(
         5,
         "--min-tier-count",
@@ -434,9 +465,18 @@ def process(
 ) -> None:
     """단일 PDF를 typography hierarchy 기반으로 처리한다."""
 
+    allowed_modes = {"position", "font", "position_and_font"}
+    if heading_candidate_mode not in allowed_modes:
+        raise typer.BadParameter(
+            "heading-candidate-mode은 position, font, position_and_font 중 하나여야 한다."
+        )
+
     config = ProcessingConfig(
         skip_existing_bookmarks=skip_existing_bookmarks,
         typography=TypographyConfig(
+            heading_candidate_mode=heading_candidate_mode,
+            body_font_text_coverage=body_font_text_coverage,
+            position_min_repeated_pages=position_min_repeated_pages,
             min_tier_count=min_tier_count,
             max_heading_tier=max_heading_tier,
             bpe_max_node_words=bpe_max_node_words,
