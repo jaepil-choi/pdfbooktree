@@ -51,7 +51,23 @@ class _Chunk:
 class _AnchorPattern:
     current: _Chunk
     following: _Chunk
-    values: tuple[float, float, float, float]
+    values: tuple[float, ...]
+
+
+@dataclass(frozen=True)
+class GeometryContext:
+    """chunk/font coverage/본문 line spacing 등 geometry 중간 결과를 공유한다.
+
+    font 골격 추출(`extract_geometry_headings`)과 body-tier position fallback
+    (`typography.position_fallback`)이 같은 chunk 분할·본문 tier 판정을 두 번
+    계산하지 않도록 한 번만 만들어 재사용한다.
+    """
+
+    chunks: tuple[_Chunk, ...]
+    font_tiers: TierSet
+    profile: FontCoverageProfile
+    body_spacing: float
+    continuation_upper: float
 
 
 def compute_geometry_font_tier_set(lines: list[TypographyLine]) -> TierSet:
@@ -196,17 +212,14 @@ def classify_font_tiers_by_text_coverage(
     )
 
 
-def extract_geometry_headings(
+def build_geometry_context(
     lines: list[TypographyLine],
     font_tiers: TierSet,
     config: TypographyConfig | None = None,
-) -> list[BpeHeading]:
-    """font coverage와 반복 chunk anchor를 독립적으로 계산해 후보를 선택한다."""
+) -> GeometryContext:
+    """chunk 분할과 본문 tier/line spacing 추론을 한 번만 수행한다."""
 
     resolved = config or TypographyConfig()
-    if not lines or not font_tiers.tiers:
-        return []
-
     profile = classify_font_tiers_by_text_coverage(
         lines,
         font_tiers,
@@ -225,15 +238,54 @@ def extract_geometry_headings(
         profile,
         body_spacing,
     )
-    patterns = _build_anchor_patterns(chunks, body_spacing)
+    return GeometryContext(
+        chunks=tuple(chunks),
+        font_tiers=font_tiers,
+        profile=profile,
+        body_spacing=body_spacing,
+        continuation_upper=continuation_upper,
+    )
+
+
+def extract_geometry_headings(
+    lines: list[TypographyLine],
+    font_tiers: TierSet,
+    config: TypographyConfig | None = None,
+) -> list[BpeHeading]:
+    """font coverage와 반복 chunk anchor를 독립적으로 계산해 후보를 선택한다."""
+
+    resolved = config or TypographyConfig()
+    if not lines or not font_tiers.tiers:
+        return []
+    context = build_geometry_context(lines, font_tiers, resolved)
+    return select_geometry_headings(context, resolved)
+
+
+def select_geometry_headings(
+    context: GeometryContext,
+    config: TypographyConfig | None = None,
+) -> list[BpeHeading]:
+    """이미 계산된 GeometryContext에서 heading 후보를 선택한다."""
+
+    resolved = config or TypographyConfig()
+    chunks = context.chunks
+    font_tiers = context.font_tiers
+    profile = context.profile
+    body_spacing = context.body_spacing
+    patterns = _build_anchor_patterns(
+        chunks, body_spacing, pattern_mode="following_anchor_4d"
+    )
     position_ids = _select_position_candidates(
         patterns,
         resolved.position_min_repeated_pages,
+        tolerance=1.0,
     )
     font_ids = {
         chunk.chunk_id
         for chunk in chunks
         if _tier_for_size(chunk.font_size, font_tiers) in profile.candidate_tiers
+        and chunk.font_size > profile.representative_body_font_size
+        and len(chunk.text.split()) <= resolved.body_font_max_words
     }
     if resolved.heading_candidate_mode == "position":
         selected_ids = position_ids
@@ -484,7 +536,20 @@ def _merge_adjacent_non_body_chunks(
 def _build_anchor_patterns(
     chunks: list[_Chunk],
     body_spacing: float,
+    *,
+    pattern_mode: str = "following_anchor_4d",
 ) -> list[_AnchorPattern]:
+    """반복 anchor 좌표를 만든다.
+
+    ``following_anchor_4d``는 production 기본값으로 현재+다음 chunk의 (x0,y0)
+    4개 값을 anchor로 쓴다. ``current_anchor_2d``는 실험 098/101에서 검증한
+    대안으로, 다음 chunk 없이 현재 chunk의 (x0,y0)만 쓴다 — scanned/OCR 책에서
+    heading font가 본문 tier에 흡수돼 다음 chunk의 layout이 불안정할 때 4D보다
+    반복 위치를 더 잘 잡아낸다(실험 098: 11/11 vs 7/11 chapter 복구).
+    """
+
+    if pattern_mode not in {"following_anchor_4d", "current_anchor_2d"}:
+        raise ValueError(f"지원하지 않는 anchor pattern mode다: {pattern_mode}")
     by_page: dict[int, list[_Chunk]] = defaultdict(list)
     for chunk in chunks:
         by_page[chunk.pdf_page].append(chunk)
@@ -493,17 +558,17 @@ def _build_anchor_patterns(
     for page_chunks in by_page.values():
         ordered = sorted(page_chunks, key=lambda item: (item.y0, item.x0))
         for current, following in zip(ordered, ordered[1:], strict=False):
-            patterns.append(
-                _AnchorPattern(
-                    current=current,
-                    following=following,
-                    values=(
-                        current.x0 / body_spacing,
-                        current.y0 / body_spacing,
-                        following.x0 / body_spacing,
-                        following.y0 / body_spacing,
-                    ),
+            if pattern_mode == "current_anchor_2d":
+                values = (current.x0 / body_spacing, current.y0 / body_spacing)
+            else:
+                values = (
+                    current.x0 / body_spacing,
+                    current.y0 / body_spacing,
+                    following.x0 / body_spacing,
+                    following.y0 / body_spacing,
                 )
+            patterns.append(
+                _AnchorPattern(current=current, following=following, values=values)
             )
     return patterns
 
@@ -511,6 +576,8 @@ def _build_anchor_patterns(
 def _select_position_candidates(
     patterns: list[_AnchorPattern],
     minimum_pages: int,
+    *,
+    tolerance: float = 1.0,
 ) -> set[int]:
     if minimum_pages < 1:
         raise ValueError("position 최소 반복 page 수는 1 이상이어야 한다.")
@@ -518,7 +585,7 @@ def _select_position_candidates(
         return set()
     # anchor 좌표는 이미 본문 top-to-top line spacing으로 정규화되어 있다.
     # 따라서 1.0은 책마다 추론된 본문 line spacing 한 칸의 실제 PDF 좌표 폭이다.
-    clusters = _cluster_patterns(patterns, tolerance=1.0)
+    clusters = _cluster_patterns(patterns, tolerance=tolerance)
     return {
         pattern.current.chunk_id
         for cluster in clusters

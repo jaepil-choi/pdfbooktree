@@ -15,17 +15,19 @@ from pdfbooktree.export.markdown import (
 )
 from pdfbooktree.export.pdf import export_bookmarked_pdf, plan_bookmarked_pdf_path
 from pdfbooktree.models import ConfidenceSummary, ProcessingResult
-from pdfbooktree.outline.plan import normalize_bookmark_plan
+from pdfbooktree.outline.plan import insert_position_fallback, normalize_bookmark_plan
 from pdfbooktree.outline.validate import validate_bookmark_plan
 from pdfbooktree.pdf.outline import outline_to_plan, read_outline
 from pdfbooktree.report import write_processing_report
 from pdfbooktree.typography.bpe import infer_bpe_outline
 from pdfbooktree.typography.geometry import (
+    build_geometry_context,
     compute_geometry_font_tier_set,
-    extract_geometry_headings,
+    select_geometry_headings,
 )
 from pdfbooktree.typography.lines import extract_typography_lines
 from pdfbooktree.typography.margins import exclude_margin_artifacts
+from pdfbooktree.typography.position_fallback import select_body_tier_position_fallback
 from pdfbooktree.typography.tiers import compute_tier_set
 
 
@@ -57,16 +59,31 @@ class Processor:
         lines = exclude_margin_artifacts(raw_lines, self.config.typography)
         font_tiers = compute_geometry_font_tier_set(lines)
         height_tiers = compute_tier_set(lines, "height", self.config.typography)
-        candidates = extract_geometry_headings(
-            lines, font_tiers, self.config.typography
+        context = build_geometry_context(lines, font_tiers, self.config.typography)
+        candidates = select_geometry_headings(context, self.config.typography)
+        font_plan = normalize_bookmark_plan(
+            infer_bpe_outline(candidates, self.config.typography)
+        )
+        fallback_candidates = (
+            select_body_tier_position_fallback(
+                context, font_plan, self.config.typography
+            )
+            if self.config.typography.position_fallback_enabled
+            else []
         )
         plan = normalize_bookmark_plan(
-            infer_bpe_outline(candidates, self.config.typography)
+            insert_position_fallback(font_plan, fallback_candidates, total_pages)
         )
         validation = validate_bookmark_plan(plan, total_pages)
 
         artifacts = self._write_artifacts(
-            lines, font_tiers, height_tiers, candidates, plan, validation
+            lines,
+            font_tiers,
+            height_tiers,
+            candidates,
+            fallback_candidates,
+            plan,
+            validation,
         )
         warnings = list(validation.warnings)
         if self.config.ocr_policy != "never":
@@ -109,6 +126,7 @@ class Processor:
                 tiering=_tiering_confidence(font_tiers, height_tiers),
                 heading_candidates=_mean(
                     [candidate.confidence for candidate in candidates]
+                    + [candidate.confidence for candidate in fallback_candidates]
                 ),
                 outline=_mean([item.confidence for item in plan]),
             ),
@@ -154,7 +172,14 @@ class Processor:
         return self._finalize(result)
 
     def _write_artifacts(
-        self, lines, font_tiers, height_tiers, candidates, plan, validation
+        self,
+        lines,
+        font_tiers,
+        height_tiers,
+        candidates,
+        fallback_candidates,
+        plan,
+        validation,
     ) -> dict[str, Path]:
         if not self.config.write_artifacts:
             return {}
@@ -170,6 +195,9 @@ class Processor:
             ),
             "heading_candidates": write_artifact(
                 self.output_dir, "heading_candidates", candidates
+            ),
+            "position_fallback_candidates": write_artifact(
+                self.output_dir, "position_fallback_candidates", fallback_candidates
             ),
             "bookmark_plan": write_artifact(self.output_dir, "bookmark_plan", plan),
             "bookmark_plan_validation": write_artifact(

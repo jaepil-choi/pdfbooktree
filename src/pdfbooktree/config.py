@@ -10,10 +10,9 @@ from typing import Literal
 class TypographyConfig:
     """책 전체 typography 기반 outline 추론 설정이다."""
 
-    heading_candidate_mode: Literal["position", "font", "position_and_font"] = (
-        "position_and_font"
-    )
+    heading_candidate_mode: Literal["position", "font", "position_and_font"] = "font"
     body_font_text_coverage: float = 0.95
+    body_font_max_words: int = 20
     position_min_repeated_pages: int = 5
     line_y_tolerance_ratio: float = 0.55
     min_tier_gap: float = 2.0
@@ -31,6 +30,12 @@ class TypographyConfig:
     margin_min_consecutive_pages: int = 10
     margin_min_repeated_lines: int = 3
     margin_max_page_number: int = 3000
+    position_fallback_enabled: bool = True
+    position_fallback_tolerance: float = 2.0
+    position_fallback_min_isolation_ratio: float = 1.0
+    position_fallback_body_font_ratio_low: float = 0.97
+    position_fallback_body_font_ratio_high: float = 1.03
+    position_fallback_title_dedupe_threshold: float = 0.8
 
 
 @dataclass(frozen=True)

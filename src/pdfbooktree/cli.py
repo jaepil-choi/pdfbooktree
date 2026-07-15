@@ -397,7 +397,7 @@ def process(
         help="기존 outline이 있으면 typography 추론 대신 Markdown export만 수행한다.",
     ),
     heading_candidate_mode: str = typer.Option(
-        "position_and_font",
+        "font",
         "--heading-candidate-mode",
         help="heading 후보 필터다: position, font, position_and_font.",
     ),
@@ -408,11 +408,34 @@ def process(
         max=1.0,
         help="text length 누적으로 본문 font tier를 포함할 목표 비율이다.",
     ),
+    body_font_max_words: int = typer.Option(
+        20,
+        "--body-font-max-words",
+        min=1,
+        help="font 골격 heading 후보로 볼 최대 단어 수다.",
+    ),
     position_min_repeated_pages: int = typer.Option(
         5,
         "--position-min-repeated-pages",
         min=1,
         help="동일 anchor pattern이 반복되어야 하는 최소 page 수다.",
+    ),
+    position_fallback_enabled: bool = typer.Option(
+        True,
+        "--position-fallback/--no-position-fallback",
+        help="font tier에 흡수된 body-tier heading을 반복 위치로 rescue한다.",
+    ),
+    position_fallback_tolerance: float = typer.Option(
+        2.0,
+        "--position-fallback-tolerance",
+        min=0.1,
+        help="body-tier position fallback의 current-anchor 2D 허용 오차다.",
+    ),
+    position_fallback_min_isolation_ratio: float = typer.Option(
+        1.0,
+        "--position-fallback-min-isolation-ratio",
+        min=0.0,
+        help="다른 반복 위치 cluster로부터 최소 이 배수만큼 떨어져야 한다.",
     ),
     min_tier_count: int = typer.Option(
         5,
@@ -476,7 +499,11 @@ def process(
         typography=TypographyConfig(
             heading_candidate_mode=heading_candidate_mode,
             body_font_text_coverage=body_font_text_coverage,
+            body_font_max_words=body_font_max_words,
             position_min_repeated_pages=position_min_repeated_pages,
+            position_fallback_enabled=position_fallback_enabled,
+            position_fallback_tolerance=position_fallback_tolerance,
+            position_fallback_min_isolation_ratio=position_fallback_min_isolation_ratio,
             min_tier_count=min_tier_count,
             max_heading_tier=max_heading_tier,
             bpe_max_node_words=bpe_max_node_words,

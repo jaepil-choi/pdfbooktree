@@ -227,6 +227,80 @@ def test_extract_heading_candidates_does_not_merge_lines_with_large_gap(
     assert "CHAPTER 1 Introduction" not in titles
 
 
+def _make_ocr_style_book_pdf(path: Path, chapter_pages: int = 7) -> None:
+    """chapter marker가 본문과 같은 font size로 매 page 같은 위치에 나오는 책이다.
+
+    scanned/OCR 책에서 chapter font가 본문 tier에 흡수되는 실패 패턴(실험 098)을
+    재현한다. font 골격만으로는 "Chapter N"을 heading으로 볼 수 없고, 반복
+    위치만이 유일한 단서다.
+    """
+
+    document = fitz.open()
+    try:
+        for page_no in range(1, chapter_pages + 1):
+            page = document.new_page(width=PAGE_WIDTH, height=PAGE_HEIGHT)
+            if page_no == 1:
+                page.insert_text((72, 90), "Book Title", fontsize=24)
+            page.insert_text((72, 150), f"Chapter {page_no}", fontsize=10)
+            for row in range(10):
+                page.insert_text(
+                    (72, 200 + row * 14),
+                    "This is ordinary OCR body text repeated across the page.",
+                    fontsize=10,
+                )
+        document.save(path)
+    finally:
+        document.close()
+
+
+def test_processor_rescues_body_tier_chapter_marker_via_position_fallback(
+    tmp_path: Path,
+) -> None:
+    pdf = tmp_path / "ocr_style_book.pdf"
+    output_dir = tmp_path / "out"
+    _make_ocr_style_book_pdf(pdf)
+
+    result = Processor(
+        pdf,
+        output_dir,
+        ProcessingConfig(typography=TypographyConfig(position_min_repeated_pages=5)),
+    ).run()
+
+    assert result.status == "processed"
+    plan = json.loads((output_dir / "bookmark_plan.json").read_text("utf-8"))
+    titles = {item["title"] for item in plan}
+    chapter_titles = {f"Chapter {page}" for page in range(1, 8)}
+    assert chapter_titles <= titles
+    fallback_items = [item for item in plan if item["title"] in chapter_titles]
+    assert all(
+        item["source"] == "geometry_position_fallback" for item in fallback_items
+    )
+    assert all(item["level"] >= 2 for item in fallback_items)
+
+
+def test_processor_position_fallback_disabled_drops_body_tier_chapter_marker(
+    tmp_path: Path,
+) -> None:
+    pdf = tmp_path / "ocr_style_book.pdf"
+    output_dir = tmp_path / "out"
+    _make_ocr_style_book_pdf(pdf)
+
+    Processor(
+        pdf,
+        output_dir,
+        ProcessingConfig(
+            typography=TypographyConfig(
+                position_min_repeated_pages=5, position_fallback_enabled=False
+            )
+        ),
+    ).run()
+
+    plan = json.loads((output_dir / "bookmark_plan.json").read_text("utf-8"))
+    titles = {item["title"] for item in plan}
+    chapter_titles = {f"Chapter {page}" for page in range(1, 8)}
+    assert not (chapter_titles & titles)
+
+
 def test_processor_creates_bookmark_pdf_markdown_and_artifacts(tmp_path: Path) -> None:
     pdf = tmp_path / "book.pdf"
     output_dir = tmp_path / "out"
