@@ -16,7 +16,9 @@ from pdfbooktree.inspection import (
     inspect_text,
 )
 from pdfbooktree.models import (
+    ApplyResult,
     BatchResult,
+    BookmarkInferenceResult,
     BookmarkPlanItem,
     BookmarkPlanValidation,
     BookmarkTreeNode,
@@ -25,11 +27,13 @@ from pdfbooktree.models import (
     HeadingCandidate,
     MarkdownExportResult,
     MarkdownFileStat,
+    PdfAnalysis,
     ProcessingResult,
     Tier,
     TierSet,
     TypographyLine,
 )
+from pdfbooktree.pipeline import analyze_pdf, apply_plan, infer_bookmarks
 from pdfbooktree.processor import Processor
 from pdfbooktree.run import (
     InputIdentity,
@@ -41,8 +45,12 @@ from pdfbooktree.run import (
 )
 
 __all__ = [
+    "analyze_pdf",
+    "apply_plan",
+    "ApplyResult",
     "BatchProcessor",
     "BatchResult",
+    "BookmarkInferenceResult",
     "BookmarkPlanItem",
     "BookmarkPlanValidation",
     "BookmarkTreeNode",
@@ -50,6 +58,7 @@ __all__ = [
     "ConfigError",
     "ExistingOutlineItem",
     "HeadingCandidate",
+    "infer_bookmarks",
     "inspect_bookmarks",
     "inspect_ocr_artifact",
     "inspect_page_count",
@@ -58,6 +67,7 @@ __all__ = [
     "MarkdownExportResult",
     "MarkdownFileStat",
     "MarkdownSplitConfig",
+    "PdfAnalysis",
     "ProcessingConfig",
     "ProcessingResult",
     "Processor",

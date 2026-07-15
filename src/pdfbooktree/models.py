@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
+
+if TYPE_CHECKING:
+    from pdfbooktree.typography.bpe import BpeHeading
+    from pdfbooktree.typography.position_fallback import PositionFallbackCandidate
 
 
 ProcessingStatus = Literal["processed", "skipped", "failed"]
@@ -128,6 +132,32 @@ class BookmarkPlanValidation:
 
 
 @dataclass(frozen=True)
+class PdfAnalysis:
+    """``analyze_pdf()``가 만드는 PDF 원본 typography 추출 결과다.
+
+    PyMuPDF document/page 같은 열린 runtime 객체는 담지 않는다.
+    """
+
+    input_pdf: Path
+    total_pages: int
+    lines: list[TypographyLine] = field(default_factory=list)
+    extraction_config_hash: str = ""
+
+
+@dataclass(frozen=True)
+class BookmarkInferenceResult:
+    """``infer_bookmarks()``가 만드는 typography 기반 bookmark 추론 결과다."""
+
+    lines: list[TypographyLine]
+    font_tiers: TierSet
+    height_tiers: TierSet
+    heading_candidates: list[BpeHeading]
+    fallback_candidates: list[PositionFallbackCandidate]
+    plan: list[BookmarkPlanItem]
+    validation: BookmarkPlanValidation
+
+
+@dataclass(frozen=True)
 class MarkdownFileStat:
     """하나의 split Markdown 파일 길이와 범위다."""
 
@@ -153,6 +183,16 @@ class MarkdownExportResult:
     word_count_stats: dict[str, int | float | None] = field(default_factory=dict)
     overflow_files: list[MarkdownFileStat] = field(default_factory=list)
     manifest_path: Path | None = None
+
+
+@dataclass(frozen=True)
+class ApplyResult:
+    """``apply_plan()``이 만드는 실제 output 생성 결과다."""
+
+    validation: BookmarkPlanValidation
+    output_pdf: Path | None = None
+    output_markdown_dir: Path | None = None
+    markdown_export: MarkdownExportResult | None = None
 
 
 @dataclass(frozen=True)

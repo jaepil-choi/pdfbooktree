@@ -13,22 +13,16 @@ from pdfbooktree.export.markdown import (
     export_markdown_tree,
     plan_markdown_dir_path,
 )
-from pdfbooktree.export.pdf import export_bookmarked_pdf, plan_bookmarked_pdf_path
-from pdfbooktree.models import ConfidenceSummary, ProcessingResult
-from pdfbooktree.outline.plan import insert_position_fallback, normalize_bookmark_plan
+from pdfbooktree.export.pdf import plan_bookmarked_pdf_path
+from pdfbooktree.models import (
+    BookmarkInferenceResult,
+    ConfidenceSummary,
+    ProcessingResult,
+)
 from pdfbooktree.outline.validate import validate_bookmark_plan
 from pdfbooktree.pdf.outline import outline_to_plan, read_outline
+from pdfbooktree.pipeline import analyze_pdf, apply_plan, infer_bookmarks
 from pdfbooktree.report import write_processing_report
-from pdfbooktree.typography.bpe import infer_bpe_outline
-from pdfbooktree.typography.geometry import (
-    build_geometry_context,
-    compute_geometry_font_tier_set,
-    select_geometry_headings,
-)
-from pdfbooktree.typography.lines import extract_typography_lines
-from pdfbooktree.typography.margins import exclude_margin_artifacts
-from pdfbooktree.typography.position_fallback import select_body_tier_position_fallback
-from pdfbooktree.typography.tiers import compute_tier_set
 
 
 class Processor:
@@ -55,80 +49,52 @@ class Processor:
         if existing_outline and self.config.skip_existing_bookmarks:
             return self._export_existing_outline(existing_outline, total_pages)
 
-        raw_lines = extract_typography_lines(self.input_pdf, self.config.typography)
-        lines = exclude_margin_artifacts(raw_lines, self.config.typography)
-        font_tiers = compute_geometry_font_tier_set(lines)
-        height_tiers = compute_tier_set(lines, "height", self.config.typography)
-        context = build_geometry_context(lines, font_tiers, self.config.typography)
-        candidates = select_geometry_headings(context, self.config.typography)
-        font_plan = normalize_bookmark_plan(
-            infer_bpe_outline(candidates, self.config.typography)
-        )
-        fallback_candidates = (
-            select_body_tier_position_fallback(
-                context, font_plan, self.config.typography
-            )
-            if self.config.typography.position_fallback_enabled
-            else []
-        )
-        plan = normalize_bookmark_plan(
-            insert_position_fallback(font_plan, fallback_candidates, total_pages)
-        )
-        validation = validate_bookmark_plan(plan, total_pages)
+        analysis = analyze_pdf(self.input_pdf, self.config.typography)
+        inference = infer_bookmarks(analysis, self.config.typography)
 
-        artifacts = self._write_artifacts(
-            lines,
-            font_tiers,
-            height_tiers,
-            candidates,
-            fallback_candidates,
-            plan,
-            validation,
-        )
-        warnings = list(validation.warnings)
+        artifacts = self._write_artifacts(inference)
+        warnings = list(inference.validation.warnings)
         if self.config.ocr_policy != "never":
             warnings.append(
                 "ocr_policy는 아직 Processor에 연결되지 않았고 OCR overlay CLI/API로 별도 실행한다."
             )
 
-        output_pdf = None
-        output_markdown_dir = None
-        markdown_export = None
+        apply_result = None
         status = "failed"
-        if validation.valid:
-            output_pdf = export_bookmarked_pdf(self.input_pdf, self.output_dir, plan)
-            if self.config.markdown_split is not None:
-                markdown_export = export_markdown_split(
-                    self.input_pdf,
-                    self.output_dir,
-                    plan,
-                    total_pages,
-                    self.config.markdown_split,
-                )
-                output_markdown_dir = markdown_export.output_dir
-            else:
-                output_markdown_dir = export_markdown_tree(
-                    self.input_pdf, self.output_dir, plan, total_pages
-                )
+        if inference.validation.valid:
+            apply_result = apply_plan(
+                self.input_pdf,
+                self.output_dir,
+                inference.plan,
+                analysis.total_pages,
+                self.config.markdown_split,
+            )
             status = "processed"
 
         result = ProcessingResult(
             status=status,
             input_pdf=self.input_pdf,
-            output_pdf=output_pdf
+            output_pdf=(apply_result.output_pdf if apply_result else None)
             or plan_bookmarked_pdf_path(self.input_pdf, self.output_dir),
-            output_markdown_dir=output_markdown_dir
+            output_markdown_dir=(
+                apply_result.output_markdown_dir if apply_result else None
+            )
             or plan_markdown_dir_path(self.input_pdf, self.output_dir),
-            markdown_export=markdown_export,
-            bookmark_count=len(plan),
+            markdown_export=apply_result.markdown_export if apply_result else None,
+            bookmark_count=len(inference.plan),
             confidence_summary=ConfidenceSummary(
-                line_extraction=1.0 if lines else 0.0,
-                tiering=_tiering_confidence(font_tiers, height_tiers),
-                heading_candidates=_mean(
-                    [candidate.confidence for candidate in candidates]
-                    + [candidate.confidence for candidate in fallback_candidates]
+                line_extraction=1.0 if inference.lines else 0.0,
+                tiering=_tiering_confidence(
+                    inference.font_tiers, inference.height_tiers
                 ),
-                outline=_mean([item.confidence for item in plan]),
+                heading_candidates=_mean(
+                    [candidate.confidence for candidate in inference.heading_candidates]
+                    + [
+                        candidate.confidence
+                        for candidate in inference.fallback_candidates
+                    ]
+                ),
+                outline=_mean([item.confidence for item in inference.plan]),
             ),
             warnings=warnings,
             artifact_paths=artifacts,
@@ -171,37 +137,32 @@ class Processor:
         )
         return self._finalize(result)
 
-    def _write_artifacts(
-        self,
-        lines,
-        font_tiers,
-        height_tiers,
-        candidates,
-        fallback_candidates,
-        plan,
-        validation,
-    ) -> dict[str, Path]:
+    def _write_artifacts(self, inference: BookmarkInferenceResult) -> dict[str, Path]:
         if not self.config.write_artifacts:
             return {}
         return {
             "whole_book_lines": write_jsonl_artifact(
-                self.output_dir, "whole_book_lines", lines
+                self.output_dir, "whole_book_lines", inference.lines
             ),
             "font_size_tiers": write_artifact(
-                self.output_dir, "font_size_tiers", font_tiers
+                self.output_dir, "font_size_tiers", inference.font_tiers
             ),
             "height_tiers": write_artifact(
-                self.output_dir, "height_tiers", height_tiers
+                self.output_dir, "height_tiers", inference.height_tiers
             ),
             "heading_candidates": write_artifact(
-                self.output_dir, "heading_candidates", candidates
+                self.output_dir, "heading_candidates", inference.heading_candidates
             ),
             "position_fallback_candidates": write_artifact(
-                self.output_dir, "position_fallback_candidates", fallback_candidates
+                self.output_dir,
+                "position_fallback_candidates",
+                inference.fallback_candidates,
             ),
-            "bookmark_plan": write_artifact(self.output_dir, "bookmark_plan", plan),
+            "bookmark_plan": write_artifact(
+                self.output_dir, "bookmark_plan", inference.plan
+            ),
             "bookmark_plan_validation": write_artifact(
-                self.output_dir, "bookmark_plan_validation", validation
+                self.output_dir, "bookmark_plan_validation", inference.validation
             ),
         }
 
