@@ -18207,6 +18207,621 @@
       },
       "finding": "interest_economics: one-line body-tier candidates=16 (y-gap>spacing=9), strict candidates=9 (y-gap>spacing=5), manual eye check only; statistics_principles: one-line body-tier candidates=58 (y-gap>spacing=25), strict candidates=0 (y-gap>spacing=0), manual eye check only; hankyung_reading: one-line body-tier candidates=12 (y-gap>spacing=7), strict candidates=5 (y-gap>spacing=1), manual eye check only",
       "ran_at": "2026-07-15T12:58:09+09:00"
+    },
+    {
+      "id": "102_engine_bookmark_fuzzy_eval",
+      "purpose": "data/300STUDY 아래 page_count>100이고 embedded bookmark가 있는 PDF 전체를 대상으로, embedded bookmark를 gold로 보고 production 파이프라인(font 골격 + body-tier position fallback)이 만든 예측 plan을 fuzzy title 유사도 + page tolerance로 매칭해 precision/recall/F1/accuracy(jaccard)를 계산한다.",
+      "inputs": [
+        "data\\300STUDY"
+      ],
+      "outputs": "experiments\\outputs\\102_engine_bookmark_fuzzy_eval",
+      "method": "page_count>100 and TOC 존재 조건으로 코퍼스를 골랐다. gold는 read_outline+outline_to_plan, 예측은 Processor.run()과 동일한 public building block(extract_typography_lines~insert_position_fallback)으로 PDF/Markdown export 없이 만들었다. title+page 집합만 비교했고(level 비교 없음), page tolerance=1, title 유사도 threshold=0.7로 그리디 1:1 매칭했다. accuracy는 TP/(len(pred)+len(gt)-TP) Jaccard 겹침 비율이다.",
+      "summary": {
+        "mean_precision": 0.3393,
+        "mean_recall": 0.6932,
+        "mean_f1": 0.4089,
+        "mean_accuracy_jaccard": 0.3046,
+        "qualifying_pdf_count": 400,
+        "evaluated_ok_count": 400,
+        "error_count": 0,
+        "gold_quality": {
+          "junk_gold_breakdown": {
+            "per_page_scan_filenames": 33,
+            "placeholder_or_tiny": 55
+          },
+          "clean_gold": {
+            "count": 312,
+            "mean_precision": 0.3801,
+            "mean_recall": 0.7985,
+            "mean_f1": 0.4662,
+            "mean_accuracy_jaccard": 0.3443
+          },
+          "junk_gold": {
+            "count": 88,
+            "mean_precision": 0.1947,
+            "mean_recall": 0.3199,
+            "mean_f1": 0.2057,
+            "mean_accuracy_jaccard": 0.1637
+          }
+        },
+        "zero_prediction_count": 6,
+        "zero_prediction_paths": [
+          "data\\300STUDY\\a_books\\normalbook\\생각정리를위한_시간의기술_나가타도요시_생각정리연구소.pdf",
+          "data\\300STUDY\\a_books\\textbook\\(Modern Trends in Financial Engineering) Tim Leung, Xin Li - Optimal Mean Reversion Trading_ Mathematical Analysis and Practical Applications-World Scientific Publishing Company (2016).pdf",
+          "data\\300STUDY\\NOW_READING\\books\\Patrick G. Riley - The One-Page Proposal_  How to Get Your Business Pitch onto One Persuasive Page[office book].pdf",
+          "data\\300STUDY\\scansnap_compressed\\books\\DB_모델링_이야기_-_손호성_(no_OCR).compressed[db cs book].pdf",
+          "data\\300STUDY\\textbooks\\Alpha C. Chiang, Kevin Wainwright - Fundamental Methods of Mathematical Economics, 4th Edition-McGraw-Hill (2005)[econ math stats].pdf",
+          "data\\300STUDY\\textbooks\\Sambaiah Sammeta, Sukumar Chillakuru - Oracle 19c AutoUpgrade Best Practices_ A Step-by-step Expert-led Database Upgrade Guide to Oracle 19c Using AutoUpgrade Utility-BPB Publications (2021).pdf"
+        ],
+        "worst_by_f1": [
+          {
+            "path": "data\\300STUDY\\a_books\\normalbook\\생각정리를위한_시간의기술_나가타도요시_생각정리연구소.pdf",
+            "page_count": 225,
+            "metrics": {
+              "ground_truth_count": 2,
+              "predicted_count": 0,
+              "true_positive_count": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "accuracy_jaccard": 0.0,
+              "exact_page_match_rate": 0.0
+            }
+          },
+          {
+            "path": "data\\300STUDY\\a_books\\textbook\\(Modern Trends in Financial Engineering) Tim Leung, Xin Li - Optimal Mean Reversion Trading_ Mathematical Analysis and Practical Applications-World Scientific Publishing Company (2016).pdf",
+            "page_count": 221,
+            "metrics": {
+              "ground_truth_count": 7,
+              "predicted_count": 0,
+              "true_positive_count": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "accuracy_jaccard": 0.0,
+              "exact_page_match_rate": 0.0
+            }
+          },
+          {
+            "path": "data\\300STUDY\\a_books\\textbook\\거시경제론(연습문제해설집)_OCR.compressed.pdf",
+            "page_count": 364,
+            "metrics": {
+              "ground_truth_count": 364,
+              "predicted_count": 133,
+              "true_positive_count": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "accuracy_jaccard": 0.0,
+              "exact_page_match_rate": 0.0
+            }
+          },
+          {
+            "path": "data\\300STUDY\\a_books\\textbook\\거시경제론-정운찬_OCR.compressed.pdf",
+            "page_count": 755,
+            "metrics": {
+              "ground_truth_count": 755,
+              "predicted_count": 311,
+              "true_positive_count": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "accuracy_jaccard": 0.0,
+              "exact_page_match_rate": 0.0
+            }
+          },
+          {
+            "path": "data\\300STUDY\\a_books\\textbook\\경제학원론1 (이준구)_ocr.compressed.pdf",
+            "page_count": 409,
+            "metrics": {
+              "ground_truth_count": 409,
+              "predicted_count": 227,
+              "true_positive_count": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "accuracy_jaccard": 0.0,
+              "exact_page_match_rate": 0.0
+            }
+          },
+          {
+            "path": "data\\300STUDY\\a_books\\textbook\\경제학원론2 (이준구)_ocr.compressed.pdf",
+            "page_count": 432,
+            "metrics": {
+              "ground_truth_count": 432,
+              "predicted_count": 206,
+              "true_positive_count": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "accuracy_jaccard": 0.0,
+              "exact_page_match_rate": 0.0
+            }
+          },
+          {
+            "path": "data\\300STUDY\\NOW_READING\\books\\Patrick G. Riley - The One-Page Proposal_  How to Get Your Business Pitch onto One Persuasive Page[office book].pdf",
+            "page_count": 111,
+            "metrics": {
+              "ground_truth_count": 2,
+              "predicted_count": 0,
+              "true_positive_count": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "accuracy_jaccard": 0.0,
+              "exact_page_match_rate": 0.0
+            }
+          },
+          {
+            "path": "data\\300STUDY\\NOW_READING\\books\\눈이_젊어지는_기적의_눈_건강법_-_주천기.compressed[health book].pdf",
+            "page_count": 237,
+            "metrics": {
+              "ground_truth_count": 2,
+              "predicted_count": 67,
+              "true_positive_count": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "accuracy_jaccard": 0.0,
+              "exact_page_match_rate": 0.0
+            }
+          },
+          {
+            "path": "data\\300STUDY\\NOW_READING\\books\\돈버는_회계노트_-_구니사다_가쓰노리-compressed[accounting book].pdf",
+            "page_count": 241,
+            "metrics": {
+              "ground_truth_count": 2,
+              "predicted_count": 52,
+              "true_positive_count": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "accuracy_jaccard": 0.0,
+              "exact_page_match_rate": 0.0
+            }
+          },
+          {
+            "path": "data\\300STUDY\\NOW_READING\\books\\수학으로_생각한다_-_고지마_히로유키-compressed[math book].pdf",
+            "page_count": 266,
+            "metrics": {
+              "ground_truth_count": 2,
+              "predicted_count": 44,
+              "true_positive_count": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "accuracy_jaccard": 0.0,
+              "exact_page_match_rate": 0.0
+            }
+          },
+          {
+            "path": "data\\300STUDY\\NOW_READING\\books\\차트의_기술_-_김정환-compressed[investment finance stock book].pdf",
+            "page_count": 495,
+            "metrics": {
+              "ground_truth_count": 2,
+              "predicted_count": 202,
+              "true_positive_count": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "accuracy_jaccard": 0.0,
+              "exact_page_match_rate": 0.0
+            }
+          },
+          {
+            "path": "data\\300STUDY\\NOW_READING\\books\\한경_읽는법_-_한국경제신문-compressed[econ macro book].pdf",
+            "page_count": 285,
+            "metrics": {
+              "ground_truth_count": 16,
+              "predicted_count": 132,
+              "true_positive_count": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "accuracy_jaccard": 0.0,
+              "exact_page_match_rate": 0.0
+            }
+          },
+          {
+            "path": "data\\300STUDY\\NOW_READING\\clean\\재무경제학_-_황수성.compressed.pdf",
+            "page_count": 383,
+            "metrics": {
+              "ground_truth_count": 2,
+              "predicted_count": 99,
+              "true_positive_count": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "accuracy_jaccard": 0.0,
+              "exact_page_match_rate": 0.0
+            }
+          },
+          {
+            "path": "data\\300STUDY\\NOW_READING\\textbooks\\(Issue 1 Vol 1) Marco Lopez de Prado - Journal of Financial Data Science. 1-IPR Journals (2019)[quant ml dl stats finance paper].pdf",
+            "page_count": 175,
+            "metrics": {
+              "ground_truth_count": 20,
+              "predicted_count": 32,
+              "true_positive_count": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "accuracy_jaccard": 0.0,
+              "exact_page_match_rate": 0.0
+            }
+          },
+          {
+            "path": "data\\300STUDY\\NOW_READING\\textbooks\\Advanced_Vocab_-_장승진(프랙티쿠스).compressed[language book].pdf",
+            "page_count": 477,
+            "metrics": {
+              "ground_truth_count": 2,
+              "predicted_count": 130,
+              "true_positive_count": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "accuracy_jaccard": 0.0,
+              "exact_page_match_rate": 0.0
+            }
+          }
+        ],
+        "worst_clean_gold_by_f1": [
+          {
+            "path": "data\\300STUDY\\a_books\\textbook\\(Modern Trends in Financial Engineering) Tim Leung, Xin Li - Optimal Mean Reversion Trading_ Mathematical Analysis and Practical Applications-World Scientific Publishing Company (2016).pdf",
+            "page_count": 221,
+            "metrics": {
+              "ground_truth_count": 7,
+              "predicted_count": 0,
+              "true_positive_count": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "accuracy_jaccard": 0.0,
+              "exact_page_match_rate": 0.0
+            }
+          },
+          {
+            "path": "data\\300STUDY\\NOW_READING\\books\\한경_읽는법_-_한국경제신문-compressed[econ macro book].pdf",
+            "page_count": 285,
+            "metrics": {
+              "ground_truth_count": 16,
+              "predicted_count": 132,
+              "true_positive_count": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "accuracy_jaccard": 0.0,
+              "exact_page_match_rate": 0.0
+            }
+          },
+          {
+            "path": "data\\300STUDY\\NOW_READING\\textbooks\\(Issue 1 Vol 1) Marco Lopez de Prado - Journal of Financial Data Science. 1-IPR Journals (2019)[quant ml dl stats finance paper].pdf",
+            "page_count": 175,
+            "metrics": {
+              "ground_truth_count": 20,
+              "predicted_count": 32,
+              "true_positive_count": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "accuracy_jaccard": 0.0,
+              "exact_page_match_rate": 0.0
+            }
+          },
+          {
+            "path": "data\\300STUDY\\textbooks\\Books\\Case Studies, 3rd Edition\\Case Studies, 3rd Edition.pdf",
+            "page_count": 127,
+            "metrics": {
+              "ground_truth_count": 11,
+              "predicted_count": 57,
+              "true_positive_count": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "accuracy_jaccard": 0.0,
+              "exact_page_match_rate": 0.0
+            }
+          },
+          {
+            "path": "data\\300STUDY\\textbooks\\cfa\\CFA_2020\\Level 2\\Wiley\\CFA 2020 - Wiley Study Guide Level 2 Vol 3.pdf",
+            "page_count": 318,
+            "metrics": {
+              "ground_truth_count": 19,
+              "predicted_count": 270,
+              "true_positive_count": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "accuracy_jaccard": 0.0,
+              "exact_page_match_rate": 0.0
+            }
+          },
+          {
+            "path": "data\\300STUDY\\textbooks\\Gilbert Strang - Linear Algebra And Learning from Data. 1-Wesley-Cambridge Press (2019).pdf",
+            "page_count": 225,
+            "metrics": {
+              "ground_truth_count": 4,
+              "predicted_count": 237,
+              "true_positive_count": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "accuracy_jaccard": 0.0,
+              "exact_page_match_rate": 0.0
+            }
+          },
+          {
+            "path": "data\\300STUDY\\textbooks\\John E. Hopcroft, Rajeev Motwani, Jeffrey D. Ullman - Introduction to Automata Theory, Languages, and Computations-Prentice Hall (2006).pdf",
+            "page_count": 550,
+            "metrics": {
+              "ground_truth_count": 13,
+              "predicted_count": 614,
+              "true_positive_count": 0,
+              "precision": 0.0,
+              "recall": 0.0,
+              "f1": 0.0,
+              "accuracy_jaccard": 0.0,
+              "exact_page_match_rate": 0.0
+            }
+          },
+          {
+            "path": "data\\300STUDY\\others\\Richard O. Duda, Peter E. Hart, David G. Stork-Pattern classification-Wiley (2001).pdf",
+            "page_count": 738,
+            "metrics": {
+              "ground_truth_count": 9,
+              "predicted_count": 804,
+              "true_positive_count": 1,
+              "precision": 0.0012,
+              "recall": 0.1111,
+              "f1": 0.0025,
+              "accuracy_jaccard": 0.0012,
+              "exact_page_match_rate": 1.0
+            }
+          },
+          {
+            "path": "data\\300STUDY\\textbooks\\cfa\\CFA_2020\\Level 2\\Wiley\\CFA 2020 - Wiley Study Guide Level 2 Vol 4.pdf",
+            "page_count": 241,
+            "metrics": {
+              "ground_truth_count": 11,
+              "predicted_count": 219,
+              "true_positive_count": 1,
+              "precision": 0.0046,
+              "recall": 0.0909,
+              "f1": 0.0087,
+              "accuracy_jaccard": 0.0044,
+              "exact_page_match_rate": 1.0
+            }
+          },
+          {
+            "path": "data\\300STUDY\\textbooks\\cfa\\CFA_2020\\Level 2\\Wiley\\CFA 2020 - Wiley Study Guide Level 2 Vol 5.pdf",
+            "page_count": 239,
+            "metrics": {
+              "ground_truth_count": 14,
+              "predicted_count": 255,
+              "true_positive_count": 2,
+              "precision": 0.0078,
+              "recall": 0.1429,
+              "f1": 0.0149,
+              "accuracy_jaccard": 0.0075,
+              "exact_page_match_rate": 1.0
+            }
+          },
+          {
+            "path": "data\\300STUDY\\NOW_READING\\books\\주식고수들만_아는_애널리스트_리포트_200_활용법_-_김대욱[stock finance book].pdf",
+            "page_count": 276,
+            "metrics": {
+              "ground_truth_count": 47,
+              "predicted_count": 66,
+              "true_positive_count": 1,
+              "precision": 0.0152,
+              "recall": 0.0213,
+              "f1": 0.0177,
+              "accuracy_jaccard": 0.0089,
+              "exact_page_match_rate": 1.0
+            }
+          },
+          {
+            "path": "data\\300STUDY\\새 폴더\\William J. Congdon, Jeffrey Kling, Sendhil Mullainathan-Policy and Choice_ Public Finance Through the Lens of Behavioral Economics-Brookings Institution Press (2011).pdf",
+            "page_count": 260,
+            "metrics": {
+              "ground_truth_count": 11,
+              "predicted_count": 145,
+              "true_positive_count": 2,
+              "precision": 0.0138,
+              "recall": 0.1818,
+              "f1": 0.0256,
+              "accuracy_jaccard": 0.013,
+              "exact_page_match_rate": 0.5
+            }
+          },
+          {
+            "path": "data\\300STUDY\\NOW_READING\\textbooks\\재무경제학_-_황수성.compressed-indexed[quant finance book].pdf",
+            "page_count": 383,
+            "metrics": {
+              "ground_truth_count": 107,
+              "predicted_count": 99,
+              "true_positive_count": 3,
+              "precision": 0.0303,
+              "recall": 0.028,
+              "f1": 0.0291,
+              "accuracy_jaccard": 0.0148,
+              "exact_page_match_rate": 0.6667
+            }
+          },
+          {
+            "path": "data\\300STUDY\\textbooks\\cfa\\CFA_2020\\Level 2\\Wiley\\CFA 2020 - Wiley Study Guide Level 2 Vol 1.pdf",
+            "page_count": 278,
+            "metrics": {
+              "ground_truth_count": 14,
+              "predicted_count": 296,
+              "true_positive_count": 5,
+              "precision": 0.0169,
+              "recall": 0.3571,
+              "f1": 0.0323,
+              "accuracy_jaccard": 0.0164,
+              "exact_page_match_rate": 1.0
+            }
+          },
+          {
+            "path": "data\\300STUDY\\textbooks\\(Addison-Wesley Object Technology Series) Martin Fowler - Refactoring_ Improving the Design of Existing Code-Addison-Wesley Professional (2018)[cs].pdf",
+            "page_count": 455,
+            "metrics": {
+              "ground_truth_count": 12,
+              "predicted_count": 690,
+              "true_positive_count": 12,
+              "precision": 0.0174,
+              "recall": 1.0,
+              "f1": 0.0342,
+              "accuracy_jaccard": 0.0174,
+              "exact_page_match_rate": 1.0
+            }
+          }
+        ],
+        "best_clean_gold_by_f1": [
+          {
+            "path": "data\\300STUDY\\textbooks\\Elliot Forbes - Learning Concurrency in Python_ Build highly efficient, robust, and concurrent applications-Packt Publishing (2017).pdf",
+            "page_count": 658,
+            "metrics": {
+              "ground_truth_count": 562,
+              "predicted_count": 573,
+              "true_positive_count": 562,
+              "precision": 0.9808,
+              "recall": 1.0,
+              "f1": 0.9903,
+              "accuracy_jaccard": 0.9808,
+              "exact_page_match_rate": 0.9964
+            }
+          },
+          {
+            "path": "data\\300STUDY\\textbooks\\Jonathan E. Steinhart - The Secret Life of Programs_ Understand Computers _ Craft Better Code-No Starch Press (2019).pdf",
+            "page_count": 506,
+            "metrics": {
+              "ground_truth_count": 355,
+              "predicted_count": 361,
+              "true_positive_count": 344,
+              "precision": 0.9529,
+              "recall": 0.969,
+              "f1": 0.9609,
+              "accuracy_jaccard": 0.9247,
+              "exact_page_match_rate": 0.9971
+            }
+          },
+          {
+            "path": "data\\300STUDY\\a_books\\textbook\\Antti Ilmanen - Expected Returns_ An Investor's Guide to Harvesting Market Rewards (2011, Wiley) - libgen.li.pdf",
+            "page_count": 594,
+            "metrics": {
+              "ground_truth_count": 203,
+              "predicted_count": 224,
+              "true_positive_count": 200,
+              "precision": 0.8929,
+              "recall": 0.9852,
+              "f1": 0.9368,
+              "accuracy_jaccard": 0.8811,
+              "exact_page_match_rate": 1.0
+            }
+          },
+          {
+            "path": "data\\300STUDY\\NOW_READING\\books\\Inglese, Lucas - Python for Finance.pdf",
+            "page_count": 383,
+            "metrics": {
+              "ground_truth_count": 195,
+              "predicted_count": 225,
+              "true_positive_count": 195,
+              "precision": 0.8667,
+              "recall": 1.0,
+              "f1": 0.9286,
+              "accuracy_jaccard": 0.8667,
+              "exact_page_match_rate": 1.0
+            }
+          },
+          {
+            "path": "data\\300STUDY\\textbooks\\B. V. Vishwas, Ashish Patel - Hands-on Time Series Analysis With Python_ From Basics To Bleeding Edge Techniques-Apress (2020)[python stats].pdf",
+            "page_count": 420,
+            "metrics": {
+              "ground_truth_count": 168,
+              "predicted_count": 194,
+              "true_positive_count": 168,
+              "precision": 0.866,
+              "recall": 1.0,
+              "f1": 0.9282,
+              "accuracy_jaccard": 0.866,
+              "exact_page_match_rate": 0.9881
+            }
+          },
+          {
+            "path": "data\\300STUDY\\textbooks\\Eric Chou - Mastering Python Networking_ Your one-stop solution to using Python for network automation, programmability, and DevOps (2020, Birmingham, UK) - libgen.lc.pdf",
+            "page_count": 577,
+            "metrics": {
+              "ground_truth_count": 326,
+              "predicted_count": 376,
+              "true_positive_count": 323,
+              "precision": 0.859,
+              "recall": 0.9908,
+              "f1": 0.9202,
+              "accuracy_jaccard": 0.8522,
+              "exact_page_match_rate": 0.9814
+            }
+          },
+          {
+            "path": "data\\300STUDY\\NOW_READING\\textbooks\\Robert Johansson - Numerical Python_ Scientific Computing and Data Science Applications with Numpy, SciPy and Matplotlib (2019, Apress) - libgen.lc[math python book].pdf",
+            "page_count": 709,
+            "metrics": {
+              "ground_truth_count": 296,
+              "predicted_count": 324,
+              "true_positive_count": 281,
+              "precision": 0.8673,
+              "recall": 0.9493,
+              "f1": 0.9065,
+              "accuracy_jaccard": 0.8289,
+              "exact_page_match_rate": 0.9786
+            }
+          },
+          {
+            "path": "data\\300STUDY\\NOW_READING\\textbooks\\(Wiley Series in Probability and Statistics) Walter Enders - Applied Econometric Time Series-Wiley (2014)[econ stats book].pdf",
+            "page_count": 498,
+            "metrics": {
+              "ground_truth_count": 265,
+              "predicted_count": 314,
+              "true_positive_count": 262,
+              "precision": 0.8344,
+              "recall": 0.9887,
+              "f1": 0.905,
+              "accuracy_jaccard": 0.8265,
+              "exact_page_match_rate": 1.0
+            }
+          },
+          {
+            "path": "data\\300STUDY\\a_books\\textbook\\실습과_그림으로_배우는_리눅스_구조_다케우치_사토루.pdf",
+            "page_count": 305,
+            "metrics": {
+              "ground_truth_count": 148,
+              "predicted_count": 171,
+              "true_positive_count": 144,
+              "precision": 0.8421,
+              "recall": 0.973,
+              "f1": 0.9028,
+              "accuracy_jaccard": 0.8229,
+              "exact_page_match_rate": 0.9861
+            }
+          },
+          {
+            "path": "data\\300STUDY\\textbooks\\Sheldon M. Ross - Introduction to Probability Models-Academic Press (2019).pdf",
+            "page_count": 816,
+            "metrics": {
+              "ground_truth_count": 252,
+              "predicted_count": 302,
+              "true_positive_count": 248,
+              "precision": 0.8212,
+              "recall": 0.9841,
+              "f1": 0.8953,
+              "accuracy_jaccard": 0.8105,
+              "exact_page_match_rate": 1.0
+            }
+          }
+        ]
+      },
+      "finding": "대상=400권(page>100 and has_toc), 평가 성공=400, 실패=0. 전체 mean precision=0.3393, recall=0.6932, f1=0.4089, accuracy(jaccard)=0.3046. gold 품질로 나누면 clean gold(n=312)는 precision=0.3801, recall=0.7985, f1=0.4662이고, junk gold(n=88, {'per_page_scan_filenames': 33, 'placeholder_or_tiny': 55})는 f1=0.2057로 훨씬 낮다 — junk gold는 스캔/분할 도구가 남긴 자리표시자이지 실제 목차가 아니다. predicted_count=0(추출 가능한 text layer가 사실상 없는 책)은 6권(1.5%)뿐이라 드물다. clean gold 안에서도 최악 사례는 OCR이 수식/기호를 heading 크기로 잘못 인식해 font 골격이 오염되는 경우이고, 최고 사례는 gold 자체가 세밀한(수백 개) 프로그래밍/기술서적처럼 원서 목차 세밀도가 engine의 BPE 세밀도와 가까운 경우다(F1 0.85~0.99). 총 소요=3833.2s.",
+      "ran_at": "2026-07-15T15:33:14+09:00"
     }
   ]
 }
