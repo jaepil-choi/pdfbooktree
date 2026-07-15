@@ -16452,6 +16452,1761 @@
       },
       "finding": "body spacing=12.000pt, body font=9.500pt, inferred tolerance=6.790pt, clamped tolerance=9.500pt. AND inferred candidates=384, precision=0.7995, recall=0.3871, F1=0.5217; AND clamped candidates=590, precision=0.7373, recall=0.5485, F1=0.6291; AND line-spacing candidates=731, precision=0.7004, recall=0.6456, F1=0.6719, level accuracy=0.5137; AND spacing-minus-font tolerance=2.500pt, candidates=195, precision=0.7333, recall=0.1803, F1=0.2895, level accuracy=0.3497. minimum repeated pages=5, truth is near-answer label.",
       "ran_at": "2026-07-13T16:06:51"
+    },
+    {
+      "id": "097_position_chapter_confidence",
+      "purpose": "clean text Investments의 Chapter N bookmark 28개를 대상으로, font size 후보에 position 반복 강도와 다른 anchor cluster로부터의 isolation을 추가하면 chapter급 최상위 제목의 확신이 높아지는지 검증한다.",
+      "inputs": [
+        "data\\native-pdf-indexed\\Zvi Bodie, Alex Kane, Alan Marcus - Investments-McGraw Hill (2021)[finance].pdf"
+      ],
+      "outputs": "experiments\\outputs\\097_position_chapter_confidence",
+      "method": "production과 동일한 margin 제거, 95% text coverage font tier, 본문 line-spacing chunk/anchor를 사용했다. 정답은 embedded outline의 Chapter N: 형식 28개로 제한했다. cluster별 distinct page support, L-inf 내부 diameter, 최근접 cluster 중심 거리와 isolation ratio를 계산해 font-only, support, isolation, 결합 ranking과 hard-filter sweep을 비교했다. subchapter는 의도적으로 정답에서 제외했다.",
+      "summary": {
+        "chapter_truth_count": 28,
+        "chapter_match_count": 28,
+        "font_candidate_count": 1103,
+        "body_font_size": 9.5,
+        "body_line_spacing": 12.0,
+        "cluster_count": 4708,
+        "support_histogram": {
+          "1": 2750,
+          "2": 963,
+          "3": 362,
+          "4": 200,
+          "5": 121,
+          "6": 70,
+          "7": 54,
+          "8": 40,
+          "9": 40,
+          "10": 18,
+          "11": 24,
+          "12": 13,
+          "13": 7,
+          "14": 7,
+          "15": 4,
+          "16": 4,
+          "17": 2,
+          "19": 3,
+          "20": 1,
+          "21": 1,
+          "22": 2,
+          "23": 1,
+          "24": 2,
+          "25": 4,
+          "26": 1,
+          "27": 1,
+          "28": 4,
+          "29": 5,
+          "30": 1,
+          "31": 1,
+          "33": 1,
+          "40": 1
+        },
+        "baselines": [
+          {
+            "name": "font_only",
+            "candidate_count": 1103,
+            "matched_chapters": 28,
+            "precision": 0.0254,
+            "recall": 1.0,
+            "f1": 0.0495,
+            "font_candidate_count": 1103
+          },
+          {
+            "name": "large_font_only",
+            "candidate_count": 999,
+            "matched_chapters": 28,
+            "precision": 0.028,
+            "recall": 1.0,
+            "f1": 0.0545,
+            "font_candidate_count": 1103
+          },
+          {
+            "name": "font_and_position_min5",
+            "candidate_count": 741,
+            "matched_chapters": 28,
+            "precision": 0.0378,
+            "recall": 1.0,
+            "f1": 0.0728,
+            "font_candidate_count": 1103
+          },
+          {
+            "name": "large_font_and_position_min5",
+            "candidate_count": 736,
+            "matched_chapters": 28,
+            "precision": 0.038,
+            "recall": 1.0,
+            "f1": 0.0733,
+            "font_candidate_count": 1103
+          }
+        ],
+        "rankings": [
+          {
+            "name": "font_size",
+            "auc": 0.9928,
+            "average_precision": 0.6717,
+            "precision_at_chapter_count": 0.6786,
+            "recall_at_chapter_count": 0.6786,
+            "top_chapter_count": 19
+          },
+          {
+            "name": "repeat_support",
+            "auc": 0.9553,
+            "average_precision": 0.2222,
+            "precision_at_chapter_count": 0.0,
+            "recall_at_chapter_count": 0.0,
+            "top_chapter_count": 0
+          },
+          {
+            "name": "position_isolation",
+            "auc": 0.9749,
+            "average_precision": 0.3229,
+            "precision_at_chapter_count": 0.0357,
+            "recall_at_chapter_count": 0.0357,
+            "top_chapter_count": 1
+          },
+          {
+            "name": "font_plus_support",
+            "auc": 1.0,
+            "average_precision": 1.0,
+            "precision_at_chapter_count": 1.0,
+            "recall_at_chapter_count": 1.0,
+            "top_chapter_count": 28
+          },
+          {
+            "name": "font_plus_isolation",
+            "auc": 1.0,
+            "average_precision": 1.0,
+            "precision_at_chapter_count": 1.0,
+            "recall_at_chapter_count": 1.0,
+            "top_chapter_count": 28
+          },
+          {
+            "name": "font_support_isolation",
+            "auc": 1.0,
+            "average_precision": 1.0,
+            "precision_at_chapter_count": 1.0,
+            "recall_at_chapter_count": 1.0,
+            "top_chapter_count": 28
+          }
+        ],
+        "best_filter": {
+          "name": "large_font_support_13_isolation_q0.9",
+          "candidate_count": 28,
+          "matched_chapters": 28,
+          "precision": 1.0,
+          "recall": 1.0,
+          "f1": 1.0,
+          "font_candidate_count": 1103,
+          "minimum_support_pages": 13,
+          "isolation_quantile": 0.9,
+          "isolation_threshold": 4.216
+        },
+        "best_filter_selection_scope": "same_book_exploratory",
+        "finding": "chapter truth=28, matched chunks=28, font candidates=1103. 현재 font+position min5는 precision=0.0378, recall=1.0, F1=0.0728; 큰 font로 제한하면 precision=0.038, recall=1.0, F1=0.0733. 최적 ranking=font_plus_support, AP=1.0, P@28=1.0. 최적 hard filter는 support>=13, isolation q=0.9로 precision=1.0, recall=1.0, F1=1.0이다. 이 hard filter는 같은 책에서 고른 탐색적 최적값이며, subchapter는 의도적으로 정답에서 제외했다."
+      },
+      "finding": "chapter truth=28, matched chunks=28, font candidates=1103. 현재 font+position min5는 precision=0.0378, recall=1.0, F1=0.0728; 큰 font로 제한하면 precision=0.038, recall=1.0, F1=0.0733. 최적 ranking=font_plus_support, AP=1.0, P@28=1.0. 최적 hard filter는 support>=13, isolation q=0.9로 precision=1.0, recall=1.0, F1=1.0이다. 이 hard filter는 같은 책에서 고른 탐색적 최적값이며, subchapter는 의도적으로 정답에서 제외했다.",
+      "ran_at": "2026-07-15T09:41:07+09:00"
+    },
+    {
+      "id": "098_ocr_position_chapter_rescue",
+      "purpose": "통계학원론 OCR overlay에서 chapter font가 본문 font tier에 흡수될 때, font 조건 없이 position 반복 강도와 cluster isolation으로 chapter를 복구할 수 있는지 검증한다.",
+      "inputs": [
+        "showcase\\outputs\\018_statistics_principles_ocr_overlay\\statistics_principles_ocr.pdf",
+        "showcase\\outputs\\018_statistics_principles_ocr_overlay\\ocr_line_stats.jsonl"
+      ],
+      "outputs": "experiments\\outputs\\098_ocr_position_chapter_rescue",
+      "method": "OCR 원본 line stats에서 목차 이후 제1장~제11장의 최초 출현 좌표를 독립 정답으로 만들고 production geometry chunk에 같은-page anchor 거리로 연결했다. 모든 chunk의 font tier membership, distinct-page support, L-inf cluster diameter, 최근접 cluster isolation을 계산했다. font-only, position min5, 기존 position AND font, position-only ranking과 support/isolation hard-filter sweep을 비교했다.",
+      "summary": {
+        "chapter_truth_count": 11,
+        "chapter_pages": [
+          12,
+          20,
+          48,
+          84,
+          130,
+          190,
+          234,
+          282,
+          311,
+          356,
+          410
+        ],
+        "body_font_size": 9.65,
+        "body_line_spacing": 16.75,
+        "chapter_font_candidate_count": 0,
+        "font_missed_chapter_count": 11,
+        "position_min5_rescued_count": 11,
+        "current_4d_position_min5_rescued_count": 7,
+        "best_position_mode": {
+          "pattern_mode": "current_anchor_2d",
+          "position_tolerance": 2.0
+        },
+        "position_mode_comparison": [
+          {
+            "pattern_mode": "current_following_anchor_4d",
+            "position_tolerance": 1.0,
+            "cluster_count": 1677,
+            "min5": {
+              "name": "current_following_anchor_4d_min5",
+              "candidate_count": 1630,
+              "matched_chapters": 7,
+              "precision": 0.0043,
+              "recall": 0.6364,
+              "f1": 0.0085,
+              "pattern_mode": "current_following_anchor_4d",
+              "position_tolerance": 1.0
+            },
+            "best_filter": {
+              "name": "current_following_anchor_4d_position_support_5_isolation_q0.95",
+              "candidate_count": 86,
+              "matched_chapters": 7,
+              "precision": 0.0814,
+              "recall": 0.6364,
+              "f1": 0.1443,
+              "minimum_support_pages": 5,
+              "isolation_quantile": 0.95,
+              "isolation_threshold": 1.1414,
+              "pattern_mode": "current_following_anchor_4d",
+              "position_tolerance": 1.0
+            }
+          },
+          {
+            "pattern_mode": "current_anchor_2d",
+            "position_tolerance": 0.5,
+            "cluster_count": 811,
+            "min5": {
+              "name": "current_anchor_2d_min5",
+              "candidate_count": 3139,
+              "matched_chapters": 6,
+              "precision": 0.0019,
+              "recall": 0.5455,
+              "f1": 0.0038,
+              "pattern_mode": "current_anchor_2d",
+              "position_tolerance": 0.5
+            },
+            "best_filter": {
+              "name": "current_anchor_2d_position_support_3_isolation_q0",
+              "candidate_count": 3754,
+              "matched_chapters": 10,
+              "precision": 0.0027,
+              "recall": 0.9091,
+              "f1": 0.0053,
+              "minimum_support_pages": 3,
+              "isolation_quantile": 0.0,
+              "isolation_threshold": 0.2915,
+              "pattern_mode": "current_anchor_2d",
+              "position_tolerance": 0.5
+            }
+          },
+          {
+            "pattern_mode": "current_anchor_2d",
+            "position_tolerance": 1.0,
+            "cluster_count": 357,
+            "min5": {
+              "name": "current_anchor_2d_min5",
+              "candidate_count": 3898,
+              "matched_chapters": 9,
+              "precision": 0.0023,
+              "recall": 0.8182,
+              "f1": 0.0046,
+              "pattern_mode": "current_anchor_2d",
+              "position_tolerance": 1.0
+            },
+            "best_filter": {
+              "name": "current_anchor_2d_position_support_8_isolation_q0.99",
+              "candidate_count": 45,
+              "matched_chapters": 8,
+              "precision": 0.1778,
+              "recall": 0.7273,
+              "f1": 0.2857,
+              "minimum_support_pages": 8,
+              "isolation_quantile": 0.99,
+              "isolation_threshold": 1.1807,
+              "pattern_mode": "current_anchor_2d",
+              "position_tolerance": 1.0
+            }
+          },
+          {
+            "pattern_mode": "current_anchor_2d",
+            "position_tolerance": 1.5,
+            "cluster_count": 195,
+            "min5": {
+              "name": "current_anchor_2d_min5",
+              "candidate_count": 4045,
+              "matched_chapters": 10,
+              "precision": 0.0025,
+              "recall": 0.9091,
+              "f1": 0.0049,
+              "pattern_mode": "current_anchor_2d",
+              "position_tolerance": 1.5
+            },
+            "best_filter": {
+              "name": "current_anchor_2d_position_support_10_isolation_q0",
+              "candidate_count": 3764,
+              "matched_chapters": 10,
+              "precision": 0.0027,
+              "recall": 0.9091,
+              "f1": 0.0053,
+              "minimum_support_pages": 10,
+              "isolation_quantile": 0.0,
+              "isolation_threshold": 0.2887,
+              "pattern_mode": "current_anchor_2d",
+              "position_tolerance": 1.5
+            }
+          },
+          {
+            "pattern_mode": "current_anchor_2d",
+            "position_tolerance": 2.0,
+            "cluster_count": 128,
+            "min5": {
+              "name": "current_anchor_2d_min5",
+              "candidate_count": 4111,
+              "matched_chapters": 11,
+              "precision": 0.0027,
+              "recall": 1.0,
+              "f1": 0.0053,
+              "pattern_mode": "current_anchor_2d",
+              "position_tolerance": 2.0
+            },
+            "best_filter": {
+              "name": "current_anchor_2d_position_support_3_isolation_q0.99",
+              "candidate_count": 44,
+              "matched_chapters": 10,
+              "precision": 0.2273,
+              "recall": 0.9091,
+              "f1": 0.3636,
+              "minimum_support_pages": 3,
+              "isolation_quantile": 0.99,
+              "isolation_threshold": 1.1513,
+              "pattern_mode": "current_anchor_2d",
+              "position_tolerance": 2.0
+            }
+          }
+        ],
+        "primary_cluster_audit": {
+          "cluster_id": 116,
+          "chunk_count": 12,
+          "support_pages": 12,
+          "isolation_ratio": 1.2246,
+          "independent_truth_match_count": 10,
+          "readable_chapter_marker_count": 11,
+          "readable_chapter_numbers": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11
+          ],
+          "semantic_precision": 0.9167,
+          "semantic_recall": 1.0,
+          "false_positive_count": 1,
+          "audit_note": "독립 OCR line stats는 제9장 본문 시작(311쪽)을 정답으로 잡았지만, production clean chunk에는 직전 310쪽의 복합 줄 '제 9 장 구간추정'이 실제 chapter marker로 존재한다. 따라서 독립 정답 일치는 10개지만 readable marker 수동 감사 결과는 11개다."
+        },
+        "chapter_profiles": [
+          {
+            "chapter": 1,
+            "pdf_page": 12,
+            "source_text": "제 1 장",
+            "chunk_text": "제 1 장",
+            "source_font_size": 13.8457,
+            "chunk_font_size": 13.85,
+            "font_ratio": 1.4352,
+            "font_tier": 3,
+            "font_candidate": false,
+            "body_font_tier": true,
+            "current_4d_cluster_id": 1659,
+            "current_4d_support_pages": 7,
+            "current_4d_isolation_ratio": 1.5032,
+            "best_pattern_mode": "current_anchor_2d",
+            "best_position_tolerance": 2.0,
+            "best_cluster_id": 116,
+            "best_support_pages": 12,
+            "best_intra_diameter": 1.6215,
+            "best_nearest_center_distance": 1.9857,
+            "best_isolation_ratio": 1.2246,
+            "anchor_distance_line_spacings": 0.0511
+          },
+          {
+            "chapter": 2,
+            "pdf_page": 20,
+            "source_text": "제 2 장",
+            "chunk_text": "제 2 장",
+            "source_font_size": 14.0875,
+            "chunk_font_size": 14.09,
+            "font_ratio": 1.4601,
+            "font_tier": 3,
+            "font_candidate": false,
+            "body_font_tier": true,
+            "current_4d_cluster_id": 1662,
+            "current_4d_support_pages": 1,
+            "current_4d_isolation_ratio": 0.0,
+            "best_pattern_mode": "current_anchor_2d",
+            "best_position_tolerance": 2.0,
+            "best_cluster_id": 116,
+            "best_support_pages": 12,
+            "best_intra_diameter": 1.6215,
+            "best_nearest_center_distance": 1.9857,
+            "best_isolation_ratio": 1.2246,
+            "anchor_distance_line_spacings": 0.0519
+          },
+          {
+            "chapter": 3,
+            "pdf_page": 48,
+            "source_text": "제 3 장",
+            "chunk_text": "제 3 장",
+            "source_font_size": 13.9207,
+            "chunk_font_size": 13.92,
+            "font_ratio": 1.4425,
+            "font_tier": 3,
+            "font_candidate": false,
+            "body_font_tier": true,
+            "current_4d_cluster_id": 1659,
+            "current_4d_support_pages": 7,
+            "current_4d_isolation_ratio": 1.5032,
+            "best_pattern_mode": "current_anchor_2d",
+            "best_position_tolerance": 2.0,
+            "best_cluster_id": 116,
+            "best_support_pages": 12,
+            "best_intra_diameter": 1.6215,
+            "best_nearest_center_distance": 1.9857,
+            "best_isolation_ratio": 1.2246,
+            "anchor_distance_line_spacings": 0.0514
+          },
+          {
+            "chapter": 4,
+            "pdf_page": 84,
+            "source_text": "제 4 장",
+            "chunk_text": "제 4 장",
+            "source_font_size": 13.7391,
+            "chunk_font_size": 13.74,
+            "font_ratio": 1.4238,
+            "font_tier": 3,
+            "font_candidate": false,
+            "body_font_tier": true,
+            "current_4d_cluster_id": 1659,
+            "current_4d_support_pages": 7,
+            "current_4d_isolation_ratio": 1.5032,
+            "best_pattern_mode": "current_anchor_2d",
+            "best_position_tolerance": 2.0,
+            "best_cluster_id": 116,
+            "best_support_pages": 12,
+            "best_intra_diameter": 1.6215,
+            "best_nearest_center_distance": 1.9857,
+            "best_isolation_ratio": 1.2246,
+            "anchor_distance_line_spacings": 0.0508
+          },
+          {
+            "chapter": 5,
+            "pdf_page": 130,
+            "source_text": "제 5 장",
+            "chunk_text": "제 5 장",
+            "source_font_size": 13.6181,
+            "chunk_font_size": 13.62,
+            "font_ratio": 1.4114,
+            "font_tier": 3,
+            "font_candidate": false,
+            "body_font_tier": true,
+            "current_4d_cluster_id": 1659,
+            "current_4d_support_pages": 7,
+            "current_4d_isolation_ratio": 1.5032,
+            "best_pattern_mode": "current_anchor_2d",
+            "best_position_tolerance": 2.0,
+            "best_cluster_id": 116,
+            "best_support_pages": 12,
+            "best_intra_diameter": 1.6215,
+            "best_nearest_center_distance": 1.9857,
+            "best_isolation_ratio": 1.2246,
+            "anchor_distance_line_spacings": 0.0502
+          },
+          {
+            "chapter": 6,
+            "pdf_page": 190,
+            "source_text": "제 6 장",
+            "chunk_text": "제 6 장",
+            "source_font_size": 13.9353,
+            "chunk_font_size": 13.94,
+            "font_ratio": 1.4446,
+            "font_tier": 3,
+            "font_candidate": false,
+            "body_font_tier": true,
+            "current_4d_cluster_id": 1657,
+            "current_4d_support_pages": 2,
+            "current_4d_isolation_ratio": 1.6629,
+            "best_pattern_mode": "current_anchor_2d",
+            "best_position_tolerance": 2.0,
+            "best_cluster_id": 116,
+            "best_support_pages": 12,
+            "best_intra_diameter": 1.6215,
+            "best_nearest_center_distance": 1.9857,
+            "best_isolation_ratio": 1.2246,
+            "anchor_distance_line_spacings": 0.0514
+          },
+          {
+            "chapter": 7,
+            "pdf_page": 234,
+            "source_text": "제 7 장",
+            "chunk_text": "제 7 장",
+            "source_font_size": 13.7247,
+            "chunk_font_size": 13.72,
+            "font_ratio": 1.4218,
+            "font_tier": 3,
+            "font_candidate": false,
+            "body_font_tier": true,
+            "current_4d_cluster_id": 1659,
+            "current_4d_support_pages": 7,
+            "current_4d_isolation_ratio": 1.5032,
+            "best_pattern_mode": "current_anchor_2d",
+            "best_position_tolerance": 2.0,
+            "best_cluster_id": 116,
+            "best_support_pages": 12,
+            "best_intra_diameter": 1.6215,
+            "best_nearest_center_distance": 1.9857,
+            "best_isolation_ratio": 1.2246,
+            "anchor_distance_line_spacings": 0.0511
+          },
+          {
+            "chapter": 8,
+            "pdf_page": 282,
+            "source_text": "제 8 장",
+            "chunk_text": "제 8 장",
+            "source_font_size": 13.7852,
+            "chunk_font_size": 13.79,
+            "font_ratio": 1.429,
+            "font_tier": 3,
+            "font_candidate": false,
+            "body_font_tier": true,
+            "current_4d_cluster_id": 1659,
+            "current_4d_support_pages": 7,
+            "current_4d_isolation_ratio": 1.5032,
+            "best_pattern_mode": "current_anchor_2d",
+            "best_position_tolerance": 2.0,
+            "best_cluster_id": 116,
+            "best_support_pages": 12,
+            "best_intra_diameter": 1.6215,
+            "best_nearest_center_distance": 1.9857,
+            "best_isolation_ratio": 1.2246,
+            "anchor_distance_line_spacings": 0.0509
+          },
+          {
+            "chapter": 9,
+            "pdf_page": 311,
+            "source_text": "제 9 장",
+            "chunk_text": "제 9 장 구 간 추",
+            "source_font_size": 13.4365,
+            "chunk_font_size": 14.59,
+            "font_ratio": 1.5119,
+            "font_tier": 3,
+            "font_candidate": false,
+            "body_font_tier": true,
+            "current_4d_cluster_id": 501,
+            "current_4d_support_pages": 4,
+            "current_4d_isolation_ratio": 1.1085,
+            "best_pattern_mode": "current_anchor_2d",
+            "best_position_tolerance": 2.0,
+            "best_cluster_id": 29,
+            "best_support_pages": 61,
+            "best_intra_diameter": 1.9946,
+            "best_nearest_center_distance": 0.7546,
+            "best_isolation_ratio": 0.3783,
+            "anchor_distance_line_spacings": 0.0497
+          },
+          {
+            "chapter": 10,
+            "pdf_page": 356,
+            "source_text": "제10장",
+            "chunk_text": "제10장",
+            "source_font_size": 14.6623,
+            "chunk_font_size": 14.66,
+            "font_ratio": 1.5192,
+            "font_tier": 3,
+            "font_candidate": false,
+            "body_font_tier": true,
+            "current_4d_cluster_id": 1659,
+            "current_4d_support_pages": 7,
+            "current_4d_isolation_ratio": 1.5032,
+            "best_pattern_mode": "current_anchor_2d",
+            "best_position_tolerance": 2.0,
+            "best_cluster_id": 116,
+            "best_support_pages": 12,
+            "best_intra_diameter": 1.6215,
+            "best_nearest_center_distance": 1.9857,
+            "best_isolation_ratio": 1.2246,
+            "anchor_distance_line_spacings": 0.0544
+          },
+          {
+            "chapter": 11,
+            "pdf_page": 410,
+            "source_text": "제11장",
+            "chunk_text": "제11장",
+            "source_font_size": 13.9061,
+            "chunk_font_size": 13.91,
+            "font_ratio": 1.4415,
+            "font_tier": 3,
+            "font_candidate": false,
+            "body_font_tier": true,
+            "current_4d_cluster_id": 1657,
+            "current_4d_support_pages": 2,
+            "current_4d_isolation_ratio": 1.6629,
+            "best_pattern_mode": "current_anchor_2d",
+            "best_position_tolerance": 2.0,
+            "best_cluster_id": 116,
+            "best_support_pages": 12,
+            "best_intra_diameter": 1.6215,
+            "best_nearest_center_distance": 1.9857,
+            "best_isolation_ratio": 1.2246,
+            "anchor_distance_line_spacings": 0.0517
+          }
+        ],
+        "baselines": [
+          {
+            "name": "font_only",
+            "candidate_count": 93,
+            "matched_chapters": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          {
+            "name": "current_following_anchor_4d_min5",
+            "candidate_count": 1630,
+            "matched_chapters": 7,
+            "precision": 0.0043,
+            "recall": 0.6364,
+            "f1": 0.0085,
+            "pattern_mode": "current_following_anchor_4d",
+            "position_tolerance": 1.0
+          },
+          {
+            "name": "position_and_font_min5",
+            "candidate_count": 33,
+            "matched_chapters": 0,
+            "precision": 0.0,
+            "recall": 0.0,
+            "f1": 0.0
+          },
+          {
+            "name": "current_anchor_2d_min5",
+            "candidate_count": 4111,
+            "matched_chapters": 11,
+            "precision": 0.0027,
+            "recall": 1.0,
+            "f1": 0.0053,
+            "pattern_mode": "current_anchor_2d",
+            "position_tolerance": 2.0
+          }
+        ],
+        "rankings": [
+          {
+            "name": "current_following_anchor_4d_font_size",
+            "auc": 0.6981,
+            "average_precision": 0.0042,
+            "precision_at_chapter_count": 0.0,
+            "recall_at_chapter_count": 0.0,
+            "top_chapter_count": 0,
+            "pattern_mode": "current_following_anchor_4d",
+            "position_tolerance": 1.0
+          },
+          {
+            "name": "current_following_anchor_4d_repeat_support",
+            "auc": 0.6491,
+            "average_precision": 0.0041,
+            "precision_at_chapter_count": 0.0,
+            "recall_at_chapter_count": 0.0,
+            "top_chapter_count": 0,
+            "pattern_mode": "current_following_anchor_4d",
+            "position_tolerance": 1.0
+          },
+          {
+            "name": "current_following_anchor_4d_position_isolation",
+            "auc": 0.8415,
+            "average_precision": 0.0124,
+            "precision_at_chapter_count": 0.0,
+            "recall_at_chapter_count": 0.0,
+            "top_chapter_count": 0,
+            "pattern_mode": "current_following_anchor_4d",
+            "position_tolerance": 1.0
+          },
+          {
+            "name": "current_following_anchor_4d_support_plus_isolation",
+            "auc": 0.8701,
+            "average_precision": 0.0481,
+            "precision_at_chapter_count": 0.0,
+            "recall_at_chapter_count": 0.0,
+            "top_chapter_count": 0,
+            "pattern_mode": "current_following_anchor_4d",
+            "position_tolerance": 1.0
+          },
+          {
+            "name": "current_following_anchor_4d_font_support_isolation",
+            "auc": 0.8921,
+            "average_precision": 0.0227,
+            "precision_at_chapter_count": 0.0,
+            "recall_at_chapter_count": 0.0,
+            "top_chapter_count": 0,
+            "pattern_mode": "current_following_anchor_4d",
+            "position_tolerance": 1.0
+          },
+          {
+            "name": "current_anchor_2d_font_size",
+            "auc": 0.6981,
+            "average_precision": 0.0042,
+            "precision_at_chapter_count": 0.0,
+            "recall_at_chapter_count": 0.0,
+            "top_chapter_count": 0,
+            "pattern_mode": "current_anchor_2d",
+            "position_tolerance": 0.5
+          },
+          {
+            "name": "current_anchor_2d_repeat_support",
+            "auc": 0.3515,
+            "average_precision": 0.0019,
+            "precision_at_chapter_count": 0.0,
+            "recall_at_chapter_count": 0.0,
+            "top_chapter_count": 0,
+            "pattern_mode": "current_anchor_2d",
+            "position_tolerance": 0.5
+          },
+          {
+            "name": "current_anchor_2d_position_isolation",
+            "auc": 0.1979,
+            "average_precision": 0.0016,
+            "precision_at_chapter_count": 0.0,
+            "recall_at_chapter_count": 0.0,
+            "top_chapter_count": 0,
+            "pattern_mode": "current_anchor_2d",
+            "position_tolerance": 0.5
+          },
+          {
+            "name": "current_anchor_2d_support_plus_isolation",
+            "auc": 0.1843,
+            "average_precision": 0.0015,
+            "precision_at_chapter_count": 0.0,
+            "recall_at_chapter_count": 0.0,
+            "top_chapter_count": 0,
+            "pattern_mode": "current_anchor_2d",
+            "position_tolerance": 0.5
+          },
+          {
+            "name": "current_anchor_2d_font_support_isolation",
+            "auc": 0.3622,
+            "average_precision": 0.0019,
+            "precision_at_chapter_count": 0.0,
+            "recall_at_chapter_count": 0.0,
+            "top_chapter_count": 0,
+            "pattern_mode": "current_anchor_2d",
+            "position_tolerance": 0.5
+          },
+          {
+            "name": "current_anchor_2d_font_size",
+            "auc": 0.6981,
+            "average_precision": 0.0042,
+            "precision_at_chapter_count": 0.0,
+            "recall_at_chapter_count": 0.0,
+            "top_chapter_count": 0,
+            "pattern_mode": "current_anchor_2d",
+            "position_tolerance": 1.0
+          },
+          {
+            "name": "current_anchor_2d_repeat_support",
+            "auc": 0.2863,
+            "average_precision": 0.0017,
+            "precision_at_chapter_count": 0.0,
+            "recall_at_chapter_count": 0.0,
+            "top_chapter_count": 0,
+            "pattern_mode": "current_anchor_2d",
+            "position_tolerance": 1.0
+          },
+          {
+            "name": "current_anchor_2d_position_isolation",
+            "auc": 0.9117,
+            "average_precision": 0.0367,
+            "precision_at_chapter_count": 0.0,
+            "recall_at_chapter_count": 0.0,
+            "top_chapter_count": 0,
+            "pattern_mode": "current_anchor_2d",
+            "position_tolerance": 1.0
+          },
+          {
+            "name": "current_anchor_2d_support_plus_isolation",
+            "auc": 0.7375,
+            "average_precision": 0.0054,
+            "precision_at_chapter_count": 0.0,
+            "recall_at_chapter_count": 0.0,
+            "top_chapter_count": 0,
+            "pattern_mode": "current_anchor_2d",
+            "position_tolerance": 1.0
+          },
+          {
+            "name": "current_anchor_2d_font_support_isolation",
+            "auc": 0.8269,
+            "average_precision": 0.0077,
+            "precision_at_chapter_count": 0.0,
+            "recall_at_chapter_count": 0.0,
+            "top_chapter_count": 0,
+            "pattern_mode": "current_anchor_2d",
+            "position_tolerance": 1.0
+          },
+          {
+            "name": "current_anchor_2d_font_size",
+            "auc": 0.6981,
+            "average_precision": 0.0042,
+            "precision_at_chapter_count": 0.0,
+            "recall_at_chapter_count": 0.0,
+            "top_chapter_count": 0,
+            "pattern_mode": "current_anchor_2d",
+            "position_tolerance": 1.5
+          },
+          {
+            "name": "current_anchor_2d_repeat_support",
+            "auc": 0.2462,
+            "average_precision": 0.0017,
+            "precision_at_chapter_count": 0.0,
+            "recall_at_chapter_count": 0.0,
+            "top_chapter_count": 0,
+            "pattern_mode": "current_anchor_2d",
+            "position_tolerance": 1.5
+          },
+          {
+            "name": "current_anchor_2d_position_isolation",
+            "auc": 0.1402,
+            "average_precision": 0.0015,
+            "precision_at_chapter_count": 0.0,
+            "recall_at_chapter_count": 0.0,
+            "top_chapter_count": 0,
+            "pattern_mode": "current_anchor_2d",
+            "position_tolerance": 1.5
+          },
+          {
+            "name": "current_anchor_2d_support_plus_isolation",
+            "auc": 0.1592,
+            "average_precision": 0.0015,
+            "precision_at_chapter_count": 0.0,
+            "recall_at_chapter_count": 0.0,
+            "top_chapter_count": 0,
+            "pattern_mode": "current_anchor_2d",
+            "position_tolerance": 1.5
+          },
+          {
+            "name": "current_anchor_2d_font_support_isolation",
+            "auc": 0.2603,
+            "average_precision": 0.0017,
+            "precision_at_chapter_count": 0.0,
+            "recall_at_chapter_count": 0.0,
+            "top_chapter_count": 0,
+            "pattern_mode": "current_anchor_2d",
+            "position_tolerance": 1.5
+          },
+          {
+            "name": "current_anchor_2d_font_size",
+            "auc": 0.6981,
+            "average_precision": 0.0042,
+            "precision_at_chapter_count": 0.0,
+            "recall_at_chapter_count": 0.0,
+            "top_chapter_count": 0,
+            "pattern_mode": "current_anchor_2d",
+            "position_tolerance": 2.0
+          },
+          {
+            "name": "current_anchor_2d_repeat_support",
+            "auc": 0.1962,
+            "average_precision": 0.0016,
+            "precision_at_chapter_count": 0.0,
+            "recall_at_chapter_count": 0.0,
+            "top_chapter_count": 0,
+            "pattern_mode": "current_anchor_2d",
+            "position_tolerance": 2.0
+          },
+          {
+            "name": "current_anchor_2d_position_isolation",
+            "auc": 0.9115,
+            "average_precision": 0.1089,
+            "precision_at_chapter_count": 0.0,
+            "recall_at_chapter_count": 0.0,
+            "top_chapter_count": 0,
+            "pattern_mode": "current_anchor_2d",
+            "position_tolerance": 2.0
+          },
+          {
+            "name": "current_anchor_2d_support_plus_isolation",
+            "auc": 0.5784,
+            "average_precision": 0.0031,
+            "precision_at_chapter_count": 0.0,
+            "recall_at_chapter_count": 0.0,
+            "top_chapter_count": 0,
+            "pattern_mode": "current_anchor_2d",
+            "position_tolerance": 2.0
+          },
+          {
+            "name": "current_anchor_2d_font_support_isolation",
+            "auc": 0.7678,
+            "average_precision": 0.0056,
+            "precision_at_chapter_count": 0.0,
+            "recall_at_chapter_count": 0.0,
+            "top_chapter_count": 0,
+            "pattern_mode": "current_anchor_2d",
+            "position_tolerance": 2.0
+          }
+        ],
+        "best_position_filter": {
+          "name": "current_anchor_2d_position_support_3_isolation_q0.99",
+          "candidate_count": 44,
+          "matched_chapters": 10,
+          "precision": 0.2273,
+          "recall": 0.9091,
+          "f1": 0.3636,
+          "minimum_support_pages": 3,
+          "isolation_quantile": 0.99,
+          "isolation_threshold": 1.1513,
+          "pattern_mode": "current_anchor_2d",
+          "position_tolerance": 2.0
+        },
+        "best_filter_selection_scope": "same_book_exploratory",
+        "finding": "chapter truth=11, font candidates가 보존한 chapter=0, 놓친 chapter=11. production 4D position min5는 7/11개를 복구했고, current-anchor 2D tolerance=2.0 min5는 11/11개를 복구했다. 기존 position AND font min5는 chapter 0/11개를 보존했다. 최적 ranking=current_anchor_2d_position_isolation, AP=0.1089, P@11=0.0. 같은 책에서 고른 탐색적 position-only hard filter는 mode=current_anchor_2d, tolerance=2.0, support>=3, isolation q=0.99로 precision=0.2273, recall=0.9091, F1=0.3636이다. 다만 반복 위치 클러스터 자체를 감사하면 12개 중 chapter marker가 11개로 precision=0.9167, recall=1.0이며 실제 오탐은 1개다."
+      },
+      "finding": "chapter truth=11, font candidates가 보존한 chapter=0, 놓친 chapter=11. production 4D position min5는 7/11개를 복구했고, current-anchor 2D tolerance=2.0 min5는 11/11개를 복구했다. 기존 position AND font min5는 chapter 0/11개를 보존했다. 최적 ranking=current_anchor_2d_position_isolation, AP=0.1089, P@11=0.0. 같은 책에서 고른 탐색적 position-only hard filter는 mode=current_anchor_2d, tolerance=2.0, support>=3, isolation q=0.99로 precision=0.2273, recall=0.9091, F1=0.3636이다. 다만 반복 위치 클러스터 자체를 감사하면 12개 중 chapter marker가 11개로 precision=0.9167, recall=1.0이며 실제 오탐은 1개다.",
+      "ran_at": "2026-07-15T10:05:36+09:00"
+    },
+    {
+      "id": "099_quant_position_precision",
+      "purpose": "상세 embedded bookmark가 있는 퀀트의 세계에서 position-only 후보가 실제 bookmark인지와 목표인 level 1~2 coarse bookmark인지를 precision으로 분리 검증한다.",
+      "inputs": [
+        "data\\native-pdf-indexed\\퀀트의 세계 - 홍창수.pdf"
+      ],
+      "outputs": "experiments\\outputs\\099_quant_position_precision",
+      "method": "production geometry chunk에 production 4D anchor와 current-anchor 2D를 각각 적용했다. 같은 page의 embedded outline 제목과 한글 보존 유사도로 정답을 연결하고, 고정 support/isolation 조건의 all-level bookmark precision과 level 1~2 coarse bookmark precision만 비교했다. recall과 같은 책에서 고른 최적 threshold는 사용하지 않았다.",
+      "summary": {
+        "page_count": 378,
+        "bookmark_level_counts": {
+          "1": 8,
+          "2": 17,
+          "3": 18
+        },
+        "body_font_size": 10.0,
+        "body_line_spacing": 19.0,
+        "modes": [
+          {
+            "name": "production_4d",
+            "tolerance": 1.0,
+            "cluster_count": 463,
+            "metrics": [
+              {
+                "name": "production_4d_position_support_3",
+                "candidate_count": 1353,
+                "any_bookmark_hits": 44,
+                "any_bookmark_precision": 0.0325,
+                "coarse_bookmark_hits": 30,
+                "coarse_bookmark_precision": 0.0222,
+                "detail_only_hits": 14,
+                "false_positive_count": 1309
+              },
+              {
+                "name": "production_4d_font_and_position_support_3",
+                "candidate_count": 121,
+                "any_bookmark_hits": 28,
+                "any_bookmark_precision": 0.2314,
+                "coarse_bookmark_hits": 16,
+                "coarse_bookmark_precision": 0.1322,
+                "detail_only_hits": 12,
+                "false_positive_count": 93
+              },
+              {
+                "name": "production_4d_position_support_5",
+                "candidate_count": 1136,
+                "any_bookmark_hits": 41,
+                "any_bookmark_precision": 0.0361,
+                "coarse_bookmark_hits": 28,
+                "coarse_bookmark_precision": 0.0246,
+                "detail_only_hits": 13,
+                "false_positive_count": 1095
+              },
+              {
+                "name": "production_4d_font_and_position_support_5",
+                "candidate_count": 104,
+                "any_bookmark_hits": 27,
+                "any_bookmark_precision": 0.2596,
+                "coarse_bookmark_hits": 15,
+                "coarse_bookmark_precision": 0.1442,
+                "detail_only_hits": 12,
+                "false_positive_count": 77
+              },
+              {
+                "name": "production_4d_position_support_3_isolation_1",
+                "candidate_count": 483,
+                "any_bookmark_hits": 11,
+                "any_bookmark_precision": 0.0228,
+                "coarse_bookmark_hits": 6,
+                "coarse_bookmark_precision": 0.0124,
+                "detail_only_hits": 5,
+                "false_positive_count": 472
+              },
+              {
+                "name": "production_4d_font_and_position_support_3_isolation_1",
+                "candidate_count": 45,
+                "any_bookmark_hits": 10,
+                "any_bookmark_precision": 0.2222,
+                "coarse_bookmark_hits": 5,
+                "coarse_bookmark_precision": 0.1111,
+                "detail_only_hits": 5,
+                "false_positive_count": 35
+              },
+              {
+                "name": "production_4d_position_support_5_isolation_1",
+                "candidate_count": 372,
+                "any_bookmark_hits": 10,
+                "any_bookmark_precision": 0.0269,
+                "coarse_bookmark_hits": 5,
+                "coarse_bookmark_precision": 0.0134,
+                "detail_only_hits": 5,
+                "false_positive_count": 362
+              },
+              {
+                "name": "production_4d_font_and_position_support_5_isolation_1",
+                "candidate_count": 39,
+                "any_bookmark_hits": 10,
+                "any_bookmark_precision": 0.2564,
+                "coarse_bookmark_hits": 5,
+                "coarse_bookmark_precision": 0.1282,
+                "detail_only_hits": 5,
+                "false_positive_count": 29
+              },
+              {
+                "name": "production_4d_top_isolated_repeated_cluster",
+                "candidate_count": 6,
+                "any_bookmark_hits": 0,
+                "any_bookmark_precision": 0.0,
+                "coarse_bookmark_hits": 0,
+                "coarse_bookmark_precision": 0.0,
+                "detail_only_hits": 0,
+                "false_positive_count": 6
+              },
+              {
+                "name": "production_4d_font_and_top_isolated_repeated_cluster",
+                "candidate_count": 0,
+                "any_bookmark_hits": 0,
+                "any_bookmark_precision": 0.0,
+                "coarse_bookmark_hits": 0,
+                "coarse_bookmark_precision": 0.0,
+                "detail_only_hits": 0,
+                "false_positive_count": 0
+              }
+            ],
+            "top_isolation_clusters": [
+              {
+                "cluster_id": 193,
+                "support_pages": 6,
+                "isolation_ratio": 3.9914,
+                "name": "cluster_193",
+                "candidate_count": 6,
+                "any_bookmark_hits": 0,
+                "any_bookmark_precision": 0.0,
+                "coarse_bookmark_hits": 0,
+                "coarse_bookmark_precision": 0.0,
+                "detail_only_hits": 0,
+                "false_positive_count": 6
+              },
+              {
+                "cluster_id": 40,
+                "support_pages": 4,
+                "isolation_ratio": 2.752,
+                "name": "cluster_40",
+                "candidate_count": 4,
+                "any_bookmark_hits": 0,
+                "any_bookmark_precision": 0.0,
+                "coarse_bookmark_hits": 0,
+                "coarse_bookmark_precision": 0.0,
+                "detail_only_hits": 0,
+                "false_positive_count": 4
+              },
+              {
+                "cluster_id": 376,
+                "support_pages": 3,
+                "isolation_ratio": 2.2072,
+                "name": "cluster_376",
+                "candidate_count": 3,
+                "any_bookmark_hits": 0,
+                "any_bookmark_precision": 0.0,
+                "coarse_bookmark_hits": 0,
+                "coarse_bookmark_precision": 0.0,
+                "detail_only_hits": 0,
+                "false_positive_count": 3
+              },
+              {
+                "cluster_id": 314,
+                "support_pages": 3,
+                "isolation_ratio": 2.0475,
+                "name": "cluster_314",
+                "candidate_count": 3,
+                "any_bookmark_hits": 0,
+                "any_bookmark_precision": 0.0,
+                "coarse_bookmark_hits": 0,
+                "coarse_bookmark_precision": 0.0,
+                "detail_only_hits": 0,
+                "false_positive_count": 3
+              },
+              {
+                "cluster_id": 23,
+                "support_pages": 3,
+                "isolation_ratio": 1.8863,
+                "name": "cluster_23",
+                "candidate_count": 3,
+                "any_bookmark_hits": 0,
+                "any_bookmark_precision": 0.0,
+                "coarse_bookmark_hits": 0,
+                "coarse_bookmark_precision": 0.0,
+                "detail_only_hits": 0,
+                "false_positive_count": 3
+              },
+              {
+                "cluster_id": 14,
+                "support_pages": 10,
+                "isolation_ratio": 1.8204,
+                "name": "cluster_14",
+                "candidate_count": 10,
+                "any_bookmark_hits": 0,
+                "any_bookmark_precision": 0.0,
+                "coarse_bookmark_hits": 0,
+                "coarse_bookmark_precision": 0.0,
+                "detail_only_hits": 0,
+                "false_positive_count": 10
+              },
+              {
+                "cluster_id": 241,
+                "support_pages": 4,
+                "isolation_ratio": 1.8115,
+                "name": "cluster_241",
+                "candidate_count": 4,
+                "any_bookmark_hits": 0,
+                "any_bookmark_precision": 0.0,
+                "coarse_bookmark_hits": 0,
+                "coarse_bookmark_precision": 0.0,
+                "detail_only_hits": 0,
+                "false_positive_count": 4
+              },
+              {
+                "cluster_id": 107,
+                "support_pages": 3,
+                "isolation_ratio": 1.7382,
+                "name": "cluster_107",
+                "candidate_count": 3,
+                "any_bookmark_hits": 0,
+                "any_bookmark_precision": 0.0,
+                "coarse_bookmark_hits": 0,
+                "coarse_bookmark_precision": 0.0,
+                "detail_only_hits": 0,
+                "false_positive_count": 3
+              },
+              {
+                "cluster_id": 156,
+                "support_pages": 3,
+                "isolation_ratio": 1.6532,
+                "name": "cluster_156",
+                "candidate_count": 3,
+                "any_bookmark_hits": 0,
+                "any_bookmark_precision": 0.0,
+                "coarse_bookmark_hits": 0,
+                "coarse_bookmark_precision": 0.0,
+                "detail_only_hits": 0,
+                "false_positive_count": 3
+              },
+              {
+                "cluster_id": 38,
+                "support_pages": 5,
+                "isolation_ratio": 1.5808,
+                "name": "cluster_38",
+                "candidate_count": 5,
+                "any_bookmark_hits": 0,
+                "any_bookmark_precision": 0.0,
+                "coarse_bookmark_hits": 0,
+                "coarse_bookmark_precision": 0.0,
+                "detail_only_hits": 0,
+                "false_positive_count": 5
+              }
+            ]
+          },
+          {
+            "name": "current_anchor_2d",
+            "tolerance": 2.0,
+            "cluster_count": 67,
+            "metrics": [
+              {
+                "name": "current_anchor_2d_position_support_3",
+                "candidate_count": 1693,
+                "any_bookmark_hits": 53,
+                "any_bookmark_precision": 0.0313,
+                "coarse_bookmark_hits": 33,
+                "coarse_bookmark_precision": 0.0195,
+                "detail_only_hits": 20,
+                "false_positive_count": 1640
+              },
+              {
+                "name": "current_anchor_2d_font_and_position_support_3",
+                "candidate_count": 150,
+                "any_bookmark_hits": 36,
+                "any_bookmark_precision": 0.24,
+                "coarse_bookmark_hits": 18,
+                "coarse_bookmark_precision": 0.12,
+                "detail_only_hits": 18,
+                "false_positive_count": 114
+              },
+              {
+                "name": "current_anchor_2d_position_support_5",
+                "candidate_count": 1640,
+                "any_bookmark_hits": 49,
+                "any_bookmark_precision": 0.0299,
+                "coarse_bookmark_hits": 33,
+                "coarse_bookmark_precision": 0.0201,
+                "detail_only_hits": 16,
+                "false_positive_count": 1591
+              },
+              {
+                "name": "current_anchor_2d_font_and_position_support_5",
+                "candidate_count": 143,
+                "any_bookmark_hits": 32,
+                "any_bookmark_precision": 0.2238,
+                "coarse_bookmark_hits": 18,
+                "coarse_bookmark_precision": 0.1259,
+                "detail_only_hits": 14,
+                "false_positive_count": 111
+              },
+              {
+                "name": "current_anchor_2d_position_support_3_isolation_1",
+                "candidate_count": 62,
+                "any_bookmark_hits": 4,
+                "any_bookmark_precision": 0.0645,
+                "coarse_bookmark_hits": 0,
+                "coarse_bookmark_precision": 0.0,
+                "detail_only_hits": 4,
+                "false_positive_count": 58
+              },
+              {
+                "name": "current_anchor_2d_font_and_position_support_3_isolation_1",
+                "candidate_count": 5,
+                "any_bookmark_hits": 4,
+                "any_bookmark_precision": 0.8,
+                "coarse_bookmark_hits": 0,
+                "coarse_bookmark_precision": 0.0,
+                "detail_only_hits": 4,
+                "false_positive_count": 1
+              },
+              {
+                "name": "current_anchor_2d_position_support_5_isolation_1",
+                "candidate_count": 42,
+                "any_bookmark_hits": 0,
+                "any_bookmark_precision": 0.0,
+                "coarse_bookmark_hits": 0,
+                "coarse_bookmark_precision": 0.0,
+                "detail_only_hits": 0,
+                "false_positive_count": 42
+              },
+              {
+                "name": "current_anchor_2d_font_and_position_support_5_isolation_1",
+                "candidate_count": 1,
+                "any_bookmark_hits": 0,
+                "any_bookmark_precision": 0.0,
+                "coarse_bookmark_hits": 0,
+                "coarse_bookmark_precision": 0.0,
+                "detail_only_hits": 0,
+                "false_positive_count": 1
+              },
+              {
+                "name": "current_anchor_2d_top_isolated_repeated_cluster",
+                "candidate_count": 4,
+                "any_bookmark_hits": 4,
+                "any_bookmark_precision": 1.0,
+                "coarse_bookmark_hits": 0,
+                "coarse_bookmark_precision": 0.0,
+                "detail_only_hits": 4,
+                "false_positive_count": 0
+              },
+              {
+                "name": "current_anchor_2d_font_and_top_isolated_repeated_cluster",
+                "candidate_count": 4,
+                "any_bookmark_hits": 4,
+                "any_bookmark_precision": 1.0,
+                "coarse_bookmark_hits": 0,
+                "coarse_bookmark_precision": 0.0,
+                "detail_only_hits": 4,
+                "false_positive_count": 0
+              }
+            ],
+            "top_isolation_clusters": [
+              {
+                "cluster_id": 51,
+                "support_pages": 4,
+                "isolation_ratio": 14.2291,
+                "name": "cluster_51",
+                "candidate_count": 4,
+                "any_bookmark_hits": 4,
+                "any_bookmark_precision": 1.0,
+                "coarse_bookmark_hits": 0,
+                "coarse_bookmark_precision": 0.0,
+                "detail_only_hits": 4,
+                "false_positive_count": 0
+              },
+              {
+                "cluster_id": 50,
+                "support_pages": 3,
+                "isolation_ratio": 2.0239,
+                "name": "cluster_50",
+                "candidate_count": 3,
+                "any_bookmark_hits": 0,
+                "any_bookmark_precision": 0.0,
+                "coarse_bookmark_hits": 0,
+                "coarse_bookmark_precision": 0.0,
+                "detail_only_hits": 0,
+                "false_positive_count": 3
+              },
+              {
+                "cluster_id": 56,
+                "support_pages": 3,
+                "isolation_ratio": 1.5397,
+                "name": "cluster_56",
+                "candidate_count": 3,
+                "any_bookmark_hits": 0,
+                "any_bookmark_precision": 0.0,
+                "coarse_bookmark_hits": 0,
+                "coarse_bookmark_precision": 0.0,
+                "detail_only_hits": 0,
+                "false_positive_count": 3
+              },
+              {
+                "cluster_id": 23,
+                "support_pages": 3,
+                "isolation_ratio": 1.4974,
+                "name": "cluster_23",
+                "candidate_count": 3,
+                "any_bookmark_hits": 0,
+                "any_bookmark_precision": 0.0,
+                "coarse_bookmark_hits": 0,
+                "coarse_bookmark_precision": 0.0,
+                "detail_only_hits": 0,
+                "false_positive_count": 3
+              },
+              {
+                "cluster_id": 45,
+                "support_pages": 4,
+                "isolation_ratio": 1.3655,
+                "name": "cluster_45",
+                "candidate_count": 4,
+                "any_bookmark_hits": 0,
+                "any_bookmark_precision": 0.0,
+                "coarse_bookmark_hits": 0,
+                "coarse_bookmark_precision": 0.0,
+                "detail_only_hits": 0,
+                "false_positive_count": 4
+              },
+              {
+                "cluster_id": 37,
+                "support_pages": 5,
+                "isolation_ratio": 1.1547,
+                "name": "cluster_37",
+                "candidate_count": 5,
+                "any_bookmark_hits": 0,
+                "any_bookmark_precision": 0.0,
+                "coarse_bookmark_hits": 0,
+                "coarse_bookmark_precision": 0.0,
+                "detail_only_hits": 0,
+                "false_positive_count": 5
+              },
+              {
+                "cluster_id": 48,
+                "support_pages": 3,
+                "isolation_ratio": 1.1328,
+                "name": "cluster_48",
+                "candidate_count": 3,
+                "any_bookmark_hits": 0,
+                "any_bookmark_precision": 0.0,
+                "coarse_bookmark_hits": 0,
+                "coarse_bookmark_precision": 0.0,
+                "detail_only_hits": 0,
+                "false_positive_count": 3
+              },
+              {
+                "cluster_id": 5,
+                "support_pages": 17,
+                "isolation_ratio": 1.0873,
+                "name": "cluster_5",
+                "candidate_count": 17,
+                "any_bookmark_hits": 0,
+                "any_bookmark_precision": 0.0,
+                "coarse_bookmark_hits": 0,
+                "coarse_bookmark_precision": 0.0,
+                "detail_only_hits": 0,
+                "false_positive_count": 17
+              },
+              {
+                "cluster_id": 34,
+                "support_pages": 6,
+                "isolation_ratio": 1.0364,
+                "name": "cluster_34",
+                "candidate_count": 6,
+                "any_bookmark_hits": 0,
+                "any_bookmark_precision": 0.0,
+                "coarse_bookmark_hits": 0,
+                "coarse_bookmark_precision": 0.0,
+                "detail_only_hits": 0,
+                "false_positive_count": 6
+              },
+              {
+                "cluster_id": 28,
+                "support_pages": 6,
+                "isolation_ratio": 1.036,
+                "name": "cluster_28",
+                "candidate_count": 6,
+                "any_bookmark_hits": 0,
+                "any_bookmark_precision": 0.0,
+                "coarse_bookmark_hits": 0,
+                "coarse_bookmark_precision": 0.0,
+                "detail_only_hits": 0,
+                "false_positive_count": 6
+              }
+            ]
+          }
+        ],
+        "finding": "embedded bookmarks=43. current-anchor 2D의 가장 isolated된 반복 cluster는 candidates=4, all-level bookmark precision=1.0이지만 coarse level 1~2 precision=0.0이다. 고정 support>=3, isolation>=1 position-only는 candidates=62, all-level precision=0.0645, coarse precision=0.0; font 교집합도 candidates=5, all-level precision=0.8, coarse precision=0.0이다. 따라서 isolation이 높은 반복 위치는 실제 bookmark 확신은 높일 수 있어도 chapter급 level 확신은 보장하지 않는다."
+      },
+      "finding": "embedded bookmarks=43. current-anchor 2D의 가장 isolated된 반복 cluster는 candidates=4, all-level bookmark precision=1.0이지만 coarse level 1~2 precision=0.0이다. 고정 support>=3, isolation>=1 position-only는 candidates=62, all-level precision=0.0645, coarse precision=0.0; font 교집합도 candidates=5, all-level precision=0.8, coarse precision=0.0이다. 따라서 isolation이 높은 반복 위치는 실제 bookmark 확신은 높일 수 있어도 chapter급 level 확신은 보장하지 않는다.",
+      "ran_at": "2026-07-15T11:10:02+09:00"
+    },
+    {
+      "id": "100_native_body_font_position_fallback",
+      "purpose": "clean native PDF에서 font plan을 기본 hierarchy로 유지하고, font가 body로 판정한 position heading을 page 구간상 font parent 아래 삽입하는 fallback의 precision과 parent 정확도를 검증한다.",
+      "inputs": [
+        "data\\native-pdf-indexed\\Zvi Bodie, Alex Kane, Alan Marcus - Investments-McGraw Hill (2021)[finance].pdf",
+        "data\\native-pdf-indexed\\퀀트의 세계 - 홍창수.pdf"
+      ],
+      "outputs": "experiments\\outputs\\100_native_body_font_position_fallback",
+      "method": "geometry가 병합한 larger-than-body chunk 중 20 words 이하를 font plan으로 만들고 infer_bpe_outline으로 hierarchy를 정했다. font plan은 multi-line을 허용한다. position은 production 4D와 current-anchor 2D를 비교하고, body tier 또는 대표 body font ±3%인 후보 중 물리 line 1개인 chunk만 선택했다. 후보는 page를 포함하는 가장 깊은 font plan range의 자식으로 삽입했다. embedded outline과 같은-page 한글/영문 title match로 fallback precision, hybrid precision, gold parent accuracy를 계산했다. 가장 가까운 chunk bbox y 간격이 body line spacing보다 큰 subset의 precision도 supplementary로 기록했다.",
+      "summary": {
+        "results": [
+          {
+            "pdf": "data\\native-pdf-indexed\\Zvi Bodie, Alex Kane, Alan Marcus - Investments-McGraw Hill (2021)[finance].pdf",
+            "page_count": 1041,
+            "gold_bookmark_count": 793,
+            "raw_line_count": 44913,
+            "line_count": 43812,
+            "chunk_count": 11388,
+            "body_font_size": 9.5,
+            "body_tiers": [
+              16,
+              17,
+              18,
+              19,
+              20,
+              21
+            ],
+            "body_line_spacing": 12.0,
+            "font_baseline": {
+              "name": "font_baseline",
+              "candidate_count": 964,
+              "bookmark_hits": 607,
+              "precision": 0.6297
+            },
+            "fallback_results": [
+              {
+                "name": "production_4d_body_tier_support_5",
+                "tree_txt": "experiments\\outputs\\100_native_body_font_position_fallback\\investments_production_4d_body_tier_tree.txt",
+                "unparented_count": 0,
+                "evaluation": {
+                  "name": "production_4d_body_tier_support_5",
+                  "candidate_count": 1403,
+                  "bookmark_hits": 14,
+                  "precision": 0.01
+                },
+                "y_gap_evaluation": {
+                  "name": "production_4d_body_tier_support_5_y_gap_over_body_spacing",
+                  "candidate_count": 168,
+                  "bookmark_hits": 3,
+                  "precision": 0.0179
+                },
+                "parent_evaluation": {
+                  "comparable_true_fallback_count": 14,
+                  "correct_parent_count": 1,
+                  "parent_accuracy": 0.0714
+                },
+                "hybrid_candidate_count": 2367,
+                "hybrid_bookmark_hits": 621,
+                "hybrid_precision": 0.2624
+              },
+              {
+                "name": "current_2d_body_tier_support_5_isolation_1",
+                "tree_txt": "experiments\\outputs\\100_native_body_font_position_fallback\\investments_body_tier_tree.txt",
+                "unparented_count": 0,
+                "evaluation": {
+                  "name": "current_2d_body_tier_support_5_isolation_1",
+                  "candidate_count": 92,
+                  "bookmark_hits": 0,
+                  "precision": 0.0
+                },
+                "y_gap_evaluation": {
+                  "name": "current_2d_body_tier_support_5_isolation_1_y_gap_over_body_spacing",
+                  "candidate_count": 11,
+                  "bookmark_hits": 0,
+                  "precision": 0.0
+                },
+                "parent_evaluation": {
+                  "comparable_true_fallback_count": 0,
+                  "correct_parent_count": 0,
+                  "parent_accuracy": null
+                },
+                "hybrid_candidate_count": 1056,
+                "hybrid_bookmark_hits": 607,
+                "hybrid_precision": 0.5748
+              },
+              {
+                "name": "current_2d_strict_body_size_support_5_isolation_1",
+                "tree_txt": "experiments\\outputs\\100_native_body_font_position_fallback\\investments_strict_body_size_tree.txt",
+                "unparented_count": 0,
+                "evaluation": {
+                  "name": "current_2d_strict_body_size_support_5_isolation_1",
+                  "candidate_count": 4,
+                  "bookmark_hits": 0,
+                  "precision": 0.0
+                },
+                "y_gap_evaluation": {
+                  "name": "current_2d_strict_body_size_support_5_isolation_1_y_gap_over_body_spacing",
+                  "candidate_count": 1,
+                  "bookmark_hits": 0,
+                  "precision": 0.0
+                },
+                "parent_evaluation": {
+                  "comparable_true_fallback_count": 0,
+                  "correct_parent_count": 0,
+                  "parent_accuracy": null
+                },
+                "hybrid_candidate_count": 968,
+                "hybrid_bookmark_hits": 607,
+                "hybrid_precision": 0.6271
+              }
+            ]
+          },
+          {
+            "pdf": "data\\native-pdf-indexed\\퀀트의 세계 - 홍창수.pdf",
+            "page_count": 378,
+            "gold_bookmark_count": 43,
+            "raw_line_count": 8044,
+            "line_count": 7675,
+            "chunk_count": 2086,
+            "body_font_size": 10.0,
+            "body_tiers": [
+              10,
+              12,
+              13,
+              14
+            ],
+            "body_line_spacing": 19.0,
+            "font_baseline": {
+              "name": "font_baseline",
+              "candidate_count": 80,
+              "bookmark_hits": 36,
+              "precision": 0.45
+            },
+            "fallback_results": [
+              {
+                "name": "production_4d_body_tier_support_5",
+                "tree_txt": "experiments\\outputs\\100_native_body_font_position_fallback\\quant_world_production_4d_body_tier_tree.txt",
+                "unparented_count": 0,
+                "evaluation": {
+                  "name": "production_4d_body_tier_support_5",
+                  "candidate_count": 544,
+                  "bookmark_hits": 14,
+                  "precision": 0.0257
+                },
+                "y_gap_evaluation": {
+                  "name": "production_4d_body_tier_support_5_y_gap_over_body_spacing",
+                  "candidate_count": 21,
+                  "bookmark_hits": 3,
+                  "precision": 0.1429
+                },
+                "parent_evaluation": {
+                  "comparable_true_fallback_count": 11,
+                  "correct_parent_count": 0,
+                  "parent_accuracy": 0.0
+                },
+                "hybrid_candidate_count": 624,
+                "hybrid_bookmark_hits": 50,
+                "hybrid_precision": 0.0801
+              },
+              {
+                "name": "current_2d_body_tier_support_5_isolation_1",
+                "tree_txt": "experiments\\outputs\\100_native_body_font_position_fallback\\quant_world_body_tier_tree.txt",
+                "unparented_count": 0,
+                "evaluation": {
+                  "name": "current_2d_body_tier_support_5_isolation_1",
+                  "candidate_count": 27,
+                  "bookmark_hits": 0,
+                  "precision": 0.0
+                },
+                "y_gap_evaluation": {
+                  "name": "current_2d_body_tier_support_5_isolation_1_y_gap_over_body_spacing",
+                  "candidate_count": 3,
+                  "bookmark_hits": 0,
+                  "precision": 0.0
+                },
+                "parent_evaluation": {
+                  "comparable_true_fallback_count": 0,
+                  "correct_parent_count": 0,
+                  "parent_accuracy": null
+                },
+                "hybrid_candidate_count": 107,
+                "hybrid_bookmark_hits": 36,
+                "hybrid_precision": 0.3364
+              },
+              {
+                "name": "current_2d_strict_body_size_support_5_isolation_1",
+                "tree_txt": "experiments\\outputs\\100_native_body_font_position_fallback\\quant_world_strict_body_size_tree.txt",
+                "unparented_count": 0,
+                "evaluation": {
+                  "name": "current_2d_strict_body_size_support_5_isolation_1",
+                  "candidate_count": 4,
+                  "bookmark_hits": 0,
+                  "precision": 0.0
+                },
+                "y_gap_evaluation": {
+                  "name": "current_2d_strict_body_size_support_5_isolation_1_y_gap_over_body_spacing",
+                  "candidate_count": 0,
+                  "bookmark_hits": 0,
+                  "precision": 0.0
+                },
+                "parent_evaluation": {
+                  "comparable_true_fallback_count": 0,
+                  "correct_parent_count": 0,
+                  "parent_accuracy": null
+                },
+                "hybrid_candidate_count": 84,
+                "hybrid_bookmark_hits": 36,
+                "hybrid_precision": 0.4286
+              }
+            ]
+          }
+        ],
+        "finding": "Zvi Bodie, Alex Kane, Alan Marcus - Investments-McGraw Hill (2021)[finance]: font baseline precision=0.6297, one-line strict fallback candidates=4, fallback precision=0.0, y-gap>spacing candidates=1, supplementary precision=0.0, hybrid precision=0.6271; 퀀트의 세계 - 홍창수: font baseline precision=0.45, one-line strict fallback candidates=4, fallback precision=0.0, y-gap>spacing candidates=0, supplementary precision=0.0, hybrid precision=0.4286. page-range parent 삽입은 level 결정 방식일 뿐, body-font position 후보의 precision을 올리는 gate는 아니다."
+      },
+      "finding": "Zvi Bodie, Alex Kane, Alan Marcus - Investments-McGraw Hill (2021)[finance]: font baseline precision=0.6297, one-line strict fallback candidates=4, fallback precision=0.0, y-gap>spacing candidates=1, supplementary precision=0.0, hybrid precision=0.6271; 퀀트의 세계 - 홍창수: font baseline precision=0.45, one-line strict fallback candidates=4, fallback precision=0.0, y-gap>spacing candidates=0, supplementary precision=0.0, hybrid precision=0.4286. page-range parent 삽입은 level 결정 방식일 뿐, body-font position 후보의 precision을 올리는 gate는 아니다.",
+      "ran_at": "2026-07-15T12:57:56+09:00"
+    },
+    {
+      "id": "101_scanned_body_font_position_fallback",
+      "purpose": "scanned/OCR PDF에서 larger-than-body font plan을 유지하고 body-font position 후보를 page 구간상 parent 아래 삽입한 tree를 수동 검사한다.",
+      "inputs": [
+        "showcase\\outputs\\017_interest_economics_ocr_overlay\\interest_economics_ocr.pdf",
+        "showcase\\outputs\\018_statistics_principles_ocr_overlay\\statistics_principles_ocr.pdf",
+        "data\\scanned-pdf-not-indexed\\한경_읽는법_-_한국경제신문-compressed[econ macro book].pdf"
+      ],
+      "outputs": "experiments\\outputs\\101_scanned_body_font_position_fallback",
+      "method": "geometry가 병합한 larger-than-body chunk 중 20 words 이하를 multi-line 허용 font plan으로 만들었다. current-anchor 2D tolerance 2.0, support>=5, isolation>=1 position cluster에서 body tier와 대표 body font ±3% fallback을 나누고, 물리 line 1개인 chunk만 남겼다. 후보 level은 page를 포함하는 가장 깊은 font parent+1로만 정했다. 세 scanned/OCR 책은 embedded gold가 없으므로 precision을 계산하지 않고 들여쓰기 TXT로 저장했다. 가장 가까운 chunk bbox y 간격/body line spacing은 supplementary 지표로만 표시했다.",
+      "summary": {
+        "results": [
+          {
+            "key": "interest_economics",
+            "pdf": "showcase\\outputs\\017_interest_economics_ocr_overlay\\interest_economics_ocr.pdf",
+            "evaluation": "manual_eye_check_only",
+            "page_count": 264,
+            "line_count": 7805,
+            "chunk_count": 2072,
+            "body_font_size": 9.95,
+            "body_tiers": [
+              21,
+              22,
+              23,
+              24,
+              25,
+              45
+            ],
+            "body_line_spacing": 11.4,
+            "font_baseline": {
+              "candidate_count": 132
+            },
+            "body_tier_fallback": {
+              "name": "current_2d_body_tier_support_5_isolation_1",
+              "candidate_count": 16,
+              "y_gap_exceeds_body_spacing_count": 9,
+              "tree_txt": "experiments\\outputs\\101_scanned_body_font_position_fallback\\interest_economics_body_tier_tree.txt"
+            },
+            "strict_body_size_fallback": {
+              "name": "current_2d_strict_body_size_support_5_isolation_1",
+              "candidate_count": 9,
+              "y_gap_exceeds_body_spacing_count": 5,
+              "tree_txt": "experiments\\outputs\\101_scanned_body_font_position_fallback\\interest_economics_strict_body_size_tree.txt"
+            }
+          },
+          {
+            "key": "statistics_principles",
+            "pdf": "showcase\\outputs\\018_statistics_principles_ocr_overlay\\statistics_principles_ocr.pdf",
+            "evaluation": "manual_eye_check_only",
+            "page_count": 481,
+            "line_count": 12696,
+            "chunk_count": 4645,
+            "body_font_size": 9.65,
+            "body_tiers": [
+              1,
+              3,
+              5,
+              6,
+              7,
+              8,
+              9
+            ],
+            "body_line_spacing": 16.75,
+            "font_baseline": {
+              "candidate_count": 69
+            },
+            "body_tier_fallback": {
+              "name": "current_2d_body_tier_support_5_isolation_1",
+              "candidate_count": 58,
+              "y_gap_exceeds_body_spacing_count": 25,
+              "tree_txt": "experiments\\outputs\\101_scanned_body_font_position_fallback\\statistics_principles_body_tier_tree.txt"
+            },
+            "strict_body_size_fallback": {
+              "name": "current_2d_strict_body_size_support_5_isolation_1",
+              "candidate_count": 0,
+              "y_gap_exceeds_body_spacing_count": 0,
+              "tree_txt": "experiments\\outputs\\101_scanned_body_font_position_fallback\\statistics_principles_strict_body_size_tree.txt"
+            }
+          },
+          {
+            "key": "hankyung_reading",
+            "pdf": "data\\scanned-pdf-not-indexed\\한경_읽는법_-_한국경제신문-compressed[econ macro book].pdf",
+            "evaluation": "manual_eye_check_only",
+            "page_count": 285,
+            "line_count": 9944,
+            "chunk_count": 1076,
+            "body_font_size": 6.65,
+            "body_tiers": [
+              9,
+              10,
+              11,
+              12
+            ],
+            "body_line_spacing": 15.72,
+            "font_baseline": {
+              "candidate_count": 127
+            },
+            "body_tier_fallback": {
+              "name": "current_2d_body_tier_support_5_isolation_1",
+              "candidate_count": 12,
+              "y_gap_exceeds_body_spacing_count": 7,
+              "tree_txt": "experiments\\outputs\\101_scanned_body_font_position_fallback\\hankyung_reading_body_tier_tree.txt"
+            },
+            "strict_body_size_fallback": {
+              "name": "current_2d_strict_body_size_support_5_isolation_1",
+              "candidate_count": 5,
+              "y_gap_exceeds_body_spacing_count": 1,
+              "tree_txt": "experiments\\outputs\\101_scanned_body_font_position_fallback\\hankyung_reading_strict_body_size_tree.txt"
+            }
+          }
+        ],
+        "finding": "interest_economics: one-line body-tier candidates=16 (y-gap>spacing=9), strict candidates=9 (y-gap>spacing=5), manual eye check only; statistics_principles: one-line body-tier candidates=58 (y-gap>spacing=25), strict candidates=0 (y-gap>spacing=0), manual eye check only; hankyung_reading: one-line body-tier candidates=12 (y-gap>spacing=7), strict candidates=5 (y-gap>spacing=1), manual eye check only"
+      },
+      "finding": "interest_economics: one-line body-tier candidates=16 (y-gap>spacing=9), strict candidates=9 (y-gap>spacing=5), manual eye check only; statistics_principles: one-line body-tier candidates=58 (y-gap>spacing=25), strict candidates=0 (y-gap>spacing=0), manual eye check only; hankyung_reading: one-line body-tier candidates=12 (y-gap>spacing=7), strict candidates=5 (y-gap>spacing=1), manual eye check only",
+      "ran_at": "2026-07-15T12:58:09+09:00"
     }
   ]
 }
