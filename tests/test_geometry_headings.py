@@ -179,10 +179,8 @@ def test_position_pattern은_config의_최소_page_반복수를_지킨다():
 
 
 def test_heading_candidate_mode가_잘못되면_실패한다():
-    config = replace(TypographyConfig(), heading_candidate_mode="unknown")
-
-    with pytest.raises(ValueError, match="heading candidate mode"):
-        extract_geometry_headings(_pattern_lines(), _tiers(), config)
+    with pytest.raises(ValueError, match="heading_candidate_mode"):
+        replace(TypographyConfig(), heading_candidate_mode="unknown")
 
 
 def _small_candidate_tiers() -> TierSet:

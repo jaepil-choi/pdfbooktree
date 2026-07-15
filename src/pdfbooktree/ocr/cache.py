@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 from dataclasses import asdict
 from pathlib import Path
@@ -15,24 +14,9 @@ from pdfbooktree.ocr.models import (
     InsertableOcrWord,
     OcrBox,
 )
+from pdfbooktree.utils.hashing import file_sha256 as file_sha256
+from pdfbooktree.utils.hashing import stable_json_hash
 from pdfbooktree.utils.jsonio import to_jsonable
-
-
-def file_sha256(path: Path) -> str:
-    """파일 전체 sha256 hash를 계산한다."""
-
-    digest = hashlib.sha256()
-    with path.open("rb") as file:
-        for chunk in iter(lambda: file.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
-def stable_json_hash(data: Any) -> str:
-    """JSON 직렬화 가능한 값의 안정 hash를 계산한다."""
-
-    payload = json.dumps(to_jsonable(data), ensure_ascii=False, sort_keys=True)
-    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 class OcrCache:
