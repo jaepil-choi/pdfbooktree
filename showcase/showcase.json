@@ -219,6 +219,19 @@
       "finding": "금리의 경제학: bookmarks=79, Markdown files=45, 10K satisfied=True, fallback=False, level=1, coverage=1.0, tolerance evidence=79/79 | 통계학원론: bookmarks=33, Markdown files=33, 10K satisfied=False, fallback=True, level=2, coverage=0.8788, tolerance evidence=33/33",
       "command": "uv run python showcase/019_geometry_ocr_markdown_split_live.py",
       "ran_at": "2026-07-13T18:00:28+09:00"
+    },
+    {
+      "id": "020_position_fallback_bookmark_live",
+      "purpose": "실험 097~101에서 검증한 body-tier position fallback이 옮겨진 production Processor 기본 경로를 실제 scanned/OCR PDF 3권(금리의 경제학, 통계학원론, 한경 읽는법)으로 검증하고, showcase 019 baseline과 실험 101 strict fallback 후보 수 대비 같거나 나은지 확인한다.",
+      "inputs": [
+        "showcase\\outputs\\017_interest_economics_ocr_overlay\\interest_economics_ocr.pdf",
+        "showcase\\outputs\\018_statistics_principles_ocr_overlay\\statistics_principles_ocr.pdf",
+        "data\\scanned-pdf-not-indexed\\한경_읽는법_-_한국경제신문-compressed[econ macro book].pdf"
+      ],
+      "outputs": "showcase\\outputs\\020_position_fallback_bookmark_live\\result.json",
+      "finding": "금리의 경제학: bookmarks=141 (baseline=79, at_or_above=True), font_candidates=132, position_fallback_candidates=9 (실험101 strict=9), kept_in_plan=9 | 통계학원론: bookmarks=69 (baseline=33, at_or_above=True), font_candidates=69, position_fallback_candidates=0 (실험101 strict=0), kept_in_plan=0 | 한경 읽는법: bookmarks=132 (baseline=None, at_or_above=True), font_candidates=127, position_fallback_candidates=5 (실험101 strict=5), kept_in_plan=5",
+      "command": "uv run python showcase/020_position_fallback_bookmark_live.py",
+      "ran_at": "2026-07-15T13:48:35+09:00"
     }
   ]
 }
