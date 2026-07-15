@@ -10,3 +10,6 @@ def test_public_import_contract() -> None:
     assert pdfbooktree.BatchProcessor is not None
     assert pdfbooktree.ProcessingConfig is not None
     assert pdfbooktree.TypographyConfig is not None
+    assert pdfbooktree.resolve_processing_config is not None
+    assert pdfbooktree.create_run_context is not None
+    assert pdfbooktree.RunManifest is not None

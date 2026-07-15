@@ -1,7 +1,13 @@
 """PDF 책 구조화 패키지의 공개 API다."""
 
 from pdfbooktree.batch import BatchProcessor
-from pdfbooktree.config import MarkdownSplitConfig, ProcessingConfig, TypographyConfig
+from pdfbooktree.config import (
+    ConfigError,
+    MarkdownSplitConfig,
+    ProcessingConfig,
+    TypographyConfig,
+)
+from pdfbooktree.config_io import ResolvedConfig, resolve_processing_config
 from pdfbooktree.inspection import (
     inspect_bookmarks,
     inspect_ocr_artifact,
@@ -25,6 +31,14 @@ from pdfbooktree.models import (
     TypographyLine,
 )
 from pdfbooktree.processor import Processor
+from pdfbooktree.run import (
+    InputIdentity,
+    RunContext,
+    RunError,
+    RunManifest,
+    ToolIdentity,
+    create_run_context,
+)
 
 __all__ = [
     "BatchProcessor",
@@ -33,6 +47,7 @@ __all__ = [
     "BookmarkPlanValidation",
     "BookmarkTreeNode",
     "ConfidenceSummary",
+    "ConfigError",
     "ExistingOutlineItem",
     "HeadingCandidate",
     "inspect_bookmarks",
@@ -46,6 +61,14 @@ __all__ = [
     "ProcessingConfig",
     "ProcessingResult",
     "Processor",
+    "ResolvedConfig",
+    "resolve_processing_config",
+    "RunContext",
+    "RunError",
+    "RunManifest",
+    "InputIdentity",
+    "ToolIdentity",
+    "create_run_context",
     "Tier",
     "TierSet",
     "TypographyConfig",

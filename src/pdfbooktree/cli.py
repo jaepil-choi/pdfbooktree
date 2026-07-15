@@ -17,7 +17,14 @@ from pdfbooktree.classify import (
     build_classify_logger,
     default_classify_log_mode,
 )
-from pdfbooktree.config import MarkdownSplitConfig, ProcessingConfig, TypographyConfig
+from pdfbooktree.config import ConfigError
+from pdfbooktree.config_io import (
+    config_field_specs,
+    config_schema,
+    render_config_toml,
+    resolve_processing_config,
+    write_config_template,
+)
 from pdfbooktree.inspection import (
     inspect_bookmarks,
     inspect_ocr_artifact,
@@ -35,13 +42,131 @@ from pdfbooktree.ocr.config import CachePolicy
 from pdfbooktree.ocr.logger import OcrLogMode, build_ocr_logger, default_ocr_log_mode
 from pdfbooktree.pdf.scan_signals import DEFAULT_MAX_SAMPLE_PAGES
 from pdfbooktree.processor import Processor
+from pdfbooktree.run import RunError, create_run_context
 from pdfbooktree.utils.jsonio import to_jsonable
 
 app = typer.Typer(
     help="PDF 책의 typography hierarchy로 bookmark와 Markdown tree를 만든다."
 )
 inspect_app = typer.Typer(help="PDF와 처리 artifact를 읽기 전용으로 조사한다.")
+config_app = typer.Typer(help="versioned processing config를 생성하고 검증한다.")
 app.add_typer(inspect_app, name="inspect")
+app.add_typer(config_app, name="config")
+
+
+def print_config_output(value: object, *, output_format: str) -> None:
+    """config command 결과를 human 또는 JSON 형식으로 출력한다."""
+
+    if output_format == "json":
+        typer.echo(json.dumps(to_jsonable(value), ensure_ascii=False))
+        return
+    if output_format != "human":
+        raise typer.BadParameter("format은 human 또는 json이어야 한다.")
+    if isinstance(value, str):
+        typer.echo(value)
+    else:
+        rich_print(value)
+
+
+def raise_config_error(error: Exception) -> None:
+    """config 오류를 stack trace 없는 CLI 입력 오류로 바꾼다."""
+
+    raise typer.BadParameter(str(error)) from error
+
+
+@config_app.command("defaults")
+def config_defaults_cmd(
+    output_format: str = typer.Option(
+        "human", "--format", help="출력 형식이다: human, json."
+    ),
+) -> None:
+    """현재 package의 resolved 기본 config를 출력한다."""
+
+    resolved = resolve_processing_config()
+    value: object = (
+        resolved.data
+        if output_format == "json"
+        else render_config_toml(resolved.config)
+    )
+    print_config_output(value, output_format=output_format)
+
+
+@config_app.command("schema")
+def config_schema_cmd(
+    output_format: str = typer.Option(
+        "json", "--format", help="출력 형식이다: human, json."
+    ),
+) -> None:
+    """public config의 JSON Schema를 출력한다."""
+
+    print_config_output(config_schema(), output_format=output_format)
+
+
+@config_app.command("init")
+def config_init_cmd(
+    path: Path = typer.Argument(..., help="생성할 TOML config 경로다."),
+    force: bool = typer.Option(
+        False, "--force", help="config 파일이 이미 있어도 덮어쓴다."
+    ),
+) -> None:
+    """주석이 포함된 기본 TOML config 파일을 만든다."""
+
+    try:
+        created = write_config_template(path, force=force)
+    except ConfigError as error:
+        raise_config_error(error)
+    rich_print({"status": "created", "config_path": str(created)})
+
+
+@config_app.command("explain")
+def config_explain_cmd(
+    key: str | None = typer.Argument(
+        None, help="설명할 dotted config key다. 생략하면 전체 field를 출력한다."
+    ),
+    output_format: str = typer.Option(
+        "human", "--format", help="출력 형식이다: human, json."
+    ),
+) -> None:
+    """config field의 타입, 기본값, 범위와 설명을 출력한다."""
+
+    specs = config_field_specs()
+    if key is not None:
+        if key not in specs:
+            raise_config_error(ConfigError(f"알 수 없는 config key다: {key}"))
+        value: object = {"key": key, **specs[key]}
+    else:
+        value = specs
+    print_config_output(value, output_format=output_format)
+
+
+@config_app.command("validate")
+def config_validate_cmd(
+    path: Path = typer.Argument(..., help="검증할 TOML config 경로다."),
+    set_option: list[str] = typer.Option(
+        [],
+        "--set",
+        help="최종 config override다. dotted.key=value 형식으로 여러 번 줄 수 있다.",
+    ),
+    output_format: str = typer.Option(
+        "human", "--format", help="출력 형식이다: human, json."
+    ),
+) -> None:
+    """TOML과 override를 합친 resolved config를 검증한다."""
+
+    try:
+        resolved = resolve_processing_config(path, set_overrides=set_option)
+    except ConfigError as error:
+        raise_config_error(error)
+    print_config_output(
+        {
+            "status": "valid",
+            "config_path": str(path),
+            "config_hash": resolved.config_hash,
+            "resolved_config": resolved.data,
+            "sources": resolved.sources,
+        },
+        output_format=output_format,
+    )
 
 
 def parse_page_ranges(value: str | None) -> list[int] | None:
@@ -187,6 +312,42 @@ def _coerce_engine_option_value(value: str) -> object:
         return float(value)
     except ValueError:
         return value
+
+
+def _legacy_process_cli_overrides(
+    context: typer.Context, values: dict[str, object]
+) -> dict[str, object]:
+    """기존 process flag 중 command line에서 명시한 값만 config override로 만든다."""
+
+    field_map = {
+        "skip_existing_bookmarks": "processing.skip_existing_bookmarks",
+        "heading_candidate_mode": "typography.heading_candidate_mode",
+        "body_font_text_coverage": "typography.body_font_text_coverage",
+        "body_font_max_words": "typography.body_font_max_words",
+        "position_min_repeated_pages": "typography.position_min_repeated_pages",
+        "position_fallback_enabled": "typography.position_fallback_enabled",
+        "position_fallback_tolerance": "typography.position_fallback_tolerance",
+        "position_fallback_min_isolation_ratio": (
+            "typography.position_fallback_min_isolation_ratio"
+        ),
+        "min_tier_count": "typography.min_tier_count",
+        "max_heading_tier": "typography.max_heading_tier",
+        "bpe_max_node_words": "typography.bpe_max_node_words",
+        "bpe_level_pollution_ratio": "typography.bpe_level_pollution_ratio",
+        "margin_band_ratio": "typography.margin_band_ratio",
+        "margin_min_consecutive_pages": "typography.margin_min_consecutive_pages",
+        "max_words": "markdown.max_words",
+        "max_words_coverage": "markdown.max_words_coverage",
+    }
+    overrides: dict[str, object] = {}
+    for parameter_name, dotted_key in field_map.items():
+        source = context.get_parameter_source(parameter_name)
+        if source is None or getattr(source, "name", None) != "COMMANDLINE":
+            continue
+        value = values[parameter_name]
+        if value is not None:
+            overrides[dotted_key] = value
+    return overrides
 
 
 @app.command()
@@ -387,9 +548,26 @@ def ocr_overlay_batch_cmd(
 
 @app.command()
 def process(
+    context: typer.Context,
     pdf: Path = typer.Argument(..., help="처리할 PDF 파일이다."),
     output_dir: Path = typer.Option(
-        Path("."), "--output-dir", "-o", help="출력 디렉터리다."
+        Path("."),
+        "--output-dir",
+        "-o",
+        help="run directory를 만들 output root다.",
+    ),
+    config_path: Path | None = typer.Option(
+        None, "--config", help="읽을 versioned TOML processing config다."
+    ),
+    set_option: list[str] = typer.Option(
+        [],
+        "--set",
+        help="최종 config override다. dotted.key=value 형식으로 여러 번 줄 수 있다.",
+    ),
+    flat_output: bool = typer.Option(
+        False,
+        "--flat-output",
+        help="호환을 위해 immutable run directory 없이 기존 flat output을 사용한다.",
     ),
     skip_existing_bookmarks: bool = typer.Option(
         True,
@@ -488,39 +666,67 @@ def process(
 ) -> None:
     """단일 PDF를 typography hierarchy 기반으로 처리한다."""
 
-    allowed_modes = {"position", "font", "position_and_font"}
-    if heading_candidate_mode not in allowed_modes:
-        raise typer.BadParameter(
-            "heading-candidate-mode은 position, font, position_and_font 중 하나여야 한다."
+    legacy_values: dict[str, object] = {
+        "skip_existing_bookmarks": skip_existing_bookmarks,
+        "heading_candidate_mode": heading_candidate_mode,
+        "body_font_text_coverage": body_font_text_coverage,
+        "body_font_max_words": body_font_max_words,
+        "position_min_repeated_pages": position_min_repeated_pages,
+        "position_fallback_enabled": position_fallback_enabled,
+        "position_fallback_tolerance": position_fallback_tolerance,
+        "position_fallback_min_isolation_ratio": (
+            position_fallback_min_isolation_ratio
+        ),
+        "min_tier_count": min_tier_count,
+        "max_heading_tier": max_heading_tier,
+        "bpe_max_node_words": bpe_max_node_words,
+        "bpe_level_pollution_ratio": bpe_level_pollution_ratio,
+        "margin_band_ratio": margin_band_ratio,
+        "margin_min_consecutive_pages": margin_min_consecutive_pages,
+        "max_words": max_words,
+        "max_words_coverage": max_words_coverage,
+    }
+    try:
+        resolved = resolve_processing_config(
+            config_path,
+            cli_overrides=_legacy_process_cli_overrides(context, legacy_values),
+            set_overrides=set_option,
         )
+    except ConfigError as error:
+        raise_config_error(error)
 
-    config = ProcessingConfig(
-        skip_existing_bookmarks=skip_existing_bookmarks,
-        typography=TypographyConfig(
-            heading_candidate_mode=heading_candidate_mode,
-            body_font_text_coverage=body_font_text_coverage,
-            body_font_max_words=body_font_max_words,
-            position_min_repeated_pages=position_min_repeated_pages,
-            position_fallback_enabled=position_fallback_enabled,
-            position_fallback_tolerance=position_fallback_tolerance,
-            position_fallback_min_isolation_ratio=position_fallback_min_isolation_ratio,
-            min_tier_count=min_tier_count,
-            max_heading_tier=max_heading_tier,
-            bpe_max_node_words=bpe_max_node_words,
-            bpe_level_pollution_ratio=bpe_level_pollution_ratio,
-            margin_band_ratio=margin_band_ratio,
-            margin_min_consecutive_pages=margin_min_consecutive_pages,
-        ),
-        markdown_split=(
-            MarkdownSplitConfig(
-                max_words=max_words, max_words_coverage=max_words_coverage
-            )
-            if max_words is not None
-            else None
-        ),
+    if flat_output:
+        result = Processor(pdf, output_dir, resolved.config).run()
+        rich_print(to_jsonable(result))
+        return
+
+    try:
+        run = create_run_context(
+            pdf,
+            output_dir,
+            resolved,
+            repository_root=Path.cwd(),
+        )
+    except RunError as error:
+        raise_config_error(error)
+    run.start()
+    try:
+        result = Processor(pdf, run.run_dir, resolved.config).run()
+    except Exception as error:
+        run.fail(error)
+        raise
+    manifest = run.complete(result)
+    rich_print(
+        to_jsonable(
+            {
+                "run_id": manifest.run_id,
+                "run_dir": manifest.run_dir,
+                "manifest_path": run.manifest_path,
+                "config_hash": manifest.config_hash,
+                "result": result,
+            }
+        )
     )
-    result = Processor(pdf, output_dir, config).run()
-    rich_print(to_jsonable(result))
 
 
 @app.command()
