@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace as dataclass_replace
 from pathlib import Path
 from typing import cast
 
+import fitz
 import typer
 from rich import print as rich_print
 
+from pdfbooktree.artifacts import write_artifact, write_inference_artifacts
 from pdfbooktree.batch import BatchProcessor
 from pdfbooktree.classify import (
     ClassifyBatchConfig,
@@ -17,7 +20,7 @@ from pdfbooktree.classify import (
     build_classify_logger,
     default_classify_log_mode,
 )
-from pdfbooktree.config import ConfigError
+from pdfbooktree.config import ConfigError, ProcessingConfig
 from pdfbooktree.config_io import (
     config_field_specs,
     config_schema,
@@ -32,6 +35,7 @@ from pdfbooktree.inspection import (
     inspect_plan_artifact,
     inspect_text,
 )
+from pdfbooktree.models import BookmarkPlanItem, ConfidenceSummary, ProcessingResult
 from pdfbooktree.ocr import (
     OcrOverlayBatchConfig,
     OcrOverlayBatchRunner,
@@ -40,9 +44,21 @@ from pdfbooktree.ocr import (
 )
 from pdfbooktree.ocr.config import CachePolicy
 from pdfbooktree.ocr.logger import OcrLogMode, build_ocr_logger, default_ocr_log_mode
+from pdfbooktree.outline.plan_io import PlanError, load_bookmark_plan_json
+from pdfbooktree.outline.validate import validate_bookmark_plan
+from pdfbooktree.pdf.outline import outline_to_plan
 from pdfbooktree.pdf.scan_signals import DEFAULT_MAX_SAMPLE_PAGES
+from pdfbooktree.pipeline import (
+    analyze_pdf,
+    apply_plan,
+    confidence_summary_for_inference,
+    infer_bookmarks,
+    resolve_existing_outline_action,
+)
 from pdfbooktree.processor import Processor
+from pdfbooktree.report import write_processing_report
 from pdfbooktree.run import RunError, create_run_context
+from pdfbooktree.utils.hashing import file_sha256
 from pdfbooktree.utils.jsonio import to_jsonable
 
 app = typer.Typer(
@@ -70,6 +86,12 @@ def print_config_output(value: object, *, output_format: str) -> None:
 
 def raise_config_error(error: Exception) -> None:
     """config 오류를 stack trace 없는 CLI 입력 오류로 바꾼다."""
+
+    raise typer.BadParameter(str(error)) from error
+
+
+def raise_plan_error(error: Exception) -> None:
+    """plan JSON 오류를 stack trace 없는 CLI 입력 오류로 바꾼다."""
 
     raise typer.BadParameter(str(error)) from error
 
@@ -715,6 +737,239 @@ def process(
     except Exception as error:
         run.fail(error)
         raise
+    manifest = run.complete(result)
+    rich_print(
+        to_jsonable(
+            {
+                "run_id": manifest.run_id,
+                "run_dir": manifest.run_dir,
+                "manifest_path": run.manifest_path,
+                "config_hash": manifest.config_hash,
+                "result": result,
+            }
+        )
+    )
+
+
+def _run_infer(
+    pdf: Path, output_dir: Path, config: ProcessingConfig
+) -> ProcessingResult:
+    """existing-outline policy를 따르고, 필요할 때만 typography 추론을 실행한다."""
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    with fitz.open(pdf) as document:
+        total_pages = document.page_count
+
+    decision = resolve_existing_outline_action(pdf, total_pages, config)
+    if decision.reuse_existing:
+        plan = outline_to_plan(decision.existing_outline)
+        validation = validate_bookmark_plan(plan, total_pages)
+        artifacts: dict[str, Path] = {}
+        if config.write_artifacts:
+            artifacts["existing_outline_plan"] = write_artifact(
+                output_dir, "existing_outline_plan", plan
+            )
+            artifacts["bookmark_plan_validation"] = write_artifact(
+                output_dir, "bookmark_plan_validation", validation
+            )
+            if decision.quality is not None:
+                artifacts["existing_outline_quality"] = write_artifact(
+                    output_dir, "existing_outline_quality", decision.quality
+                )
+        warnings = [
+            f"기존 outline {len(plan)}개를 재사용했고 typography 추론은 실행하지 않았다."
+        ] + validation.warnings
+        if decision.quality is not None and decision.quality.is_low_quality:
+            warnings.append(
+                "기존 outline이 low quality로 판정됐다: "
+                f"reasons={decision.quality.reasons}. "
+                "outline_quality.replace_when_low_quality=true로 재추론할 수 있다."
+            )
+        result = ProcessingResult(
+            status="skipped",
+            input_pdf=pdf,
+            bookmark_count=len(plan),
+            confidence_summary=ConfidenceSummary(outline=1.0),
+            warnings=warnings,
+            artifact_paths=artifacts,
+            existing_outline_quality=decision.quality,
+        )
+    else:
+        analysis = analyze_pdf(pdf, config.typography)
+        inference = infer_bookmarks(analysis, config.typography)
+        artifacts = (
+            write_inference_artifacts(output_dir, inference, decision.quality)
+            if config.write_artifacts
+            else {}
+        )
+        warnings = list(inference.validation.warnings)
+        if decision.quality is not None and decision.quality.is_low_quality:
+            warnings.append(
+                "기존 outline이 low quality로 판정돼 typography 추론 결과로 "
+                f"교체했다: reasons={decision.quality.reasons}"
+            )
+        result = ProcessingResult(
+            status="processed" if inference.validation.valid else "failed",
+            input_pdf=pdf,
+            bookmark_count=len(inference.plan),
+            confidence_summary=confidence_summary_for_inference(inference),
+            warnings=warnings,
+            artifact_paths=artifacts,
+            existing_outline_quality=decision.quality,
+        )
+    report_path = write_processing_report(result, output_dir)
+    return dataclass_replace(result, report_path=report_path)
+
+
+@app.command()
+def infer(
+    pdf: Path = typer.Argument(..., help="추론할 PDF 파일이다."),
+    output_dir: Path = typer.Option(
+        Path("."), "--output-dir", "-o", help="run directory를 만들 output root다."
+    ),
+    config_path: Path | None = typer.Option(
+        None, "--config", help="읽을 versioned TOML processing config다."
+    ),
+    set_option: list[str] = typer.Option(
+        [],
+        "--set",
+        help="최종 config override다. dotted.key=value 형식으로 여러 번 줄 수 있다.",
+    ),
+    flat_output: bool = typer.Option(
+        False,
+        "--flat-output",
+        help="호환을 위해 immutable run directory 없이 기존 flat output을 사용한다.",
+    ),
+) -> None:
+    """typography 추론으로 bookmark plan과 근거 artifact만 만든다.
+
+    기존 outline이 있고 low quality가 아니면 outline_quality 정책에 따라
+    추론을 건너뛴다. bookmarked PDF와 Markdown은 만들지 않는다 - 최종
+    산출물이 필요하면 이 명령이 만든 plan을 ``apply``에 전달한다.
+    """
+
+    try:
+        resolved = resolve_processing_config(config_path, set_overrides=set_option)
+    except ConfigError as error:
+        raise_config_error(error)
+
+    if flat_output:
+        result = _run_infer(pdf, output_dir, resolved.config)
+        rich_print(to_jsonable(result))
+        return
+
+    try:
+        run = create_run_context(pdf, output_dir, resolved, repository_root=Path.cwd())
+    except RunError as error:
+        raise_config_error(error)
+    run.start()
+    try:
+        result = _run_infer(pdf, run.run_dir, resolved.config)
+    except Exception as error:
+        run.fail(error)
+        raise
+    manifest = run.complete(result)
+    rich_print(
+        to_jsonable(
+            {
+                "run_id": manifest.run_id,
+                "run_dir": manifest.run_dir,
+                "manifest_path": run.manifest_path,
+                "config_hash": manifest.config_hash,
+                "result": result,
+            }
+        )
+    )
+
+
+def _run_apply(
+    pdf: Path,
+    output_dir: Path,
+    plan: list[BookmarkPlanItem],
+    config: ProcessingConfig,
+) -> ProcessingResult:
+    """검증된 plan으로 bookmarked PDF/Markdown만 만든다. typography 추론은 하지 않는다."""
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    with fitz.open(pdf) as document:
+        total_pages = document.page_count
+    apply_result = apply_plan(pdf, output_dir, plan, total_pages, config.markdown_split)
+    artifacts: dict[str, Path] = {}
+    if config.write_artifacts:
+        artifacts["bookmark_plan_validation"] = write_artifact(
+            output_dir, "bookmark_plan_validation", apply_result.validation
+        )
+    result = ProcessingResult(
+        status="processed" if apply_result.validation.valid else "failed",
+        input_pdf=pdf,
+        output_pdf=apply_result.output_pdf,
+        output_markdown_dir=apply_result.output_markdown_dir,
+        markdown_export=apply_result.markdown_export,
+        bookmark_count=len(plan),
+        confidence_summary=ConfidenceSummary(outline=1.0),
+        warnings=list(apply_result.validation.warnings),
+        artifact_paths=artifacts,
+    )
+    report_path = write_processing_report(result, output_dir)
+    return dataclass_replace(result, report_path=report_path)
+
+
+@app.command()
+def apply(
+    pdf: Path = typer.Argument(..., help="적용할 PDF 파일이다."),
+    plan_path: Path = typer.Option(
+        ..., "--plan", help="적용할 bookmark plan JSON 경로다."
+    ),
+    output_dir: Path = typer.Option(
+        Path("."), "--output-dir", "-o", help="run directory를 만들 output root다."
+    ),
+    config_path: Path | None = typer.Option(
+        None,
+        "--config",
+        help="읽을 versioned TOML processing config다. markdown split 설정에만 쓰인다.",
+    ),
+    set_option: list[str] = typer.Option(
+        [],
+        "--set",
+        help="최종 config override다. dotted.key=value 형식으로 여러 번 줄 수 있다.",
+    ),
+    flat_output: bool = typer.Option(
+        False,
+        "--flat-output",
+        help="호환을 위해 immutable run directory 없이 기존 flat output을 사용한다.",
+    ),
+) -> None:
+    """검증된 bookmark plan을 읽어 최종 PDF/Markdown만 만든다.
+
+    typography extraction과 inference는 다시 실행하지 않는다.
+    """
+
+    try:
+        resolved = resolve_processing_config(config_path, set_overrides=set_option)
+    except ConfigError as error:
+        raise_config_error(error)
+
+    try:
+        plan = load_bookmark_plan_json(plan_path)
+    except PlanError as error:
+        raise_plan_error(error)
+
+    if flat_output:
+        result = _run_apply(pdf, output_dir, plan, resolved.config)
+        rich_print(to_jsonable(result))
+        return
+
+    try:
+        run = create_run_context(pdf, output_dir, resolved, repository_root=Path.cwd())
+    except RunError as error:
+        raise_config_error(error)
+    run.start()
+    try:
+        result = _run_apply(pdf, run.run_dir, plan, resolved.config)
+    except Exception as error:
+        run.fail(error)
+        raise
+    run.record_plan_source(plan_path, file_sha256(plan_path))
     manifest = run.complete(result)
     rich_print(
         to_jsonable(

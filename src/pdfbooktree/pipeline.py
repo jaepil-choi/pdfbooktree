@@ -20,9 +20,11 @@ from pdfbooktree.models import (
     ApplyResult,
     BookmarkInferenceResult,
     BookmarkPlanItem,
+    ConfidenceSummary,
     ExistingOutlineItem,
     OutlineQualityAssessment,
     PdfAnalysis,
+    TierSet,
 )
 from pdfbooktree.outline.plan import insert_position_fallback, normalize_bookmark_plan
 from pdfbooktree.outline.validate import validate_bookmark_plan
@@ -167,3 +169,39 @@ def apply_plan(
         output_markdown_dir=output_markdown_dir,
         markdown_export=markdown_export,
     )
+
+
+def confidence_summary_for_inference(
+    inference: BookmarkInferenceResult,
+) -> ConfidenceSummary:
+    """``infer_bookmarks()`` 결과를 요약 신뢰도로 바꾼다.
+
+    ``Processor``와 ``infer`` CLI가 같은 공식을 쓰도록 공유한다.
+    """
+
+    return ConfidenceSummary(
+        line_extraction=1.0 if inference.lines else 0.0,
+        tiering=_tiering_confidence(inference.font_tiers, inference.height_tiers),
+        heading_candidates=_mean(
+            [candidate.confidence for candidate in inference.heading_candidates]
+            + [candidate.confidence for candidate in inference.fallback_candidates]
+        ),
+        outline=_mean([item.confidence for item in inference.plan]),
+    )
+
+
+def _mean(values: list[float]) -> float:
+    if not values:
+        return 0.0
+    return round(sum(values) / len(values), 4)
+
+
+def _tiering_confidence(font_tiers: TierSet, height_tiers: TierSet) -> float:
+    counts = [
+        tier_set.final_tier_count
+        for tier_set in [font_tiers, height_tiers]
+        if tier_set.final_tier_count
+    ]
+    if not counts:
+        return 0.0
+    return min(1.0, round(max(counts) / 4.0, 4))

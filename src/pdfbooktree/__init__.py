@@ -1,5 +1,6 @@
 """PDF 책 구조화 패키지의 공개 API다."""
 
+from pdfbooktree.artifacts import write_inference_artifacts
 from pdfbooktree.batch import BatchProcessor
 from pdfbooktree.config import (
     ConfigError,
@@ -35,10 +36,12 @@ from pdfbooktree.models import (
     TierSet,
     TypographyLine,
 )
+from pdfbooktree.outline.plan_io import PlanError, load_bookmark_plan_json
 from pdfbooktree.pdf.outline_quality import assess_outline_quality
 from pdfbooktree.pipeline import (
     analyze_pdf,
     apply_plan,
+    confidence_summary_for_inference,
     infer_bookmarks,
     resolve_existing_outline_action,
 )
@@ -64,6 +67,7 @@ __all__ = [
     "BookmarkPlanValidation",
     "BookmarkTreeNode",
     "ConfidenceSummary",
+    "confidence_summary_for_inference",
     "ConfigError",
     "ExistingOutlineItem",
     "HeadingCandidate",
@@ -73,12 +77,14 @@ __all__ = [
     "inspect_page_count",
     "inspect_plan_artifact",
     "inspect_text",
+    "load_bookmark_plan_json",
     "MarkdownExportResult",
     "MarkdownFileStat",
     "MarkdownSplitConfig",
     "OutlineQualityAssessment",
     "OutlineQualityConfig",
     "PdfAnalysis",
+    "PlanError",
     "ProcessingConfig",
     "ProcessingResult",
     "Processor",
@@ -95,4 +101,5 @@ __all__ = [
     "TierSet",
     "TypographyConfig",
     "TypographyLine",
+    "write_inference_artifacts",
 ]

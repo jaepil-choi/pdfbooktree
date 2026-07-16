@@ -6,7 +6,7 @@ from pathlib import Path
 
 import fitz
 
-from pdfbooktree.artifacts import write_artifact, write_jsonl_artifact
+from pdfbooktree.artifacts import write_artifact, write_inference_artifacts
 from pdfbooktree.config import ProcessingConfig
 from pdfbooktree.export.markdown import (
     export_markdown_split,
@@ -26,6 +26,7 @@ from pdfbooktree.pdf.outline import outline_to_plan
 from pdfbooktree.pipeline import (
     analyze_pdf,
     apply_plan,
+    confidence_summary_for_inference,
     infer_bookmarks,
     resolve_existing_outline_action,
 )
@@ -98,20 +99,7 @@ class Processor:
             or plan_markdown_dir_path(self.input_pdf, self.output_dir),
             markdown_export=apply_result.markdown_export if apply_result else None,
             bookmark_count=len(inference.plan),
-            confidence_summary=ConfidenceSummary(
-                line_extraction=1.0 if inference.lines else 0.0,
-                tiering=_tiering_confidence(
-                    inference.font_tiers, inference.height_tiers
-                ),
-                heading_candidates=_mean(
-                    [candidate.confidence for candidate in inference.heading_candidates]
-                    + [
-                        candidate.confidence
-                        for candidate in inference.fallback_candidates
-                    ]
-                ),
-                outline=_mean([item.confidence for item in inference.plan]),
-            ),
+            confidence_summary=confidence_summary_for_inference(inference),
             warnings=warnings,
             artifact_paths=artifacts,
             existing_outline_quality=decision.quality,
@@ -171,36 +159,7 @@ class Processor:
     ) -> dict[str, Path]:
         if not self.config.write_artifacts:
             return {}
-        artifacts = {
-            "whole_book_lines": write_jsonl_artifact(
-                self.output_dir, "whole_book_lines", inference.lines
-            ),
-            "font_size_tiers": write_artifact(
-                self.output_dir, "font_size_tiers", inference.font_tiers
-            ),
-            "height_tiers": write_artifact(
-                self.output_dir, "height_tiers", inference.height_tiers
-            ),
-            "heading_candidates": write_artifact(
-                self.output_dir, "heading_candidates", inference.heading_candidates
-            ),
-            "position_fallback_candidates": write_artifact(
-                self.output_dir,
-                "position_fallback_candidates",
-                inference.fallback_candidates,
-            ),
-            "bookmark_plan": write_artifact(
-                self.output_dir, "bookmark_plan", inference.plan
-            ),
-            "bookmark_plan_validation": write_artifact(
-                self.output_dir, "bookmark_plan_validation", inference.validation
-            ),
-        }
-        if quality is not None:
-            artifacts["existing_outline_quality"] = write_artifact(
-                self.output_dir, "existing_outline_quality", quality
-            )
-        return artifacts
+        return write_inference_artifacts(self.output_dir, inference, quality)
 
     def _write_existing_artifacts(
         self, plan, validation, quality: OutlineQualityAssessment | None = None
@@ -237,20 +196,3 @@ class Processor:
             report_path=report_path,
             existing_outline_quality=result.existing_outline_quality,
         )
-
-
-def _mean(values: list[float]) -> float:
-    if not values:
-        return 0.0
-    return round(sum(values) / len(values), 4)
-
-
-def _tiering_confidence(font_tiers, height_tiers) -> float:
-    counts = [
-        tier_set.final_tier_count
-        for tier_set in [font_tiers, height_tiers]
-        if tier_set.final_tier_count
-    ]
-    if not counts:
-        return 0.0
-    return min(1.0, round(max(counts) / 4.0, 4))

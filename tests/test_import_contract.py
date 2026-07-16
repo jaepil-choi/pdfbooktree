@@ -23,3 +23,7 @@ def test_public_import_contract() -> None:
     assert pdfbooktree.OutlineQualityAssessment is not None
     assert pdfbooktree.assess_outline_quality is not None
     assert pdfbooktree.resolve_existing_outline_action is not None
+    assert pdfbooktree.load_bookmark_plan_json is not None
+    assert pdfbooktree.PlanError is not None
+    assert pdfbooktree.write_inference_artifacts is not None
+    assert pdfbooktree.confidence_summary_for_inference is not None
