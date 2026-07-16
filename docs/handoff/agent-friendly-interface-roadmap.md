@@ -7,6 +7,10 @@
 - 상세 평가 근거: `docs/review/pkg-evaluation-20260715.md`
 - Phase 1 구현 커밋: `ea4d4fd` (`feat: add reproducible config and run interface`)
 - Phase 1 구현 노트: `docs/vibe/implementations/046_ea4d4fd6289e.md`
+- Phase 0 contract 커밋: `7ceaa53` (`test: pin process golden contracts`)
+- Phase 0 contract 구현 노트: `docs/vibe/implementations/050_7ceaa53bdd91.md`
+- Phase 3A 구현 커밋: `65598b4` (`feat: add versioned CLI result contracts`)
+- Phase 3A 구현 노트: `docs/vibe/implementations/051_65598b424d93.md`
 
 이 handoff의 핵심 판단은 기존 bookmark engine algorithm을 다시 설계하지 않고, 이미 검증된 production pipeline을 agent가 단계별로 실행·검토·비교할 수 있는 public interface로 재구성하는 것이다.
 
@@ -22,10 +26,10 @@ inspect -> infer -> evaluate -> sweep/compare -> apply
 
 | Phase | 목표 | 상태 | 비고 |
 | --- | --- | --- | --- |
-| Phase 0 | 현재 public contract와 결과 고정 | 부분 완료 | 일반 회귀 테스트는 있으나 pipeline parity와 대표 artifact golden contract가 부족하다. |
+| Phase 0 | 현재 public contract와 결과 고정 | 완료 (2026-07-16) | pipeline parity, fast path, process Python/CLI result, artifact JSON shape와 manifest-to-file golden contract를 고정했다. |
 | Phase 1 | versioned config와 immutable run 기반 | 완료 | TOML, `--set`, config CLI, config/input hash, run manifest를 구현했다. |
 | Phase 2 | core pipeline을 analyze/infer/apply로 분리 | 완료 (2026-07-16) | `pipeline.py`(analyze_pdf/infer_bookmarks/apply_plan/resolve_existing_outline_action), `infer`/`apply` CLI, 로드맵에 없던 existing-outline quality policy까지 추가. 구현 노트 047~049 참고. |
-| Phase 3 | 공통 result/error/event 계약 | 미착수 | 일부 명령만 JSON을 제공하며 exit code와 progress stream이 통일되지 않았다. |
+| Phase 3 | 공통 result/error/event 계약 | 부분 완료 (2026-07-16) | `process`/`infer`/`apply`에 schema v1 envelope, `--format`, `--debug`, stdout/stderr와 exit code 계약을 적용했다. 다른 명령과 event protocol은 남았다. |
 | Phase 4 | evaluator를 production으로 승격 | 미착수 | fuzzy evaluator는 `experiments/102_engine_bookmark_fuzzy_eval.py`에만 있다. |
 | Phase 5 | inspect/compare 개선 | 부분 기반 존재 | 기본 inspect API/CLI는 있으나 plan filter, suspicious item, compare가 없다. |
 | Phase 6 | cache-aware sweep | 미착수 | analysis cache, matrix parser, ranking이 없다. |
@@ -35,22 +39,22 @@ inspect -> infer -> evaluate -> sweep/compare -> apply
 
 Phase 0의 목적은 refactoring 전후의 bookmark plan과 artifact가 의도치 않게 달라지는 것을 자동으로 탐지하는 것이다.
 
-현재 확보된 기반:
+완료된 안전망:
 
-- 전체 테스트 148개가 통과한다.
-- 기존 outline 처리와 Markdown export에 대한 `Processor` 테스트가 있다.
-- Phase 1에서 config validation, config CLI, process run integration, manifest lifecycle 테스트를 추가했다.
-- package root import contract 테스트가 있다.
+- 전체 테스트 193개가 통과한다.
+- `test_pipeline_parity.py`가 refactoring 전 plan의 title, page, level, source를
+  golden 값으로 고정하고, existing-outline fast path가 typography extraction을
+  실행하지 않는지 검증한다.
+- `test_process_golden_contract.py`가 inference와 existing-outline 경로의
+  `ProcessingResult`, artifact 이름과 JSON/JSONL shape, report, 실제 `process` CLI의
+  immutable run manifest-to-file 연결을 고정한다.
+- `test_process_cli.py`, `test_run.py`가 config precedence, flat output, manifest
+  lifecycle과 exception error shape를 검증한다.
+- 실제 native/OCR 및 existing-outline 동작은 showcase 019~021이 보완한다.
 
-아직 필요한 항목:
-
-1. 현재 `Processor.run()` 조립과 실험 102의 `_predict_plan()` 조립이 같은 plan을 만드는 parity test
-2. 기본 config에서 refactoring 전후 plan item의 title, page, level, source가 완전히 같은지 검증하는 characterization test
-3. 기존 outline fast path가 typography extraction을 실행하지 않는다는 회귀 테스트
-4. 대표 native/OCR PDF의 주요 artifact 이름과 shape를 고정하는 contract 검증
-5. `process`의 기존 Python/CLI 결과 계약을 고정하는 golden test
-
-Phase 0 전체를 별도 프로젝트로 다시 시작하지 않는다. Phase 2에서 실제로 건드리는 계약에 필요한 항목을 Phase 2의 첫 작업 단위로 보완한다.
+Phase 0은 agent-friendly interface refactoring에 필요한 자동 회귀 계약을 확보한
+것으로 완료 처리한다. PDF binary나 Markdown 본문 전체의 byte-for-byte snapshot은
+불안정성이 커서 계약 대상에 넣지 않았다.
 
 ## 4. 완료된 Phase 1
 
@@ -100,7 +104,7 @@ pdfbooktree config validate
 
 저장소 전체 Ruff에는 이번 변경과 무관한 `experiments/`, `references/`의 기존 오류 18개가 남아 있다. 현재 구현 검증 기준은 `src tests` 범위다.
 
-## 5. 다음 작업: Phase 2 범위
+## 5. 완료된 Phase 2 구현 범위
 
 Phase 2의 목표는 production bookmark algorithm을 한 곳에서만 조립하고, plan 생성과 최종 파일 생성을 독립 실행할 수 있게 만드는 것이다.
 
@@ -226,11 +230,21 @@ Phase 2 완료 조건:
 
 ### Phase 3. 공통 result/error/event 계약
 
-- versioned result/error envelope
-- 모든 command의 `--format human|json`
-- stdout final result와 stderr progress 분리
+완료된 Phase 3A:
+
+- schema version 1의 public result/error envelope
+- `process`/`infer`/`apply`의 `--format human|json`, `--debug`
+- JSON final result는 stdout, error는 stderr로 분리
+- exit code 0(success/skipped), 1(runtime), 2(input/config/plan),
+  3(processing validation failure) 고정
+- immutable run의 complete/fail manifest를 envelope 출력보다 먼저 기록
+
+남은 범위:
+
+- config/inspect/OCR/classify/batch를 같은 envelope와 `--format` 계약으로 전환
+- Typer callback 진입 전 parser-level 오류의 JSON envelope 처리 여부 결정
 - pipeline event protocol과 JSONL renderer
-- documented exit code와 `--debug`
+- 장시간 명령의 stderr progress와 stdout final result 분리
 
 ### Phase 4. Production evaluator
 
@@ -265,26 +279,30 @@ Phase 2 완료 조건:
 
 ## 8. 다음 작업자 체크리스트
 
-1. `develop`에서 `feat/pipeline-stages` 같은 Phase 2 feature branch를 만든다.
-2. Phase 2 진입 parity/characterization test부터 추가한다.
-3. `PdfAnalysis`, `BookmarkInferenceResult`, `ApplyResult`의 최소 public shape를 확정한다.
-4. `analyze_pdf()`와 `infer_bookmarks()`를 추출한 뒤 기존 `Processor`가 이를 사용하게 한다.
-5. `apply_plan()`과 plan loader를 분리한다.
-6. `infer`/`apply` CLI와 help/contract test를 추가한다.
-7. `uv run pytest`, `uv run ruff check src tests`, `uv run ruff format --check src tests`를 실행한다.
-8. 실제 PDF로 showcase를 실행하고 결과를 기록한다.
-9. 구현 커밋 뒤 implementation note를 별도 커밋한다.
+1. 완료된 feature/fix 브랜치를 `develop`에 반영하고 새 `feat/` 브랜치를 만든다.
+2. Phase 3B는 production pipeline을 실행하지 않는 config/inspect command부터 공통
+   envelope로 전환한다.
+3. inspect의 기존 `--json`은 호환 alias로 유지하고 `--format human|json`을 canonical
+   option으로 만든다.
+4. 기존 config JSON payload를 새 envelope의 `result` 안으로 이동하고 error를
+   stderr envelope + exit 2로 통일한다.
+5. parser-level Typer error와 runtime error는 command callback error와 구분해
+   테스트하고, app-level hook이 필요한 변경은 별도 증분으로 남긴다.
+6. `uv run pytest`, `uv run ruff check src tests`,
+   `uv run ruff format --check src tests`를 실행한다.
+7. 구현 커밋 뒤 implementation note를 별도 커밋한다.
 
 ## 9. 알려진 주의사항
 
 - 기존 긴 `process` option은 Rich help의 기본 폭에서 일부 이름이 생략된다.
 - `ProcessingConfig.ocr_policy`는 아직 `Processor`에 연결되지 않았다.
-- failed `ProcessingResult`의 CLI exit code는 아직 공통 규칙으로 정규화되지 않았다.
+- `process`/`infer`/`apply`의 failed `ProcessingResult`는 exit 3으로 정규화됐다.
+  다른 command의 result/error/exit code는 아직 통일되지 않았다.
 - run manifest는 versioned이지만 기존 plan과 모든 중간 artifact가 독립 schema version을 가진 것은 아니다.
 - 동일 input/config라도 timestamp가 다르면 새 run이 생성되며 cache hit/resume는 아직 없다.
 - corporate PC에서는 권한 상승 shell의 원래 Codex 실행 파일 접근이 거부될 수 있으므로 `AGENTS.md`의 `C:\tmp\codex-apply-patch.exe --codex-run-as-apply-patch` 우회 규칙을 따른다.
 
-## 10. 2026-07-16 갱신: Phase 2 완료, 다음 작업 제안
+## 10. 2026-07-16 갱신: Phase 2 완료 기록
 
 Phase 2 완료 조건(§5.8) 6개를 모두 충족했다. `feat/pipeline-stages` 브랜치, 커밋:
 
@@ -292,10 +310,34 @@ Phase 2 완료 조건(§5.8) 6개를 모두 충족했다. `feat/pipeline-stages`
 - `f2d80167` existing-outline quality policy 추가 — 로드맵에 없던 스코프. 기존 bookmark가 있으면 기본적으로 skip하는 canonical 동작은 유지하되, 실험 102 기준(item ≤3개, item 수가 page 수의 0.9배 이상) + numeric-only title 신호로 low quality를 항상 판정해 표시하고, `outline_quality.replace_when_low_quality`로만 opt-in 교체한다 (노트 `048_f2d801675acc.md`)
 - `0757e094` `infer`/`apply` CLI를 이 policy 위에 추가 (노트 `049_0757e09437b4.md`)
 
-각 노트의 "남은 리스크"에 다음이 남아 있다:
+이후 결정과 처리 상태:
 
-1. `numeric_only_title`/임계값(`min_item_count=4`, `max_item_to_page_ratio=0.9`)이 실제 300STUDY 코퍼스로 검증되지 않았다 — showcase 2권만 확인함.
-2. Phase 0 잔여 항목(§3) 중 대표 native/OCR PDF artifact contract 고정, `process` CLI/Python 결과 golden test가 여전히 없다.
-3. `experiments/102_engine_bookmark_fuzzy_eval.py::_predict_plan()`이 `infer_bookmarks()`를 호출하도록 단순화되지 않아 production과 갈라질 수 있다.
+1. `numeric_only_title`/기본 임계값은 합리적인 보수적 분류이며 자동 교체 기본값이
+   꺼져 있으므로 추가 300STUDY 검증 실험은 진행하지 않기로 결정했다.
+2. Phase 0 golden/contract는 `7ceaa53`과 구현 노트 050에서 완료했다.
+3. 실험 102의 `_predict_plan()` public pipeline 전환은 `75b7e21`에서 완료했으며
+   `fix/experiment-102-public-pipeline` 브랜치에 있다. `develop` 반영은 별도다.
 
-**다음 작업 우선순위 제안**: (1) 300STUDY 전체로 새 `assess_outline_quality()` 임계값 실측 검증 실험 → (2) Phase 0 golden/contract test 보강 → (3) Phase 3(공통 result/error/event 계약, `infer`/`apply` exit code 정규화 포함) 착수.
+## 11. 2026-07-16 갱신: Phase 3A 완료, 다음 작업 제안
+
+`feat/cli-result-contract`에서 첫 공통 CLI 계약 수직 단위를 완료했다.
+
+- `65598b4`: schema v1 `CommandResultEnvelope`/`CommandErrorEnvelope`, 공통 renderer,
+  `process`/`infer`/`apply`의 human/JSON final result와 error, documented exit code,
+  `--debug`를 구현했다.
+- `4c326c7`: 구현 노트 051을 작성했다.
+- 검증: `uv run pytest` 193 passed, `uv run ruff check src tests`와
+  `uv run ruff format --check src tests` 통과, 세 command의 실제 help 확인.
+
+Phase 3A에서 의도적으로 남긴 범위:
+
+1. config/inspect/OCR/classify/batch의 공통 envelope와 canonical `--format`
+2. Typer parser-level usage error의 JSON 처리
+3. pipeline event protocol, JSONL renderer와 장시간 작업 progress 분리
+4. report JSON의 `report_path=null`과 최종 result path 비대칭
+
+**다음 작업 우선순위 제안**: Phase 3B로 production pipeline을 실행하지 않는
+config/inspect command를 공통 envelope에 먼저 연결한다. 기존 config `--format`과
+inspect `--json` 기반이 있어 pipeline algorithm을 건드리지 않고 contract 확장과
+호환 검증을 한 작업 단위로 끝낼 수 있다. 그 다음 Phase 3C에서 event protocol과
+OCR/batch progress를 다룬다.
