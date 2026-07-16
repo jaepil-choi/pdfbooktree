@@ -25,6 +25,10 @@
 - Phase 5 1차 증분 구현 노트: `docs/vibe/implementations/057_7ac5f610657e.md`
 - Phase 7 1차 증분(`batch` 계약) 구현 커밋: `b815316` (`feat: add batch result/error/event contract`)
 - Phase 7 1차 증분 구현 노트: `docs/vibe/implementations/058_b815316c007e.md`
+- Phase 7 2차 증분(item run manifest) 구현 커밋: `ea3082d` (`feat: add batch item run manifests`)
+- Phase 7 2차 증분 구현 노트: `docs/vibe/implementations/059_ea3082d3183e.md`
+- Phase 7 3차 증분(batch run manifest) 구현 커밋: `0c7ce00` (`feat: add batch run manifest`)
+- Phase 7 3차 증분 구현 노트: `docs/vibe/implementations/060_0c7ce009c489.md`
 
 이 handoff의 핵심 판단은 기존 bookmark engine algorithm을 다시 설계하지 않고, 이미 검증된 production pipeline을 agent가 단계별로 실행·검토·비교할 수 있는 public interface로 재구성하는 것이다.
 
@@ -43,11 +47,11 @@ inspect -> infer -> evaluate -> sweep/compare -> apply
 | Phase 0 | 현재 public contract와 결과 고정 | 완료 (2026-07-16) | pipeline parity, fast path, process Python/CLI result, artifact JSON shape와 manifest-to-file golden contract를 고정했다. |
 | Phase 1 | versioned config와 immutable run 기반 | 완료 | TOML, `--set`, config CLI, config/input hash, run manifest를 구현했다. |
 | Phase 2 | core pipeline을 analyze/infer/apply로 분리 | 완료 (2026-07-16) | `pipeline.py`(analyze_pdf/infer_bookmarks/apply_plan/resolve_existing_outline_action), `infer`/`apply` CLI, 로드맵에 없던 existing-outline quality policy까지 추가. 구현 노트 047~049 참고. |
-| Phase 3 | 공통 result/error/event 계약 | practical complete (2026-07-16) | `process`/`infer`/`apply`, config, inspect, 단일 OCR, classify, `ocr-overlay-batch`까지 schema v1 계약을 적용했다. Typer parser-level error는 `--format` 파싱 전 시점이라 공통 envelope에 넣지 않기로 결정했다. 기존 `batch`는 Phase 7로 미룬다. |
+| Phase 3 | 공통 result/error/event 계약 | practical complete (2026-07-16) | `process`/`infer`/`apply`, config, inspect, 단일 OCR, classify, `ocr-overlay-batch`에 schema v1 계약을 적용했다. Typer parser-level error는 `--format` 파싱 전 시점이라 공통 envelope에 넣지 않기로 결정했다. `batch`도 Phase 7 1차 증분에서 같은 계약으로 전환됐다. |
 | Phase 4 | evaluator를 production으로 승격 | 1차 증분 완료 (2026-07-16) | `src/pdfbooktree/evaluation.py`로 fuzzy matcher와 matched/missed/extra detail을 승격했다. external reference loader, 3단계 reference quality, structural quality signal은 미착수. |
 | Phase 5 | inspect/compare 개선 | 1차 증분 완료 (2026-07-16) | `inspect compare`로 두 plan의 added/removed/moved/level/source diff를 구현했다. `inspect summary`, plan filter/limit/suspicious item, metric/structural signal delta는 미착수. |
 | Phase 6 | cache-aware sweep | 미착수 | analysis cache, matrix parser, ranking이 없다. |
-| Phase 7 | process/batch/OCR 통합과 문서화 | 1차 증분 완료 (2026-07-16) | `batch` command에 공통 result/error/event 계약(`--config`/`--set`/`--format`/`--debug`/`--log-mode`)을 적용했다. `ocr_policy` 연결, `process` API 재정리, item run manifest, 문서화는 미착수. |
+| Phase 7 | process/batch/OCR 통합과 문서화 | 3차 증분 완료 (2026-07-16) | `batch` 공통 계약, item별 immutable run manifest, batch 전체 durable manifest와 summary-to-item 연결까지 완료했다. `process`는 이미 Phase 2에서 analyze/infer/apply 조립기로 전환됐다. `ocr_policy` 계약 정리와 README/artifact/exit-code 문서화가 남았다. |
 
 ## 3. Phase 0 진행 상태
 
@@ -357,11 +361,22 @@ Phase 2 완료 조건:
 
 ### Phase 7. End-to-end와 batch
 
-- `ocr_policy` 실제 연결 또는 public contract에서 정리
-- `process`를 단계형 API 조립기로 마무리
-- `batch`에 동일 config/result/run semantics 적용
-- item run과 batch summary 연결
-- README quick start, artifact 구조와 exit code 문서화
+완료된 범위:
+
+- `process`는 Phase 2에서 existing-outline policy 이후
+  `analyze_pdf -> infer_bookmarks -> apply_plan`을 호출하는 단계형 조립기로 전환했다.
+- `batch`에 single command와 같은 versioned config, result/error/event와 exit-code
+  의미를 적용했다(1차 증분, 노트 058).
+- 각 item에 input/config identity, immutable run directory와 succeeded/failed
+  manifest를 적용하고 `BatchItemResult`에서 직접 연결했다(2차 증분, 노트 059).
+- batch 실행 자체에 `output_root/_batch_runs/<batch_run_id>/batch_manifest.json`을
+  만들고, config/input selection, lifecycle, summary, item run과 실제 output을
+  연결했다(3차 증분, 노트 060).
+
+남은 범위:
+
+- `ocr_policy`를 실제로 연결하거나 public contract에서 unsupported 상태로 정리
+- README quick start, Python/CLI 예제, artifact 구조와 stdout/stderr/exit code 문서화
 
 ## 8. 다음 작업자 체크리스트 (완료: 2026-07-16, §13 참고)
 
@@ -394,9 +409,12 @@ Phase 2 완료 조건:
 - `ProcessingConfig.ocr_policy`는 아직 `Processor`에 연결되지 않았다.
 - `process`/`infer`/`apply`의 failed `ProcessingResult`는 exit 3으로 정규화됐다.
   `classify-scan`의 파일별 오류는 유효한 부분 report이므로 exit 0 + `error_count`다.
-- 단일 `ocr-overlay`, `classify-scan`, `ocr-overlay-batch` 모두 공통 result/
-  error/event 계약을 쓴다. 기존 `batch`(bookmark 처리 command)만 아직
-  이 계약을 쓰지 않고, Phase 7로 미뤄뒀다.
+- `process`, `infer`, `apply`, config, inspect, 단일 `ocr-overlay`,
+  `classify-scan`, `ocr-overlay-batch`, `batch` 모두 공통 result/error 계약을
+  사용한다. 장시간 command의 progress는 stderr event로 분리한다.
+- `batch`의 item 실패는 command 실패가 아니므로 exit 0 + `failed_count`와
+  succeeded batch manifest를 유지한다. logger/infrastructure 같은 command 전체
+  예외만 exit 1과 failed batch manifest를 만든다.
 - Typer callback 진입 전 parser-level usage error(필수 옵션 누락, 타입
   변환 오류 등)는 공통 JSON envelope 대상이 **아니다** - `--format` 자체가
   파싱되기 전에 발생하는 오류라 침습적인 `app()` wrapper 없이는 처리할 수
@@ -412,7 +430,9 @@ Phase 2 완료 조건:
   다르다 - 같은 pipeline의 두 실행은 보통 정확히 같은 page가 나와야 정상이고,
   달라졌다면 그 자체가 `moved`로 보고할 신호이기 때문이다.
 - run manifest는 versioned이지만 기존 plan과 모든 중간 artifact가 독립 schema version을 가진 것은 아니다.
-- 동일 input/config라도 timestamp가 다르면 새 run이 생성되며 cache hit/resume는 아직 없다.
+- 동일 input/config라도 timestamp가 다르면 새 item/batch run이 생성되며 cache
+  hit/resume는 아직 없다. batch selection hash는 입력 directory, recursive 여부,
+  발견한 PDF 경로 목록을 고정하고 각 PDF content hash는 item manifest에 기록한다.
 - corporate PC에서는 권한 상승 shell의 원래 Codex 실행 파일 접근이 거부될 수 있으므로 `AGENTS.md`의 `C:\tmp\codex-apply-patch.exe --codex-run-as-apply-patch` 우회 규칙을 따른다.
 
 ## 10. 2026-07-16 갱신: Phase 2 완료 기록
@@ -466,7 +486,7 @@ Phase 3A 이후 다음 세 수직 단위를 완료했다.
 - `a9649ef`: 단일 `ocr-overlay` result/error/event와 stdout/stderr 분리. 구현 노트 053.
 - `308b3c1`: `classify-scan` result/error/event와 stdout/stderr 분리. 구현 노트 054.
 
-현재 branch 상태:
+당시 branch 상태(현재 상태는 §15 참고):
 
 - branch: `feat/classify-event-contract`
 - 구현 커밋: `308b3c1`
@@ -503,8 +523,8 @@ Phase 3A 이후 다음 세 수직 단위를 완료했다.
 ## 13. 2026-07-16 갱신: Phase 3 완료, Phase 4/5 1차 증분과 다음 작업
 
 `develop`에서 순서대로 세 수직 단위를 완료하고 각각 바로 `develop`에
-fast-forward 병합했다(모두 로컬에만 있고 `origin/develop`에는 아직 push하지
-않았다 - 현재 `develop`이 `origin/develop`보다 31 commit 앞서 있다).
+fast-forward 병합했다. 당시 모두 로컬에만 있었고 `develop`은
+`origin/develop`보다 31 commit 앞서 있었다.
 
 ### 13.1 Phase 3 완료: `ocr-overlay-batch` 계약
 
@@ -597,9 +617,9 @@ Phase 5 작업 중 `feat/inspect-compare` 브랜치를 만들지 않고 `develop
 `feat/inspect-compare`에서 마무리하고 `develop`에 fast-forward 병합했다.
 `develop`의 현재 히스토리에는 이 실수의 흔적이 남아 있지 않다.
 
-### 13.5 다음 작업 후보
+### 13.5 당시 다음 작업 후보
 
-Phase 4/5의 남은 항목(external reference loader, 3단계 reference quality,
+당시 Phase 4/5의 남은 항목(external reference loader, 3단계 reference quality,
 structural quality signal, `inspect summary`, plan filter/limit)은 대부분
 실제 소비자나 실제 데이터가 생겨야 진행할 수 있는 상태라 지금 우선순위가
 낮다. 아직 손대지 않은 Phase 6(cache-aware sweep)과 Phase 7(process/batch/
@@ -607,7 +627,7 @@ OCR 통합과 문서화) 중 하나로 넘어가는 것이 다음 자연스러�
 범위가 커서, 착수 전에 첫 수직 단위를 좁게 정하는 논의가 먼저 필요하다.
 
 이 판단에 따라 Phase 7의 `batch` command 계약을 첫 수직 단위로 선택해
-완료했다. 진행 기록은 §14를 본다.
+완료했다. 이 후보는 이후 §14~15까지 진행됐으며 최신 우선순위는 §15.3을 본다.
 
 ## 14. 2026-07-16 갱신: Phase 7 1차 증분(`batch` 계약)과 다음 작업
 
@@ -625,20 +645,63 @@ OCR 통합과 문서화) 중 하나로 넘어가는 것이 다음 자연스러�
 - 검증: `uv run pytest -q` 246 passed, ruff check/format 통과, 실제 책
   (`data/native-pdf-indexed/퀀트의 세계 - 홍창수.pdf`)으로 stdout/stderr 분리와
   existing-outline fast path를 확인했다.
-- 의도적으로 제외한 것: item별 immutable run manifest, `ocr_policy` 연결,
-  `process`를 단계형 API 조립기로 재정리하는 것, README/exit code 문서화.
-  이 항목들이 Phase 7의 남은 범위다(§7 Phase 7 목록 그대로 유효).
+- 이 단계에서 의도적으로 제외한 item별 immutable run manifest와 batch 전체
+  manifest는 이후 2·3차 증분으로 완료됐다(§15). `ocr_policy`와 README 문서화만
+  현재 Phase 7 잔여 범위다.
 
-이 브랜치는 아직 `develop`에 병합하지 않았다. 다음 작업자는 먼저
-`git checkout develop && git merge feat/batch-result-contract`(fast-forward
-가능)로 병합한 뒤 진행한다.
+이 브랜치는 이후 `develop`에 반영됐고, 후속 item/batch manifest 작업도 같은 날
+순서대로 진행됐다. 최신 상태는 §15를 따른다.
 
 ### 다음 작업 후보
 
-1. Phase 7 나머지 - `ocr_policy`를 `Processor`에 실제 연결하거나 public
-   contract에서 정리, `process`를 analyze/infer/apply 조립기로 마무리
-   재검토(§5.6 확인), item run과 batch summary 연결(batch도 immutable run
-   manifest를 쓰게 만드는 것), README quick start와 exit code 문서화.
-2. Phase 6(cache-aware sweep) - 아직 미착수. analysis cache key, TOML sweep
-   matrix parser, ranking 설계가 먼저 필요해 착수 전 논의 단위가 크다.
-3. Phase 4/5 잔여 항목은 실 소비자/데이터가 생기기 전까지는 그대로 보류.
+이 후보 중 item run과 batch summary 연결은 이후 완료됐다. 최신 다음 작업은
+§15.3을 따른다.
+
+## 15. 2026-07-16 갱신: Phase 7 item/batch run manifest 완료와 다음 작업
+
+### 15.1 2차 증분: item별 immutable run manifest
+
+- 구현 커밋: `ea3082d` (`feat: add batch item run manifests`)
+- implementation note 커밋: `677607d` (노트 059)
+- showcase 커밋: `a28b9e4` (showcase 024)
+- `BatchItemResult`가 기존 `ProcessingResult` shape를 유지하면서 `run_id`,
+  `run_dir`, `manifest_path`, `config_hash`를 추가로 제공한다.
+- `BatchProcessor`는 각 PDF마다 `create_run_context()`를 사용하고, 손상 PDF도
+  `allow_unreadable_input=True`로 failed manifest와 nullable page count를 남긴다.
+- 검증: `uv run pytest -q` 251 passed, ruff 통과, 실제 책 한 권으로 item과
+  manifest의 ID/config/output 연결을 확인했다.
+
+### 15.2 3차 증분: batch 전체 durable manifest
+
+- branch: `feat/batch-run-manifest` (`develop`에서 분기)
+- 구현 커밋: `0c7ce00` (`feat: add batch run manifest`)
+- implementation note 커밋: `f13970b` (노트 060)
+- showcase 커밋: `91aa2f5` (showcase 025)
+- `src/pdfbooktree/batch_run.py`에 schema v1 `BatchRunManifest`/
+  `BatchRunContext`를 추가했다. batch run은
+  `output_root/_batch_runs/<batch_run_id>` 아래에 resolved config와 manifest를
+  저장한다.
+- manifest는 input directory, recursive 옵션, 발견한 PDF 목록과 selection hash,
+  tool/config identity, summary, item `run_id`/manifest/status와 실제 output을
+  연결한다.
+- 부분 item 실패는 기존 의미대로 succeeded batch + `failed_count`이고, command
+  전체 예외만 failed lifecycle과 error type/message를 기록한다.
+- `BatchResult`와 CLI JSON result는 `batch_run_id`, `batch_run_dir`,
+  `batch_manifest_path`, `config_hash`를 노출한다.
+- 검증: `uv run pytest -q` 252 passed, `uv run ruff check src tests`,
+  `uv run ruff format --check src tests` 통과. showcase 025가 실제 책 한 권으로
+  succeeded batch manifest와 item run/실제 Markdown output 연결을 확인했다.
+
+### 15.3 다음 작업 우선순위
+
+1. README quick start와 artifact/exit-code 문서화 - 현재 public interface와
+   durable run 구조가 안정됐으므로 CLI/Python 시작 예제, stdout/stderr, 단일 run,
+   item run, batch run directory 구조를 먼저 문서화한다.
+2. `ocr_policy` contract 정리 - 현재 `never/auto/always`를 config가 허용하지만
+   `Processor`는 `never` 이외 값을 실행하지 않고 warning만 남긴다. 자동 연결은
+   Upstage credential/API 비용/cache/overwrite confirmation까지 요구하므로, 별도
+   end-to-end 설계 전에는 unsupported 값을 조기 거부하는 방향을 우선 검토한다.
+3. Phase 6 첫 수직 단위 - analysis cache key와 cache artifact read/write만 먼저
+   구현한 뒤 sweep matrix, resume/jobs, ranking을 후속 증분으로 나눈다.
+4. Phase 4/5 잔여 항목은 실제 external gold나 structural ranking 소비자가 생기기
+   전까지 보류한다.
