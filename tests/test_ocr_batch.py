@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 import fitz
+import pytest
 
 from pdfbooktree.ocr.batch import OcrOverlayBatchConfig, OcrOverlayBatchRunner
 from pdfbooktree.ocr.models import OcrOverlayResult
@@ -16,11 +17,11 @@ def _insert_full_page_image(page: fitz.Page) -> None:
     page.insert_image(page.rect, pixmap=pixmap)
 
 
-def _write_scanned_pdf(path: Path) -> None:
+def _write_scanned_pdf(path: Path, page_count: int = 2) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     document = fitz.open()
     try:
-        for _ in range(2):
+        for _ in range(page_count):
             page = document.new_page(width=200, height=200)
             _insert_full_page_image(page)
         document.save(path)
@@ -124,3 +125,37 @@ def test_ocr_overlay_batch_dry_run_does_not_call_builder(
     assert result.target_count == 1
     assert result.dry_run_count == 1
     assert result.processed_count == 0
+
+
+def test_ocr_overlay_batch_filters_pdfs_below_min_page_count(tmp_path: Path) -> None:
+    input_dir = tmp_path / "300STUDY"
+    _write_scanned_pdf(input_dir / "short.pdf", page_count=2)
+    _write_scanned_pdf(input_dir / "long.pdf", page_count=3)
+
+    result = OcrOverlayBatchRunner(
+        OcrOverlayBatchConfig(
+            input_dir=input_dir,
+            output_dir=tmp_path / "out",
+            dry_run=True,
+            min_page_count=3,
+        )
+    ).run()
+
+    by_name = {item.input_pdf.name: item for item in result.results}
+    assert result.target_count == 1
+    assert result.dry_run_count == 1
+    assert result.skipped_count == 1
+    assert by_name["long.pdf"].is_ocr_overwrite_target is True
+    assert by_name["short.pdf"].is_ocr_overwrite_target is False
+    assert by_name["short.pdf"].target_reject_reason == (
+        "below_min_page_count: page_count=2 < min_page_count=3"
+    )
+
+
+def test_ocr_overlay_batch_rejects_invalid_min_page_count(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="min_page_count는 1 이상의 정수"):
+        OcrOverlayBatchConfig(
+            input_dir=tmp_path / "300STUDY",
+            output_dir=tmp_path / "out",
+            min_page_count=0,
+        )

@@ -876,6 +876,12 @@ def ocr_overlay_batch_cmd(
     ),
     engine: str = typer.Option("upstage", "--engine", help="OCR engine 이름이다."),
     render_dpi: int = typer.Option(300, "--render-dpi", min=72, help="렌더링 DPI다."),
+    min_page_count: int = typer.Option(
+        1,
+        "--min-page-count",
+        min=1,
+        help="OCR 대상에 포함할 최소 PDF page 수다. 지정값 이상만 처리한다.",
+    ),
     max_sample_pages: int = typer.Option(
         DEFAULT_MAX_SAMPLE_PAGES,
         "--max-sample-pages",
@@ -941,6 +947,7 @@ def ocr_overlay_batch_cmd(
             engine=engine,
             engine_options=parse_engine_options(engine_option),
             render_dpi=render_dpi,
+            min_page_count=min_page_count,
             max_sample_pages=max_sample_pages,
             stats_word_level=stats_word_level,
         )

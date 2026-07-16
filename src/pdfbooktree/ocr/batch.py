@@ -60,8 +60,19 @@ class OcrOverlayBatchConfig:
     engine: str = "upstage"
     engine_options: dict[str, object] | None = None
     render_dpi: int = 300
+    min_page_count: int = 1
     max_sample_pages: int = DEFAULT_MAX_SAMPLE_PAGES
     stats_word_level: bool = False
+
+    def __post_init__(self) -> None:
+        """최소 page 수가 public Python interface에서도 유효한지 확인한다."""
+
+        if (
+            isinstance(self.min_page_count, bool)
+            or not isinstance(self.min_page_count, int)
+            or self.min_page_count < 1
+        ):
+            raise ValueError("min_page_count는 1 이상의 정수여야 한다.")
 
 
 @dataclass(frozen=True)
@@ -211,9 +222,13 @@ class OcrOverlayBatchRunner:
             scan = classify_scan(pdf_path, self.config.max_sample_pages)
             bookmarks = extract_existing_bookmarks(pdf_path)
             meaningful = has_meaningful_bookmark(bookmarks)
-            is_target = scan.is_scanned and not meaningful
+            meets_min_page_count = scan.page_count >= self.config.min_page_count
+            is_target = scan.is_scanned and not meaningful and meets_min_page_count
             target_reject_reason = _target_reject_reason(
-                scan.reject_reasons, meaningful
+                scan.reject_reasons,
+                meaningful,
+                page_count=scan.page_count,
+                min_page_count=self.config.min_page_count,
             )
             will_process = (
                 is_target
@@ -367,9 +382,20 @@ class OcrOverlayBatchRunner:
         return sorted(self.input_dir.glob(pattern))
 
 
-def _target_reject_reason(reject_reasons: tuple[str, ...], meaningful: bool) -> str:
+def _target_reject_reason(
+    reject_reasons: tuple[str, ...],
+    meaningful: bool,
+    *,
+    page_count: int,
+    min_page_count: int,
+) -> str:
     if reject_reasons:
         return "not_scanned: " + " | ".join(reject_reasons)
+    if page_count < min_page_count:
+        return (
+            "below_min_page_count: "
+            f"page_count={page_count} < min_page_count={min_page_count}"
+        )
     if meaningful:
         return "has_meaningful_bookmark"
     return ""
