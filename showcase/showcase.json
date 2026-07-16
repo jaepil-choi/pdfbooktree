@@ -268,6 +268,17 @@
       "finding": "position_fallback_enabled=False로 다시 추론하면 plan_a(기본)=171개, plan_b(fallback 끔)=154개. removed=17(fallback이 찾았지만 fallback 끄면 사라지는 항목), added=0, unchanged=154.",
       "command": "uv run python showcase/023_bookmark_plan_compare.py",
       "ran_at": "2026-07-16T13:50:07+09:00"
+    },
+    {
+      "id": "024_batch_item_run_manifest",
+      "purpose": "BatchProcessor와 BatchItemResult가 실제 책의 item별 immutable run identity, manifest, output 경로를 연결하는지 검증한다.",
+      "inputs": [
+        "data\\native-pdf-indexed\\퀀트의 세계 - 홍창수.pdf"
+      ],
+      "outputs": "showcase\\outputs\\024_batch_item_run_manifest\\result.json",
+      "finding": "실제 PDF 1권을 batch 처리해 item별 immutable run directory와 manifest를 생성했다. status=processed, run_id=20260716T055720275622Z-9cb6bf2b-8ff742ec, config_hash 일치=True, manifest_status=succeeded.",
+      "command": "uv run python showcase/024_batch_item_run_manifest.py",
+      "ran_at": "2026-07-16T14:57:21+09:00"
     }
   ]
 }
