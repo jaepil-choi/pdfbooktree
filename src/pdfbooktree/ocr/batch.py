@@ -5,9 +5,12 @@ from __future__ import annotations
 import csv
 import json
 import time
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
+from typing import Iterator, Literal
+
+import fitz
 
 from pdfbooktree.ocr.builder import OcrOverlayBuilder
 from pdfbooktree.ocr.config import OcrOverlayConfig
@@ -16,6 +19,7 @@ from pdfbooktree.ocr.logger import (
     CompositeOcrLogger,
     JsonFileOcrLogger,
     NullBatchOcrProgress,
+    OcrBatchPreparationProgress,
     OcrLogger,
     OcrLogMode,
     build_batch_ocr_progress,
@@ -43,6 +47,8 @@ CSV_FIELDS = [
     "cache_hit_count",
     "cache_miss_count",
     "error",
+    "mupdf_warning_count",
+    "mupdf_warnings",
     "elapsed_sec",
 ]
 
@@ -91,6 +97,7 @@ class OcrOverlayBatchFileResult:
     cache_hit_count: int = 0
     cache_miss_count: int = 0
     error: str | None = None
+    mupdf_warnings: tuple[str, ...] = ()
     elapsed_sec: float = 0.0
 
 
@@ -109,6 +116,11 @@ class OcrOverlayBatchResult:
     detail_jsonl_path: Path
     summary_path: Path
     results: list[OcrOverlayBatchFileResult]
+    target_page_count: int = 0
+    will_process_count: int = 0
+    will_process_page_count: int = 0
+    mupdf_warning_pdf_count: int = 0
+    mupdf_warning_count: int = 0
 
 
 @dataclass(frozen=True)
@@ -128,6 +140,10 @@ class _Classification:
     is_target: bool
     target_reject_reason: str
     will_process: bool
+    is_scanned: bool = False
+    has_meaningful_bookmark: bool = False
+    meets_min_page_count: bool = False
+    mupdf_warnings: tuple[str, ...] = ()
     error: str | None = None
 
 
@@ -155,11 +171,66 @@ class OcrOverlayBatchRunner:
         """PDF를 찾아 target만 OCR overlay하고 report를 저장한다."""
 
         started_at = time.monotonic()
-        pdf_paths = self._find_pdfs()
-        classifications = [self._classify(pdf_path) for pdf_path in pdf_paths]
+        preparation = OcrBatchPreparationProgress(self.log_mode, command=self.command)
+        try:
+            preparation.search_started(self.input_dir, self.config.recursive)
+            pdf_paths = self._find_pdfs()
+            preparation.search_completed(len(pdf_paths))
+            preparation.classification_started(len(pdf_paths))
+            classifications: list[_Classification] = []
+            running_target_count = 0
+            running_target_page_count = 0
+            running_error_count = 0
+            for index, pdf_path in enumerate(pdf_paths, start=1):
+                classification = self._classify(pdf_path)
+                classifications.append(classification)
+                if classification.is_target:
+                    running_target_count += 1
+                    running_target_page_count += classification.page_count
+                if classification.error is not None:
+                    running_error_count += 1
+                preparation.note_classified(
+                    completed_pdf_count=index,
+                    total_pdf_count=len(pdf_paths),
+                    target_count=running_target_count,
+                    target_page_count=running_target_page_count,
+                    error_count=running_error_count,
+                )
 
-        total_pages = sum(c.page_count for c in classifications if c.will_process)
-        total_books = sum(1 for c in classifications if c.will_process)
+            total_pages = sum(c.page_count for c in classifications if c.will_process)
+            total_books = sum(1 for c in classifications if c.will_process)
+            existing_output_count = sum(
+                1
+                for c in classifications
+                if c.is_target and c.output_pdf.exists() and not self.config.force
+            )
+            preparation.classification_completed(
+                {
+                    "total_pdf_count": len(classifications),
+                    "page_count_eligible_count": sum(
+                        1 for c in classifications if c.meets_min_page_count
+                    ),
+                    "scanned_count": sum(1 for c in classifications if c.is_scanned),
+                    "target_count": running_target_count,
+                    "target_page_count": running_target_page_count,
+                    "will_process_count": total_books,
+                    "will_process_page_count": total_pages,
+                    "existing_output_count": existing_output_count,
+                    "classification_error_count": running_error_count,
+                    "mupdf_warning_pdf_count": sum(
+                        1 for c in classifications if c.mupdf_warnings
+                    ),
+                    "mupdf_warning_count": sum(
+                        len(c.mupdf_warnings) for c in classifications
+                    ),
+                    "dry_run": self.config.dry_run,
+                    "min_page_count": self.config.min_page_count,
+                }
+            )
+        except Exception:
+            preparation.close()
+            raise
+
         progress: BatchOcrProgress = (
             build_batch_ocr_progress(
                 self.log_mode, total_pages, total_books, command=self.command
@@ -210,31 +281,50 @@ class OcrOverlayBatchRunner:
             detail_jsonl_path=detail_jsonl_path,
             summary_path=summary_path,
             results=results,
+            target_page_count=sum(
+                result.page_count
+                for result in results
+                if result.is_ocr_overwrite_target
+            ),
+            will_process_count=total_books,
+            will_process_page_count=total_pages,
+            mupdf_warning_pdf_count=sum(
+                1 for result in results if result.mupdf_warnings
+            ),
+            mupdf_warning_count=sum(len(result.mupdf_warnings) for result in results),
         )
         write_json(summary_path, _summary_dict(batch_result))
+        preparation.mupdf_warnings_completed(
+            warning_pdf_count=batch_result.mupdf_warning_pdf_count,
+            warning_count=batch_result.mupdf_warning_count,
+            detail_jsonl_path=detail_jsonl_path,
+        )
+        preparation.close()
         return batch_result
 
     def _classify(self, pdf_path: Path) -> _Classification:
         relative_path = str(pdf_path.relative_to(self.input_dir))
         output_pdf = self.output_pdf_root / relative_path
         artifact_dir = self.artifact_root / Path(relative_path).with_suffix("")
+        mupdf_warnings: list[str] = []
         try:
-            scan = classify_scan(pdf_path, self.config.max_sample_pages)
-            bookmarks = extract_existing_bookmarks(pdf_path)
-            meaningful = has_meaningful_bookmark(bookmarks)
-            meets_min_page_count = scan.page_count >= self.config.min_page_count
-            is_target = scan.is_scanned and not meaningful and meets_min_page_count
-            target_reject_reason = _target_reject_reason(
-                scan.reject_reasons,
-                meaningful,
-                page_count=scan.page_count,
-                min_page_count=self.config.min_page_count,
-            )
-            will_process = (
-                is_target
-                and not self.config.dry_run
-                and not (output_pdf.exists() and not self.config.force)
-            )
+            with _capture_mupdf_warnings(mupdf_warnings):
+                scan = classify_scan(pdf_path, self.config.max_sample_pages)
+                bookmarks = extract_existing_bookmarks(pdf_path)
+                meaningful = has_meaningful_bookmark(bookmarks)
+                meets_min_page_count = scan.page_count >= self.config.min_page_count
+                is_target = scan.is_scanned and not meaningful and meets_min_page_count
+                target_reject_reason = _target_reject_reason(
+                    scan.reject_reasons,
+                    meaningful,
+                    page_count=scan.page_count,
+                    min_page_count=self.config.min_page_count,
+                )
+                will_process = (
+                    is_target
+                    and not self.config.dry_run
+                    and not (output_pdf.exists() and not self.config.force)
+                )
             return _Classification(
                 pdf_path=pdf_path,
                 relative_path=relative_path,
@@ -244,6 +334,10 @@ class OcrOverlayBatchRunner:
                 is_target=is_target,
                 target_reject_reason=target_reject_reason,
                 will_process=will_process,
+                is_scanned=scan.is_scanned,
+                has_meaningful_bookmark=meaningful,
+                meets_min_page_count=meets_min_page_count,
+                mupdf_warnings=tuple(mupdf_warnings),
             )
         except Exception as exc:  # noqa: BLE001 - 분류 실패도 개별 실패로 남기고 계속 진행한다.
             return _Classification(
@@ -255,6 +349,7 @@ class OcrOverlayBatchRunner:
                 is_target=False,
                 target_reject_reason="",
                 will_process=False,
+                mupdf_warnings=tuple(mupdf_warnings),
                 error=str(exc),
             )
 
@@ -280,6 +375,7 @@ class OcrOverlayBatchRunner:
                 output_pdf=output_pdf,
                 artifact_dir=artifact_dir,
                 error=classification.error,
+                mupdf_warnings=classification.mupdf_warnings,
                 elapsed_sec=time.monotonic() - started_at,
             )
 
@@ -294,6 +390,7 @@ class OcrOverlayBatchRunner:
                 output_pdf=output_pdf,
                 artifact_dir=artifact_dir,
                 page_count=classification.page_count,
+                mupdf_warnings=classification.mupdf_warnings,
                 elapsed_sec=time.monotonic() - started_at,
             )
 
@@ -308,6 +405,7 @@ class OcrOverlayBatchRunner:
                 output_pdf=output_pdf,
                 artifact_dir=artifact_dir,
                 page_count=classification.page_count,
+                mupdf_warnings=classification.mupdf_warnings,
                 elapsed_sec=time.monotonic() - started_at,
             )
 
@@ -322,9 +420,11 @@ class OcrOverlayBatchRunner:
                 output_pdf=output_pdf,
                 artifact_dir=artifact_dir,
                 page_count=classification.page_count,
+                mupdf_warnings=classification.mupdf_warnings,
                 elapsed_sec=time.monotonic() - started_at,
             )
 
+        processing_warnings: list[str] = []
         try:
             config = OcrOverlayConfig(
                 input_pdf=classification.pdf_path,
@@ -345,7 +445,8 @@ class OcrOverlayBatchRunner:
                 logger = CompositeOcrLogger(
                     [display_logger, JsonFileOcrLogger(artifact_dir)]
                 )
-            overlay = OcrOverlayBuilder(config, logger=logger).run()
+            with _capture_mupdf_warnings(processing_warnings):
+                overlay = OcrOverlayBuilder(config, logger=logger).run()
             progress.note_book_done(
                 classification.page_count, len(overlay.processed_pages)
             )
@@ -361,6 +462,9 @@ class OcrOverlayBatchRunner:
                 processed_page_count=len(overlay.processed_pages),
                 cache_hit_count=overlay.cache_hit_count,
                 cache_miss_count=overlay.cache_miss_count,
+                mupdf_warnings=(
+                    classification.mupdf_warnings + tuple(processing_warnings)
+                ),
                 elapsed_sec=time.monotonic() - started_at,
             )
         except Exception as exc:  # noqa: BLE001 - 파일별 실패를 report에 남기고 계속 진행한다.
@@ -374,12 +478,34 @@ class OcrOverlayBatchRunner:
                 output_pdf=output_pdf,
                 artifact_dir=artifact_dir,
                 error=str(exc),
+                mupdf_warnings=(
+                    classification.mupdf_warnings + tuple(processing_warnings)
+                ),
                 elapsed_sec=time.monotonic() - started_at,
             )
 
     def _find_pdfs(self) -> list[Path]:
         pattern = "**/*.pdf" if self.config.recursive else "*.pdf"
         return sorted(self.input_dir.glob(pattern))
+
+
+@contextmanager
+def _capture_mupdf_warnings(collected: list[str]) -> Iterator[None]:
+    """MuPDF raw stderr를 막고 현재 PDF 작업의 복구 경고를 수집한다."""
+
+    previous_display = bool(fitz.TOOLS.mupdf_display_warnings())
+    fitz.TOOLS.mupdf_display_warnings(False)
+    fitz.TOOLS.reset_mupdf_warnings()
+    try:
+        yield
+    finally:
+        try:
+            warning_text = fitz.TOOLS.mupdf_warnings()
+            collected.extend(
+                line.strip() for line in warning_text.splitlines() if line.strip()
+            )
+        finally:
+            fitz.TOOLS.mupdf_display_warnings(previous_display)
 
 
 def _target_reject_reason(
@@ -405,10 +531,15 @@ def _summary_dict(batch_result: OcrOverlayBatchResult) -> dict[str, object]:
     return {
         "total_pdf_count": batch_result.total_pdf_count,
         "target_count": batch_result.target_count,
+        "target_page_count": batch_result.target_page_count,
+        "will_process_count": batch_result.will_process_count,
+        "will_process_page_count": batch_result.will_process_page_count,
         "processed_count": batch_result.processed_count,
         "dry_run_count": batch_result.dry_run_count,
         "skipped_count": batch_result.skipped_count,
         "failed_count": batch_result.failed_count,
+        "mupdf_warning_pdf_count": batch_result.mupdf_warning_pdf_count,
+        "mupdf_warning_count": batch_result.mupdf_warning_count,
         "elapsed_sec": batch_result.elapsed_sec,
         "report_csv_path": batch_result.report_csv_path,
         "detail_jsonl_path": batch_result.detail_jsonl_path,
@@ -429,5 +560,7 @@ def _to_csv_row(result: OcrOverlayBatchFileResult) -> dict[str, object]:
         "cache_hit_count": result.cache_hit_count,
         "cache_miss_count": result.cache_miss_count,
         "error": result.error or "",
+        "mupdf_warning_count": len(result.mupdf_warnings),
+        "mupdf_warnings": " | ".join(result.mupdf_warnings),
         "elapsed_sec": f"{result.elapsed_sec:.4f}",
     }

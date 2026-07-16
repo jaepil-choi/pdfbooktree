@@ -10,6 +10,7 @@ from pdfbooktree.ocr.logger import (
     JsonFileOcrLogger,
     JsonStderrOcrLogger,
     NullBatchOcrProgress,
+    OcrBatchPreparationProgress,
     OcrLogEvent,
     PlainTextOcrLogger,
     TqdmBatchOcrProgress,
@@ -180,6 +181,92 @@ def test_tqdm_batch_progress_reconciles_shortfall_on_failure() -> None:
     progress.note_book_done(4, 1)
     assert progress._outer.n == 4
     progress.close()
+
+
+def test_tqdm_batch_progress_does_not_mix_skips_into_ocr_bar() -> None:
+    """비대상 PDF 수는 OCR page bar postfix에 섞이지 않아야 한다."""
+
+    sink = io.StringIO()
+    progress = TqdmBatchOcrProgress(total_pages=2, total_books=1, file=sink)
+
+    progress.note_skip()
+    progress.note_skip()
+    progress.close()
+
+    assert "skipped=" not in sink.getvalue()
+
+
+def test_batch_preparation_tqdm_shows_discovery_classification_and_summary() -> None:
+    sink = io.StringIO()
+    progress = OcrBatchPreparationProgress("tqdm", file=sink)
+
+    progress.search_started(Path("300STUDY"), recursive=True)
+    progress.search_completed(2)
+    progress.classification_started(2)
+    progress.note_classified(
+        completed_pdf_count=1,
+        total_pdf_count=2,
+        target_count=1,
+        target_page_count=120,
+        error_count=0,
+    )
+    progress.note_classified(
+        completed_pdf_count=2,
+        total_pdf_count=2,
+        target_count=1,
+        target_page_count=120,
+        error_count=1,
+    )
+    progress.classification_completed(
+        {
+            "total_pdf_count": 2,
+            "page_count_eligible_count": 1,
+            "scanned_count": 1,
+            "target_count": 1,
+            "target_page_count": 120,
+            "will_process_count": 1,
+            "will_process_page_count": 120,
+            "existing_output_count": 0,
+            "classification_error_count": 1,
+            "mupdf_warning_pdf_count": 1,
+            "mupdf_warning_count": 2,
+        }
+    )
+
+    output = sink.getvalue()
+    assert "PDF 탐색 시작" in output
+    assert "recursive=True" in output
+    assert "PDF 탐색 완료: 2개 발견" in output
+    assert "PDF 분류" in output
+    assert "OCR 대상=1권/120page" in output
+    assert "분류 실패=1권" in output
+    assert "MuPDF 경고=1권/2건" in output
+
+
+def test_batch_preparation_json_emits_versioned_lifecycle_events(capsys) -> None:
+    progress = OcrBatchPreparationProgress("json")
+
+    progress.search_started(Path("300STUDY"), recursive=True)
+    progress.search_completed(1)
+    progress.classification_started(1)
+    progress.note_classified(
+        completed_pdf_count=1,
+        total_pdf_count=1,
+        target_count=1,
+        target_page_count=100,
+        error_count=0,
+    )
+
+    events = [json.loads(line) for line in capsys.readouterr().err.splitlines()]
+    assert [event["event"] for event in events] == [
+        "discovery_started",
+        "discovery_completed",
+        "classification_started",
+        "classification_progress",
+    ]
+    assert all(event["schema_version"] == 1 for event in events)
+    assert all(event["command"] == "ocr-overlay-batch" for event in events)
+    assert events[-1]["data"]["target_page_count"] == 100
 
 
 def test_build_batch_ocr_progress_dispatches_by_mode() -> None:

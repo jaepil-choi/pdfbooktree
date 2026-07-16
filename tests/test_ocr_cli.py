@@ -429,6 +429,9 @@ def test_ocr_overlay_batch_json_result_and_events_use_separate_streams(
     assert final["command"] == "ocr-overlay-batch"
     assert final["ok"] is True
     assert final["result"]["failed_count"] == 1
+    assert final["result"]["target_page_count"] == 0
+    assert final["result"]["will_process_page_count"] == 0
+    assert final["result"]["mupdf_warning_count"] == 0
     events = [json.loads(line) for line in result.stderr.splitlines()]
     assert len(events) == 1
     assert events[0]["schema_version"] == 1

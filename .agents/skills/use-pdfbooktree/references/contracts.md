@@ -92,6 +92,8 @@ OCR batch는 output root 아래 원본 상대 경로를 보존한 `pdfs/`와 `ar
 
 - `min_page_count`는 inclusive target gate다. `page_count >= min_page_count`인 PDF만 후속 scanned/bookmark 조건을 만족할 때 target이 되고, 더 짧은 PDF의 `target_reject_reason`은 `below_min_page_count: page_count=... < min_page_count=...`다.
 - `--dry-run`에서도 page 수와 target 판정 report를 생성하되 OCR API와 PDF 생성을 실행하지 않는다.
+- PDF별 MuPDF parser·font·resource·ICC 복구 진단은 raw stderr로 반복 출력하지 않고 `mupdf_warning_count`, `mupdf_warnings`로 CSV와 detail JSONL에 보존한다. summary의 `mupdf_warning_pdf_count`, `mupdf_warning_count`로 전체 규모를 확인하라. 경고가 있어도 PDF 작업이 결과를 만들면 성공을 유지하고, 실제 예외는 `failed`로 구분한다.
+- summary의 `target_page_count`, `will_process_count`, `will_process_page_count`를 사용해 filter target 전체와 기존 output 제외 후 실제 OCR 실행 규모를 구분하라.
 - `processed_count`, `dry_run_count`, `skipped_count`, `failed_count`, cache hit/miss를 모두 확인하라.
 
 ## 설정 계약

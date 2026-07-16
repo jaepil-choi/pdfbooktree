@@ -203,6 +203,8 @@ uv run pdfbooktree ocr-overlay-batch .\data\300STUDY `
 
 `--min-page-count N`은 inclusive 조건이다. 전체 `page_count >= N`인 문서만 OCR target이 될 수 있고, 그보다 짧은 문서는 `below_min_page_count: page_count=... < min_page_count=...` 사유로 skip한다. 기본값은 `1`이며 1 이상의 정수만 허용한다.
 
+`tqdm` mode는 OCR 전에 PDF 탐색 시작·발견 개수, PDF별 분류 progress, target 권수·page 합계·기존 output·분류 실패·MuPDF 복구 경고 요약을 먼저 표시한다. 이어지는 OCR page bar는 실제 처리 대상만 세며 분류에서 제외된 PDF 수를 `skipped`로 섞지 않는다. `plain`은 단계별 요약을, `json`은 `discovery_started`, `discovery_completed`, `classification_started`, `classification_progress`, `classification_completed`, 선택적 `mupdf_warnings_collected` event를 stderr JSONL로 출력한다.
+
 output root 아래 `pdfs/`, `artifacts/`, `ocr_overlay_batch_report.csv`, `ocr_overlay_batch_detail.jsonl`, `ocr_overlay_batch_summary.json`을 확인하라. API를 호출하지 않고 target만 확인하려면 `--dry-run`을 사용하고, report의 `is_ocr_overwrite_target`, `target_reject_reason`, `page_count`를 검토하라.
 
 ## Inspect 명령
