@@ -6,7 +6,6 @@ file 단위 event를 다룬다.
 
 from __future__ import annotations
 
-import json
 import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -15,6 +14,7 @@ from typing import Literal, Protocol
 from rich.console import Console
 from rich.progress import BarColumn, Progress, TaskID, TextColumn, TimeElapsedColumn
 
+from pdfbooktree.cli_contract import render_command_event_json
 from pdfbooktree.utils.jsonio import to_jsonable
 
 
@@ -58,7 +58,7 @@ class NullClassifyLogger:
 
 
 class PlainTextClassifyLogger:
-    """터미널에 한 줄씩 classify 진행 로그를 출력한다."""
+    """stderr에 한 줄씩 classify 진행 로그를 출력한다."""
 
     def emit(self, event: ClassifyLogEvent) -> None:
         _safe_print_line(format_classify_log_event(event))
@@ -67,11 +67,25 @@ class PlainTextClassifyLogger:
         return None
 
 
-class JsonStdoutClassifyLogger:
-    """stdout에 JSONL event를 출력한다."""
+class JsonStderrClassifyLogger:
+    """stderr에 versioned JSONL event를 출력한다."""
 
     def emit(self, event: ClassifyLogEvent) -> None:
-        _safe_print_line(json.dumps(_event_to_jsonable(event), ensure_ascii=False))
+        payload = _event_to_jsonable(event)
+        data = {
+            key: value
+            for key, value in payload.items()
+            if key not in {"event", "level", "message"}
+        }
+        _safe_print_line(
+            render_command_event_json(
+                "classify-scan",
+                event.event,
+                level=event.level,
+                message=event.message,
+                data=data,
+            )
+        )
 
     def close(self) -> None:
         return None
@@ -140,7 +154,7 @@ def build_classify_logger(mode: ClassifyLogMode) -> ClassifyLogger:
     if mode == "plain":
         return PlainTextClassifyLogger()
     if mode == "json":
-        return JsonStdoutClassifyLogger()
+        return JsonStderrClassifyLogger()
     if mode == "none":
         return NullClassifyLogger()
     raise ValueError(f"지원하지 않는 classify log mode다: {mode}")
@@ -158,11 +172,11 @@ def format_classify_log_event(event: ClassifyLogEvent) -> str:
 
 
 def _safe_print_line(text: str) -> None:
-    """현재 stdout 인코딩에서 출력 가능한 형태로 한 줄 로그를 쓴다."""
+    """현재 stderr 인코딩에서 출력 가능한 형태로 한 줄 로그를 쓴다."""
 
-    encoding = sys.stdout.encoding or "utf-8"
+    encoding = sys.stderr.encoding or "utf-8"
     safe_text = text.encode(encoding, errors="replace").decode(encoding)
-    print(safe_text, flush=True)
+    print(safe_text, file=sys.stderr, flush=True)
 
 
 def _event_to_jsonable(event: ClassifyLogEvent) -> dict[str, object]:

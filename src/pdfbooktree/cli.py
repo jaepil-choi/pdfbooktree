@@ -1482,40 +1482,75 @@ def classify_scan_cmd(
         "--log-mode",
         help="classify 진행 로그 출력 방식이다. auto, rich, plain, json, none 중 하나다.",
     ),
+    output_format: str = typer.Option(
+        "human", "--format", help="최종 결과 출력 형식이다: human, json."
+    ),
+    debug: bool = typer.Option(
+        False, "--debug", help="예상하지 못한 오류의 traceback을 그대로 노출한다."
+    ),
 ) -> None:
     """디렉터리 안 PDF를 scan 여부와 bookmark 유무로 분류해 report를 만든다."""
 
+    command = "classify-scan"
+    resolved_output_format = _stage_output_format(output_format)
     resolved_log_mode = default_classify_log_mode() if log_mode == "auto" else log_mode
     if resolved_log_mode not in {"rich", "plain", "json", "none"}:
-        raise typer.BadParameter(
-            "log-mode은 auto, rich, plain, json, none 중 하나여야 한다."
+        _exit_stage_input_error(
+            command,
+            ValueError("log-mode은 auto, rich, plain, json, none 중 하나여야 한다."),
+            code="invalid_input",
+            output_format=resolved_output_format,
         )
-    logger = build_classify_logger(cast(ClassifyLogMode, resolved_log_mode))
-    config = ClassifyBatchConfig(
-        input_dir=input_dir,
-        output_dir=output_dir,
-        recursive=recursive,
-        dry_run=dry_run,
-        write_report=write_report,
-        max_sample_pages=max_sample_pages,
-    )
-    result = ScanBookmarkClassifier(config, logger=logger).run()
-    rich_print(
-        to_jsonable(
-            {
-                "total_pdf_count": result.total_pdf_count,
-                "scanned_count": result.scanned_count,
-                "native_count": result.native_count,
-                "target_count": result.target_count,
-                "error_count": result.error_count,
-                "elapsed_sec": result.elapsed_sec,
-                "dry_run": dry_run,
-                "write_report": write_report,
-                "report_csv_path": result.report_csv_path,
-                "detail_jsonl_path": result.detail_jsonl_path,
-            }
+    if not input_dir.is_dir():
+        _exit_stage_input_error(
+            command,
+            FileNotFoundError(f"입력 디렉터리가 없다: {input_dir.resolve()}"),
+            code="invalid_input",
+            output_format=resolved_output_format,
         )
-    )
+    try:
+        logger = build_classify_logger(cast(ClassifyLogMode, resolved_log_mode))
+        config = ClassifyBatchConfig(
+            input_dir=input_dir,
+            output_dir=output_dir,
+            recursive=recursive,
+            dry_run=dry_run,
+            write_report=write_report,
+            max_sample_pages=max_sample_pages,
+        )
+        result = ScanBookmarkClassifier(config, logger=logger).run()
+    except (
+        FileExistsError,
+        FileNotFoundError,
+        NotADirectoryError,
+        ValueError,
+    ) as error:
+        _exit_stage_input_error(
+            command,
+            error,
+            code="invalid_input",
+            output_format=resolved_output_format,
+        )
+    except Exception as error:
+        _exit_stage_runtime_error(
+            command,
+            error,
+            output_format=resolved_output_format,
+            debug=debug,
+        )
+    payload = {
+        "total_pdf_count": result.total_pdf_count,
+        "scanned_count": result.scanned_count,
+        "native_count": result.native_count,
+        "target_count": result.target_count,
+        "error_count": result.error_count,
+        "elapsed_sec": result.elapsed_sec,
+        "dry_run": dry_run,
+        "write_report": write_report,
+        "report_csv_path": result.report_csv_path,
+        "detail_jsonl_path": result.detail_jsonl_path,
+    }
+    emit_command_result(command, payload, output_format=resolved_output_format)
 
 
 def main() -> None:
