@@ -8,21 +8,26 @@ production 조립 순서가 존재하는 유일한 곳이다. ``Processor``와
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 
 import fitz
 
-from pdfbooktree.config import MarkdownSplitConfig, TypographyConfig
+from pdfbooktree.config import MarkdownSplitConfig, ProcessingConfig, TypographyConfig
 from pdfbooktree.export.markdown import export_markdown_split, export_markdown_tree
 from pdfbooktree.export.pdf import export_bookmarked_pdf
 from pdfbooktree.models import (
     ApplyResult,
     BookmarkInferenceResult,
     BookmarkPlanItem,
+    ExistingOutlineItem,
+    OutlineQualityAssessment,
     PdfAnalysis,
 )
 from pdfbooktree.outline.plan import insert_position_fallback, normalize_bookmark_plan
 from pdfbooktree.outline.validate import validate_bookmark_plan
+from pdfbooktree.pdf.outline import read_outline
+from pdfbooktree.pdf.outline_quality import assess_outline_quality
 from pdfbooktree.typography.bpe import infer_bpe_outline
 from pdfbooktree.typography.geometry import (
     build_geometry_context,
@@ -34,6 +39,45 @@ from pdfbooktree.typography.margins import exclude_margin_artifacts
 from pdfbooktree.typography.position_fallback import select_body_tier_position_fallback
 from pdfbooktree.typography.tiers import compute_tier_set
 from pdfbooktree.utils.hashing import stable_json_hash
+
+
+@dataclass(frozen=True)
+class ExistingOutlineDecision:
+    """기존 outline 유무·품질·config로 typography 추론을 건너뛸지 정한 결과다."""
+
+    existing_outline: list[ExistingOutlineItem]
+    quality: OutlineQualityAssessment | None
+    reuse_existing: bool
+
+
+def resolve_existing_outline_action(
+    input_pdf: Path, total_pages: int, config: ProcessingConfig
+) -> ExistingOutlineDecision:
+    """existing-outline policy: 품질 판정을 항상 남기고, 재사용 여부만 config로 정한다.
+
+    outline이 있으면 품질은 ``skip_existing_bookmarks`` 값과 무관하게 항상
+    계산해 결과에 남긴다 - 호출자가 "왜 이 outline을 재사용/교체했는지"를
+    항상 확인할 수 있어야 한다. 실제로 재사용할지는 세 조건을 모두 만족해야
+    한다: outline이 있고, ``skip_existing_bookmarks``가 True이고, low
+    quality라도 ``outline_quality.replace_when_low_quality``가 False다.
+    """
+
+    existing_outline = read_outline(input_pdf)
+    if not existing_outline:
+        return ExistingOutlineDecision(
+            existing_outline=[], quality=None, reuse_existing=False
+        )
+    quality = assess_outline_quality(
+        existing_outline, total_pages, config.outline_quality
+    )
+    reuse_existing = config.skip_existing_bookmarks and not (
+        quality.is_low_quality and config.outline_quality.replace_when_low_quality
+    )
+    return ExistingOutlineDecision(
+        existing_outline=existing_outline,
+        quality=quality,
+        reuse_existing=reuse_existing,
+    )
 
 
 def analyze_pdf(input_pdf: Path, config: TypographyConfig | None = None) -> PdfAnalysis:

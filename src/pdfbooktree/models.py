@@ -25,6 +25,16 @@ class ExistingOutlineItem:
 
 
 @dataclass(frozen=True)
+class OutlineQualityAssessment:
+    """기존 outline이 실제 목차가 아니라 스캔/분할 도구 잔재인지 판정한 결과다."""
+
+    is_low_quality: bool
+    item_count: int
+    reasons: list[str] = field(default_factory=list)
+    evidence: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
 class PdfPageText:
     """1-based PDF page text와 line 정보를 담는다."""
 
@@ -220,6 +230,7 @@ class ProcessingResult:
     warnings: list[str] = field(default_factory=list)
     artifact_paths: dict[str, Path] = field(default_factory=dict)
     report_path: Path | None = None
+    existing_outline_quality: OutlineQualityAssessment | None = None
 
 
 @dataclass(frozen=True)

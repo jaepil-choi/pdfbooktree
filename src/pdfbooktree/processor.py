@@ -17,11 +17,18 @@ from pdfbooktree.export.pdf import plan_bookmarked_pdf_path
 from pdfbooktree.models import (
     BookmarkInferenceResult,
     ConfidenceSummary,
+    ExistingOutlineItem,
+    OutlineQualityAssessment,
     ProcessingResult,
 )
 from pdfbooktree.outline.validate import validate_bookmark_plan
-from pdfbooktree.pdf.outline import outline_to_plan, read_outline
-from pdfbooktree.pipeline import analyze_pdf, apply_plan, infer_bookmarks
+from pdfbooktree.pdf.outline import outline_to_plan
+from pdfbooktree.pipeline import (
+    analyze_pdf,
+    apply_plan,
+    infer_bookmarks,
+    resolve_existing_outline_action,
+)
 from pdfbooktree.report import write_processing_report
 
 
@@ -45,15 +52,24 @@ class Processor:
         with fitz.open(self.input_pdf) as document:
             total_pages = document.page_count
 
-        existing_outline = read_outline(self.input_pdf)
-        if existing_outline and self.config.skip_existing_bookmarks:
-            return self._export_existing_outline(existing_outline, total_pages)
+        decision = resolve_existing_outline_action(
+            self.input_pdf, total_pages, self.config
+        )
+        if decision.reuse_existing:
+            return self._export_existing_outline(
+                decision.existing_outline, total_pages, decision.quality
+            )
 
         analysis = analyze_pdf(self.input_pdf, self.config.typography)
         inference = infer_bookmarks(analysis, self.config.typography)
 
-        artifacts = self._write_artifacts(inference)
+        artifacts = self._write_artifacts(inference, decision.quality)
         warnings = list(inference.validation.warnings)
+        if decision.quality is not None and decision.quality.is_low_quality:
+            warnings.append(
+                "기존 outline이 low quality로 판정돼 typography 추론 결과로 "
+                f"교체했다: reasons={decision.quality.reasons}"
+            )
         if self.config.ocr_policy != "never":
             warnings.append(
                 "ocr_policy는 아직 Processor에 연결되지 않았고 OCR overlay CLI/API로 별도 실행한다."
@@ -98,15 +114,19 @@ class Processor:
             ),
             warnings=warnings,
             artifact_paths=artifacts,
+            existing_outline_quality=decision.quality,
         )
         return self._finalize(result)
 
     def _export_existing_outline(
-        self, existing_outline, total_pages: int
+        self,
+        existing_outline: list[ExistingOutlineItem],
+        total_pages: int,
+        quality: OutlineQualityAssessment | None,
     ) -> ProcessingResult:
         plan = outline_to_plan(existing_outline)
         validation = validate_bookmark_plan(plan, total_pages)
-        artifacts = self._write_existing_artifacts(plan, validation)
+        artifacts = self._write_existing_artifacts(plan, validation, quality)
         markdown_export = None
         if self.config.markdown_split is not None:
             markdown_export = export_markdown_split(
@@ -121,6 +141,15 @@ class Processor:
             markdown_dir = export_markdown_tree(
                 self.input_pdf, self.output_dir, plan, total_pages
             )
+        warnings = [
+            f"기존 outline {len(plan)}개로 markdown을 export했고, PDF outline overwrite는 건너뛰었다."
+        ] + validation.warnings
+        if quality is not None and quality.is_low_quality:
+            warnings.append(
+                "기존 outline이 low quality로 판정됐다: "
+                f"reasons={quality.reasons}. "
+                "outline_quality.replace_when_low_quality=true로 재추론할 수 있다."
+            )
         result = ProcessingResult(
             status="processed",
             input_pdf=self.input_pdf,
@@ -129,18 +158,20 @@ class Processor:
             markdown_export=markdown_export,
             bookmark_count=len(plan),
             confidence_summary=ConfidenceSummary(outline=1.0),
-            warnings=[
-                f"기존 outline {len(plan)}개로 markdown을 export했고, PDF outline overwrite는 건너뛰었다."
-            ]
-            + validation.warnings,
+            warnings=warnings,
             artifact_paths=artifacts,
+            existing_outline_quality=quality,
         )
         return self._finalize(result)
 
-    def _write_artifacts(self, inference: BookmarkInferenceResult) -> dict[str, Path]:
+    def _write_artifacts(
+        self,
+        inference: BookmarkInferenceResult,
+        quality: OutlineQualityAssessment | None = None,
+    ) -> dict[str, Path]:
         if not self.config.write_artifacts:
             return {}
-        return {
+        artifacts = {
             "whole_book_lines": write_jsonl_artifact(
                 self.output_dir, "whole_book_lines", inference.lines
             ),
@@ -165,11 +196,18 @@ class Processor:
                 self.output_dir, "bookmark_plan_validation", inference.validation
             ),
         }
+        if quality is not None:
+            artifacts["existing_outline_quality"] = write_artifact(
+                self.output_dir, "existing_outline_quality", quality
+            )
+        return artifacts
 
-    def _write_existing_artifacts(self, plan, validation) -> dict[str, Path]:
+    def _write_existing_artifacts(
+        self, plan, validation, quality: OutlineQualityAssessment | None = None
+    ) -> dict[str, Path]:
         if not self.config.write_artifacts:
             return {}
-        return {
+        artifacts = {
             "existing_outline_plan": write_artifact(
                 self.output_dir, "existing_outline_plan", plan
             ),
@@ -177,6 +215,11 @@ class Processor:
                 self.output_dir, "bookmark_plan_validation", validation
             ),
         }
+        if quality is not None:
+            artifacts["existing_outline_quality"] = write_artifact(
+                self.output_dir, "existing_outline_quality", quality
+            )
+        return artifacts
 
     def _finalize(self, result: ProcessingResult) -> ProcessingResult:
         report_path = write_processing_report(result, self.output_dir)
@@ -192,6 +235,7 @@ class Processor:
             warnings=result.warnings,
             artifact_paths=result.artifact_paths,
             report_path=report_path,
+            existing_outline_quality=result.existing_outline_quality,
         )
 
 

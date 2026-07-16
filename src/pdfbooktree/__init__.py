@@ -4,6 +4,7 @@ from pdfbooktree.batch import BatchProcessor
 from pdfbooktree.config import (
     ConfigError,
     MarkdownSplitConfig,
+    OutlineQualityConfig,
     ProcessingConfig,
     TypographyConfig,
 )
@@ -27,13 +28,20 @@ from pdfbooktree.models import (
     HeadingCandidate,
     MarkdownExportResult,
     MarkdownFileStat,
+    OutlineQualityAssessment,
     PdfAnalysis,
     ProcessingResult,
     Tier,
     TierSet,
     TypographyLine,
 )
-from pdfbooktree.pipeline import analyze_pdf, apply_plan, infer_bookmarks
+from pdfbooktree.pdf.outline_quality import assess_outline_quality
+from pdfbooktree.pipeline import (
+    analyze_pdf,
+    apply_plan,
+    infer_bookmarks,
+    resolve_existing_outline_action,
+)
 from pdfbooktree.processor import Processor
 from pdfbooktree.run import (
     InputIdentity,
@@ -48,6 +56,7 @@ __all__ = [
     "analyze_pdf",
     "apply_plan",
     "ApplyResult",
+    "assess_outline_quality",
     "BatchProcessor",
     "BatchResult",
     "BookmarkInferenceResult",
@@ -67,10 +76,13 @@ __all__ = [
     "MarkdownExportResult",
     "MarkdownFileStat",
     "MarkdownSplitConfig",
+    "OutlineQualityAssessment",
+    "OutlineQualityConfig",
     "PdfAnalysis",
     "ProcessingConfig",
     "ProcessingResult",
     "Processor",
+    "resolve_existing_outline_action",
     "ResolvedConfig",
     "resolve_processing_config",
     "RunContext",

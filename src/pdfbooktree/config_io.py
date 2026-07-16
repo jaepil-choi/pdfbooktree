@@ -13,6 +13,7 @@ from pdfbooktree.config import (
     CONFIG_SCHEMA_VERSION,
     ConfigError,
     MarkdownSplitConfig,
+    OutlineQualityConfig,
     ProcessingConfig,
     TypographyConfig,
 )
@@ -20,11 +21,19 @@ from pdfbooktree.utils.hashing import stable_json_hash
 from pdfbooktree.utils.jsonio import to_jsonable
 
 
-_TOP_LEVEL_KEYS = {"schema_version", "processing", "typography", "markdown"}
+_TOP_LEVEL_KEYS = {
+    "schema_version",
+    "processing",
+    "typography",
+    "outline_quality",
+    "markdown",
+}
 _PROCESSING_FIELDS = ("skip_existing_bookmarks", "write_artifacts", "ocr_policy")
+_ALWAYS_PRESENT_SECTIONS = ("processing", "typography", "outline_quality")
 _SECTION_CLASSES = {
     "processing": ProcessingConfig,
     "typography": TypographyConfig,
+    "outline_quality": OutlineQualityConfig,
     "markdown": MarkdownSplitConfig,
 }
 
@@ -92,6 +101,7 @@ def processing_config_to_data(config: ProcessingConfig) -> dict[str, Any]:
         "schema_version": CONFIG_SCHEMA_VERSION,
         "processing": processing,
         "typography": to_jsonable(config.typography),
+        "outline_quality": to_jsonable(config.outline_quality),
     }
     if config.markdown_split is not None:
         data["markdown"] = to_jsonable(config.markdown_split)
@@ -104,6 +114,7 @@ def processing_config_from_data(data: dict[str, Any]) -> ProcessingConfig:
     _validate_top_level(data)
     processing = _require_section(data, "processing")
     typography = _require_section(data, "typography")
+    outline_quality = _require_section(data, "outline_quality")
     markdown = data.get("markdown")
     if markdown is not None and not isinstance(markdown, dict):
         raise ConfigError("markdown section은 TOML table이어야 한다.")
@@ -114,6 +125,11 @@ def processing_config_from_data(data: dict[str, Any]) -> ProcessingConfig:
         typography,
         {item.name for item in fields(TypographyConfig)},
     )
+    _reject_unknown_keys(
+        "outline_quality",
+        outline_quality,
+        {item.name for item in fields(OutlineQualityConfig)},
+    )
     if isinstance(markdown, dict):
         _reject_unknown_keys(
             "markdown",
@@ -122,6 +138,7 @@ def processing_config_from_data(data: dict[str, Any]) -> ProcessingConfig:
         )
     try:
         typography_config = TypographyConfig(**typography)
+        outline_quality_config = OutlineQualityConfig(**outline_quality)
         markdown_config = (
             MarkdownSplitConfig(**markdown) if isinstance(markdown, dict) else None
         )
@@ -129,6 +146,7 @@ def processing_config_from_data(data: dict[str, Any]) -> ProcessingConfig:
             **processing,
             typography=typography_config,
             markdown_split=markdown_config,
+            outline_quality=outline_quality_config,
         )
     except TypeError as error:
         raise ConfigError(f"config field type 또는 이름이 잘못됐다: {error}") from error
@@ -174,6 +192,7 @@ def config_schema() -> dict[str, Any]:
                 ProcessingConfig, include=set(_PROCESSING_FIELDS)
             ),
             "typography": _section_schema(TypographyConfig),
+            "outline_quality": _section_schema(OutlineQualityConfig),
             "markdown": _section_schema(MarkdownSplitConfig),
         },
     }
@@ -209,7 +228,7 @@ def render_config_toml(
     data = processing_config_to_data(config)
     specs = config_field_specs()
     lines = [f"schema_version = {CONFIG_SCHEMA_VERSION}", ""]
-    for section in ("processing", "typography"):
+    for section in _ALWAYS_PRESENT_SECTIONS:
         lines.append(f"[{section}]")
         for key, value in data[section].items():
             dotted = f"{section}.{key}"
@@ -281,7 +300,7 @@ def _validate_top_level(data: dict[str, Any]) -> None:
             "지원하지 않는 config schema_version이다: "
             f"expected={CONFIG_SCHEMA_VERSION}, actual={version!r}"
         )
-    for section in ("processing", "typography"):
+    for section in _ALWAYS_PRESENT_SECTIONS:
         if section in data and not isinstance(data[section], dict):
             raise ConfigError(f"{section} section은 TOML table이어야 한다.")
     if "markdown" in data and not isinstance(data["markdown"], dict):
@@ -289,13 +308,13 @@ def _validate_top_level(data: dict[str, Any]) -> None:
 
 
 def _merge_file_data(target: dict[str, Any], source: dict[str, Any]) -> None:
-    for section in ("processing", "typography"):
+    for section in _ALWAYS_PRESENT_SECTIONS:
         values = source.get(section, {})
         if isinstance(values, dict):
             allowed = (
                 set(_PROCESSING_FIELDS)
                 if section == "processing"
-                else {item.name for item in fields(TypographyConfig)}
+                else {item.name for item in fields(_SECTION_CLASSES[section])}
             )
             _reject_unknown_keys(section, values, allowed)
             target[section].update(values)
