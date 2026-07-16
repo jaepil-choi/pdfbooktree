@@ -257,6 +257,17 @@
       "finding": "실습과 그림으로 배우는 리눅스 구조 (다케우치 사토루): gold=148, predicted=171, is_low_quality=False([]), f1=0.9028, missed=4, extra=27 | 생각정리를위한 시간의기술 (나가타 도요시): gold=2, predicted=0, is_low_quality=True(['too_few_items']), f1=0.0, missed=2, extra=0 | Case Studies, 3rd Edition: gold=11, predicted=57, is_low_quality=False([]), f1=0.0, missed=11, extra=57",
       "command": "uv run python showcase/022_bookmark_plan_evaluation.py",
       "ran_at": "2026-07-16T13:31:26+09:00"
+    },
+    {
+      "id": "023_bookmark_plan_compare",
+      "purpose": "compare_bookmark_plans()/inspect_compare_plans()를 실제 책 한 권의 서로 다른 두 TypographyConfig(기본값, position_fallback_enabled=False) infer 결과로 검증한다.",
+      "inputs": [
+        "data\\300STUDY\\a_books\\textbook\\실습과_그림으로_배우는_리눅스_구조_다케우치_사토루.pdf"
+      ],
+      "outputs": "showcase\\outputs\\023_bookmark_plan_compare\\result.json",
+      "finding": "position_fallback_enabled=False로 다시 추론하면 plan_a(기본)=171개, plan_b(fallback 끔)=154개. removed=17(fallback이 찾았지만 fallback 끄면 사라지는 항목), added=0, unchanged=154.",
+      "command": "uv run python showcase/023_bookmark_plan_compare.py",
+      "ran_at": "2026-07-16T13:50:07+09:00"
     }
   ]
 }
