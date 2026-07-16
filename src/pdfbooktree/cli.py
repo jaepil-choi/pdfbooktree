@@ -46,6 +46,7 @@ from pdfbooktree.inspection import (
 )
 from pdfbooktree.models import BookmarkPlanItem, ConfidenceSummary, ProcessingResult
 from pdfbooktree.ocr import (
+    ExistingBookmarkConfirmationRequired,
     OcrOverlayBatchConfig,
     OcrOverlayBatchRunner,
     OcrOverlayBuilder,
@@ -700,52 +701,93 @@ def ocr_overlay(
         "--no-log-file",
         help="ocr_log.jsonl과 ocr_progress.json 파일 기록을 끈다.",
     ),
+    output_format: str = typer.Option(
+        "human", "--format", help="최종 결과 출력 형식이다: human, json."
+    ),
+    debug: bool = typer.Option(
+        False, "--debug", help="예상하지 못한 오류의 traceback을 그대로 노출한다."
+    ),
 ) -> None:
     """PDF 모든 page를 OCR parse한 뒤 invisible text layer를 다시 입힌다."""
 
+    command = "ocr-overlay"
+    resolved_output_format = _stage_output_format(output_format)
     resolved_log_mode = default_ocr_log_mode() if log_mode == "auto" else log_mode
     if resolved_log_mode not in {"tqdm", "plain", "json", "none"}:
-        raise typer.BadParameter(
-            "log-mode은 auto, tqdm, plain, json, none 중 하나여야 한다."
+        _exit_stage_input_error(
+            command,
+            ValueError("log-mode은 auto, tqdm, plain, json, none 중 하나여야 한다."),
+            code="invalid_input",
+            output_format=resolved_output_format,
         )
     if cache_policy not in {"reuse", "refresh", "only"}:
-        raise typer.BadParameter(
-            "cache-policy는 reuse, refresh, only 중 하나여야 한다."
+        _exit_stage_input_error(
+            command,
+            ValueError("cache-policy는 reuse, refresh, only 중 하나여야 한다."),
+            code="invalid_input",
+            output_format=resolved_output_format,
         )
-    logger = build_ocr_logger(
-        cast(OcrLogMode, resolved_log_mode),
-        output_dir,
-        enable_file=not no_log_file,
-        desc=f"OCR overlay: {pdf.name}",
-    )
-    config = OcrOverlayConfig(
-        input_pdf=pdf,
-        output_pdf=output_pdf,
-        output_dir=output_dir,
-        engine=engine,
-        engine_options=parse_engine_options(engine_option),
-        render_dpi=render_dpi,
-        pages=parse_page_ranges(pages),
-        force=force,
-        confirm_bookmark_ocr_overwrite=confirm_bookmark_ocr_overwrite,
-        cache_policy=cast(CachePolicy, cache_policy),
-        stats_word_level=stats_word_level,
-    )
-    result = OcrOverlayBuilder(config, logger=logger).run()
-    rich_print(
-        to_jsonable(
-            {
-                "status": result.status,
-                "page_count": result.page_count,
-                "processed_page_count": len(result.processed_pages),
-                "cache_hit_count": result.cache_hit_count,
-                "cache_miss_count": result.cache_miss_count,
-                "output_pdf": result.output_pdf,
-                "output_dir": result.output_dir,
-                "page_stats_path": result.page_stats_path,
-            }
+    try:
+        logger = build_ocr_logger(
+            cast(OcrLogMode, resolved_log_mode),
+            output_dir,
+            enable_file=not no_log_file,
+            desc=f"OCR overlay: {pdf.name}",
         )
-    )
+        config = OcrOverlayConfig(
+            input_pdf=pdf,
+            output_pdf=output_pdf,
+            output_dir=output_dir,
+            engine=engine,
+            engine_options=parse_engine_options(engine_option),
+            render_dpi=render_dpi,
+            pages=parse_page_ranges(pages),
+            force=force,
+            confirm_bookmark_ocr_overwrite=confirm_bookmark_ocr_overwrite,
+            cache_policy=cast(CachePolicy, cache_policy),
+            stats_word_level=stats_word_level,
+        )
+        result = OcrOverlayBuilder(config, logger=logger).run()
+    except (
+        ExistingBookmarkConfirmationRequired,
+        FileExistsError,
+        FileNotFoundError,
+        typer.BadParameter,
+        ValueError,
+    ) as error:
+        _exit_stage_input_error(
+            command,
+            error,
+            code="invalid_input",
+            output_format=resolved_output_format,
+        )
+    except Exception as error:
+        _exit_stage_runtime_error(
+            command,
+            error,
+            output_format=resolved_output_format,
+            debug=debug,
+        )
+    payload = {
+        "status": result.status,
+        "page_count": result.page_count,
+        "processed_page_count": len(result.processed_pages),
+        "cache_hit_count": result.cache_hit_count,
+        "cache_miss_count": result.cache_miss_count,
+        "output_pdf": result.output_pdf,
+        "output_dir": result.output_dir,
+        "page_stats_path": result.page_stats_path,
+    }
+    if result.status == "failed":
+        exit_command_error(
+            command,
+            ProcessingFailedError("ocr-overlay pipeline이 처리 결과를 만들지 못했다."),
+            code="processing_failed",
+            exit_code=CLI_EXIT_PROCESSING_FAILED,
+            output_format=resolved_output_format,
+            details=payload,
+        )
+    emit_command_result(command, payload, output_format=resolved_output_format)
 
 
 @app.command("ocr-overlay-batch")

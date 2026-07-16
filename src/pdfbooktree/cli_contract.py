@@ -12,6 +12,7 @@ from rich import print as rich_print
 from pdfbooktree.utils.jsonio import to_jsonable
 
 CLI_RESULT_SCHEMA_VERSION = 1
+CLI_EVENT_SCHEMA_VERSION = 1
 
 CLI_EXIT_RUNTIME_ERROR = 1
 CLI_EXIT_INPUT_ERROR = 2
@@ -54,6 +55,18 @@ class CommandErrorEnvelope:
     error: CommandError
 
 
+@dataclass(frozen=True)
+class CommandEventEnvelope:
+    """실행 중 진행 상태를 stderr JSONL로 내보내는 event envelope다."""
+
+    schema_version: int
+    command: str
+    event: str
+    level: str
+    message: str
+    data: Any
+
+
 def parse_output_format(value: str) -> OutputFormat:
     """문자열 출력 형식을 검증하고 좁은 타입으로 반환한다."""
 
@@ -83,6 +96,27 @@ def emit_command_result(
         result=result,
     )
     typer.echo(json.dumps(to_jsonable(envelope), ensure_ascii=False))
+
+
+def render_command_event_json(
+    command: str,
+    event: str,
+    *,
+    level: str,
+    message: str,
+    data: object,
+) -> str:
+    """진행 event 하나를 versioned JSONL 한 줄로 직렬화한다."""
+
+    envelope = CommandEventEnvelope(
+        schema_version=CLI_EVENT_SCHEMA_VERSION,
+        command=command,
+        event=event,
+        level=level,
+        message=message,
+        data=data,
+    )
+    return json.dumps(to_jsonable(envelope), ensure_ascii=False)
 
 
 def exit_command_error(

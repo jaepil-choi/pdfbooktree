@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import json
+import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Literal, Protocol, TextIO
 
 from tqdm import tqdm
 
+from pdfbooktree.cli_contract import render_command_event_json
 from pdfbooktree.utils.jsonio import to_jsonable
 
 
@@ -76,20 +78,39 @@ class JsonFileOcrLogger:
 
 
 class PlainTextOcrLogger:
-    """터미널에 한 줄씩 OCR 진행 로그를 출력한다."""
+    """stderr에 한 줄씩 OCR 진행 로그를 출력한다."""
 
     def emit(self, event: OcrLogEvent) -> None:
-        print(format_ocr_log_event(event), flush=True)
+        print(format_ocr_log_event(event), file=sys.stderr, flush=True)
 
     def close(self) -> None:
         return None
 
 
-class JsonStdoutOcrLogger:
-    """stdout에 JSONL event를 출력한다."""
+class JsonStderrOcrLogger:
+    """stderr에 versioned JSONL event를 출력한다."""
+
+    def __init__(self, command: str = "ocr-overlay") -> None:
+        self.command = command
 
     def emit(self, event: OcrLogEvent) -> None:
-        print(json.dumps(_event_to_jsonable(event), ensure_ascii=False), flush=True)
+        payload = _event_to_jsonable(event)
+        data = {
+            key: value
+            for key, value in payload.items()
+            if key not in {"event", "level", "message"}
+        }
+        print(
+            render_command_event_json(
+                self.command,
+                event.event,
+                level=event.level,
+                message=event.message,
+                data=data,
+            ),
+            file=sys.stderr,
+            flush=True,
+        )
 
     def close(self) -> None:
         return None
@@ -113,13 +134,14 @@ class TqdmOcrLogger:
         leave: bool = True,
         file: TextIO | None = None,
     ) -> None:
+        self._file = file or sys.stderr
         self._bar = tqdm(
             total=total_pages,
             desc=desc,
             position=position,
             leave=leave,
             unit="page",
-            file=file,
+            file=self._file,
         )
         self._completed = 0
 
@@ -134,7 +156,7 @@ class TqdmOcrLogger:
             hit=event.cache_hit_count, miss=event.cache_miss_count, refresh=False
         )
         if event.event == "failed":
-            tqdm.write(format_ocr_log_event(event))
+            tqdm.write(format_ocr_log_event(event), file=self._file)
 
     def close(self) -> None:
         self._bar.close()
@@ -172,7 +194,7 @@ def build_ocr_logger(
     elif mode == "plain":
         loggers.append(PlainTextOcrLogger())
     elif mode == "json":
-        loggers.append(JsonStdoutOcrLogger())
+        loggers.append(JsonStderrOcrLogger())
     elif mode == "none":
         pass
     else:

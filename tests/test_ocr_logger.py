@@ -7,8 +7,10 @@ from pathlib import Path
 from pdfbooktree.ocr.logger import (
     CompositeOcrLogger,
     JsonFileOcrLogger,
+    JsonStderrOcrLogger,
     NullBatchOcrProgress,
     OcrLogEvent,
+    PlainTextOcrLogger,
     TqdmBatchOcrProgress,
     TqdmOcrLogger,
     build_batch_ocr_progress,
@@ -76,6 +78,44 @@ def test_composite_ocr_logger_forwards_events() -> None:
 
     assert seen_left == ["page_done", "closed"]
     assert seen_right == ["page_done", "closed"]
+
+
+def test_json_stderr_ocr_logger_writes_versioned_event_envelope(capsys) -> None:
+    logger = JsonStderrOcrLogger()
+
+    logger.emit(make_event("page_done", 1))
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    envelope = json.loads(captured.err)
+    assert envelope["schema_version"] == 1
+    assert envelope["command"] == "ocr-overlay"
+    assert envelope["event"] == "page_done"
+    assert envelope["level"] == "info"
+    assert envelope["message"] == "page_done message"
+    assert envelope["data"]["completed_pages"] == 1
+    assert envelope["data"]["input_pdf"] == "book.pdf"
+
+
+def test_plain_text_ocr_logger_writes_only_to_stderr(capsys) -> None:
+    logger = PlainTextOcrLogger()
+
+    logger.emit(make_event("page_done", 1))
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "event=page_done" in captured.err
+
+
+def test_tqdm_ocr_logger_failure_does_not_write_stdout(capsys) -> None:
+    logger = TqdmOcrLogger(total_pages=1)
+
+    logger.emit(make_event("failed", 0))
+    logger.close()
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert "event=failed" in captured.err
 
 
 def test_tqdm_ocr_logger_advances_only_when_completed_pages_grows() -> None:

@@ -1,11 +1,24 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from typer.testing import CliRunner
 
 from pdfbooktree.cli import app
 from pdfbooktree.ocr.models import OcrOverlayResult
+
+
+def _processed_result(config) -> OcrOverlayResult:
+    return OcrOverlayResult(
+        status="processed",
+        input_pdf=Path(config.input_pdf),
+        output_pdf=Path(config.output_pdf),
+        output_dir=Path(config.output_dir),
+        page_count=10,
+        processed_pages=[1, 2, 3, 42],
+        engine="upstage",
+    )
 
 
 def test_ocr_overlay_cli_parses_options(monkeypatch, tmp_path: Path) -> None:
@@ -20,15 +33,7 @@ def test_ocr_overlay_cli_parses_options(monkeypatch, tmp_path: Path) -> None:
             captured["logger"] = logger
 
         def run(self):
-            return OcrOverlayResult(
-                status="processed",
-                input_pdf=Path(captured["config"].input_pdf),
-                output_pdf=Path(captured["config"].output_pdf),
-                output_dir=Path(captured["config"].output_dir),
-                page_count=10,
-                processed_pages=[1, 2, 3, 42],
-                engine="upstage",
-            )
+            return _processed_result(captured["config"])
 
     def fake_build_logger(mode, output_dir, *, enable_file, desc=None):
         captured["log_mode"] = mode
@@ -84,6 +89,203 @@ def test_ocr_overlay_cli_parses_options(monkeypatch, tmp_path: Path) -> None:
     assert "'processed_page_count': 4" in result.stdout
     assert "'processed_pages'" not in result.stdout
     assert "book_ocr.pdf" in result.stdout
+
+
+def test_ocr_overlay_json_result_and_events_use_separate_streams(
+    monkeypatch, tmp_path: Path
+) -> None:
+    class FakeBuilder:
+        def __init__(self, config, logger=None):
+            self.config = config
+            self.logger = logger
+
+        def run(self):
+            from pdfbooktree.ocr.logger import OcrLogEvent
+
+            for name, completed in (("start", 0), ("page_done", 1), ("done", 1)):
+                self.logger.emit(
+                    OcrLogEvent(
+                        event=name,
+                        level="info",
+                        input_pdf=Path(self.config.input_pdf),
+                        pdf_page=completed or None,
+                        total_pages=1,
+                        completed_pages=completed,
+                        cache_hit_count=0,
+                        cache_miss_count=1,
+                        elapsed_sec=1.0,
+                        estimated_remaining_sec=0.0 if completed else None,
+                        message=f"{name} message",
+                    )
+                )
+            self.logger.close()
+            return _processed_result(self.config)
+
+    monkeypatch.setattr("pdfbooktree.cli.OcrOverlayBuilder", FakeBuilder)
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "ocr-overlay",
+            str(tmp_path / "book.pdf"),
+            "--output",
+            str(tmp_path / "book_ocr.pdf"),
+            "--output-dir",
+            str(tmp_path / "artifacts"),
+            "--log-mode",
+            "json",
+            "--no-log-file",
+            "--format",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 0
+    final = json.loads(result.stdout)
+    assert final["schema_version"] == 1
+    assert final["command"] == "ocr-overlay"
+    assert final["ok"] is True
+    assert final["result"]["processed_page_count"] == 4
+    events = [json.loads(line) for line in result.stderr.splitlines()]
+    assert [event["event"] for event in events] == ["start", "page_done", "done"]
+    assert all(event["schema_version"] == 1 for event in events)
+    assert all(event["command"] == "ocr-overlay" for event in events)
+
+
+def test_ocr_overlay_missing_input_uses_json_input_error(tmp_path: Path) -> None:
+    result = CliRunner().invoke(
+        app,
+        [
+            "ocr-overlay",
+            str(tmp_path / "missing.pdf"),
+            "--output",
+            str(tmp_path / "book_ocr.pdf"),
+            "--output-dir",
+            str(tmp_path / "artifacts"),
+            "--log-mode",
+            "none",
+            "--no-log-file",
+            "--format",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 2
+    assert result.stdout == ""
+    error = json.loads(result.stderr)
+    assert error["schema_version"] == 1
+    assert error["command"] == "ocr-overlay"
+    assert error["ok"] is False
+    assert error["error"]["code"] == "invalid_input"
+
+
+def test_ocr_overlay_invalid_page_range_is_input_error(tmp_path: Path) -> None:
+    result = CliRunner().invoke(
+        app,
+        [
+            "ocr-overlay",
+            str(tmp_path / "book.pdf"),
+            "--output",
+            str(tmp_path / "book_ocr.pdf"),
+            "--output-dir",
+            str(tmp_path / "artifacts"),
+            "--pages",
+            "3-1",
+            "--log-mode",
+            "none",
+            "--no-log-file",
+            "--format",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 2
+    error = json.loads(result.stderr)
+    assert error["error"]["code"] == "invalid_input"
+    assert error["error"]["type"] == "BadParameter"
+
+
+def test_ocr_overlay_runtime_error_and_debug_contract(
+    monkeypatch, tmp_path: Path
+) -> None:
+    class FailingBuilder:
+        def __init__(self, config, logger=None):
+            pass
+
+        def run(self):
+            raise RuntimeError("OCR provider unavailable")
+
+    monkeypatch.setattr("pdfbooktree.cli.OcrOverlayBuilder", FailingBuilder)
+    args = [
+        "ocr-overlay",
+        str(tmp_path / "book.pdf"),
+        "--output",
+        str(tmp_path / "book_ocr.pdf"),
+        "--output-dir",
+        str(tmp_path / "artifacts"),
+        "--log-mode",
+        "none",
+        "--no-log-file",
+        "--format",
+        "json",
+    ]
+
+    result = CliRunner().invoke(app, args)
+
+    assert result.exit_code == 1
+    assert result.stdout == ""
+    error = json.loads(result.stderr)
+    assert error["error"]["code"] == "runtime_error"
+
+    debug_result = CliRunner().invoke(app, [*args, "--debug"])
+    assert debug_result.exit_code == 1
+    assert isinstance(debug_result.exception, RuntimeError)
+    assert str(debug_result.exception) == "OCR provider unavailable"
+
+
+def test_ocr_overlay_failed_result_uses_processing_failed_exit(
+    monkeypatch, tmp_path: Path
+) -> None:
+    class FailedResultBuilder:
+        def __init__(self, config, logger=None):
+            self.config = config
+
+        def run(self):
+            result = _processed_result(self.config)
+            return OcrOverlayResult(
+                status="failed",
+                input_pdf=result.input_pdf,
+                output_pdf=None,
+                output_dir=result.output_dir,
+                page_count=result.page_count,
+                processed_pages=[],
+                engine=result.engine,
+            )
+
+    monkeypatch.setattr("pdfbooktree.cli.OcrOverlayBuilder", FailedResultBuilder)
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "ocr-overlay",
+            str(tmp_path / "book.pdf"),
+            "--output",
+            str(tmp_path / "book_ocr.pdf"),
+            "--output-dir",
+            str(tmp_path / "artifacts"),
+            "--log-mode",
+            "none",
+            "--no-log-file",
+            "--format",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 3
+    assert result.stdout == ""
+    error = json.loads(result.stderr)
+    assert error["error"]["code"] == "processing_failed"
+    assert error["error"]["details"]["status"] == "failed"
 
 
 def test_ocr_overlay_batch_cli_parses_options(monkeypatch, tmp_path: Path) -> None:
