@@ -9,6 +9,13 @@ from pdfbooktree.config import (
     ProcessingConfig,
     TypographyConfig,
 )
+from pdfbooktree.cli_contract import (
+    CLI_RESULT_SCHEMA_VERSION,
+    CommandError,
+    CommandErrorEnvelope,
+    CommandResultEnvelope,
+    ProcessingFailedError,
+)
 from pdfbooktree.config_io import ResolvedConfig, resolve_processing_config
 from pdfbooktree.inspection import (
     inspect_bookmarks,
@@ -59,6 +66,7 @@ __all__ = [
     "analyze_pdf",
     "apply_plan",
     "ApplyResult",
+    "CLI_RESULT_SCHEMA_VERSION",
     "assess_outline_quality",
     "BatchProcessor",
     "BatchResult",
@@ -67,6 +75,10 @@ __all__ = [
     "BookmarkPlanValidation",
     "BookmarkTreeNode",
     "ConfidenceSummary",
+    "CommandError",
+    "CommandErrorEnvelope",
+    "CommandResultEnvelope",
+    "ProcessingFailedError",
     "confidence_summary_for_inference",
     "ConfigError",
     "ExistingOutlineItem",

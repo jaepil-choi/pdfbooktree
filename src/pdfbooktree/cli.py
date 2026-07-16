@@ -20,6 +20,16 @@ from pdfbooktree.classify import (
     build_classify_logger,
     default_classify_log_mode,
 )
+from pdfbooktree.cli_contract import (
+    CLI_EXIT_INPUT_ERROR,
+    CLI_EXIT_PROCESSING_FAILED,
+    CLI_EXIT_RUNTIME_ERROR,
+    OutputFormat,
+    ProcessingFailedError,
+    emit_command_result,
+    exit_command_error,
+    parse_output_format,
+)
 from pdfbooktree.config import ConfigError, ProcessingConfig
 from pdfbooktree.config_io import (
     config_field_specs,
@@ -90,10 +100,103 @@ def raise_config_error(error: Exception) -> None:
     raise typer.BadParameter(str(error)) from error
 
 
-def raise_plan_error(error: Exception) -> None:
-    """plan JSON 오류를 stack trace 없는 CLI 입력 오류로 바꾼다."""
+def _stage_output_format(value: str) -> OutputFormat:
+    """단계형 command의 출력 형식을 Typer 입력 오류로 검증한다."""
 
-    raise typer.BadParameter(str(error)) from error
+    try:
+        return parse_output_format(value)
+    except ValueError as error:
+        raise typer.BadParameter(str(error)) from error
+
+
+def _exit_stage_input_error(
+    command: str,
+    error: Exception,
+    *,
+    code: str,
+    output_format: OutputFormat,
+) -> None:
+    """단계형 command의 config/plan/input 오류를 exit 2로 끝낸다."""
+
+    exit_command_error(
+        command,
+        error,
+        code=code,
+        exit_code=CLI_EXIT_INPUT_ERROR,
+        output_format=output_format,
+    )
+
+
+def _validate_flat_input_pdf(
+    command: str,
+    pdf: Path,
+    *,
+    output_format: OutputFormat,
+) -> None:
+    """manifest가 없는 flat mode에서도 PDF 입력 오류를 exit 2로 통일한다."""
+
+    input_path = pdf.resolve()
+    if not input_path.is_file():
+        _exit_stage_input_error(
+            command,
+            RunError(f"입력 PDF가 없다: {input_path}"),
+            code="invalid_input",
+            output_format=output_format,
+        )
+    try:
+        with fitz.open(input_path):
+            pass
+    except (fitz.FileDataError, RuntimeError) as error:
+        _exit_stage_input_error(
+            command,
+            RunError(f"입력 PDF를 열지 못했다: {input_path}, reason={error}"),
+            code="invalid_input",
+            output_format=output_format,
+        )
+
+
+def _exit_stage_runtime_error(
+    command: str,
+    error: Exception,
+    *,
+    output_format: OutputFormat,
+    debug: bool,
+) -> None:
+    """예상하지 못한 runtime 오류를 숨기거나 debug에서 다시 발생시킨다."""
+
+    if debug:
+        raise error
+    exit_command_error(
+        command,
+        error,
+        code="runtime_error",
+        exit_code=CLI_EXIT_RUNTIME_ERROR,
+        output_format=output_format,
+    )
+
+
+def _emit_stage_result(
+    command: str,
+    payload: object,
+    processing_result: ProcessingResult,
+    *,
+    output_format: OutputFormat,
+) -> None:
+    """단계형 command의 성공 또는 validation 실패 결과를 출력한다."""
+
+    if processing_result.status == "failed":
+        error = ProcessingFailedError(
+            f"{command} pipeline이 유효한 결과를 만들지 못했다."
+        )
+        exit_command_error(
+            command,
+            error,
+            code="processing_failed",
+            exit_code=CLI_EXIT_PROCESSING_FAILED,
+            output_format=output_format,
+            details=payload,
+        )
+    emit_command_result(command, payload, output_format=output_format)
 
 
 @config_app.command("defaults")
@@ -685,9 +788,16 @@ def process(
         max=1.0,
         help="max-words 이하가 되어야 하는 Markdown 파일 비율이다.",
     ),
+    output_format: str = typer.Option(
+        "human", "--format", help="final result 출력 형식이다: human, json."
+    ),
+    debug: bool = typer.Option(
+        False, "--debug", help="예상하지 못한 오류의 traceback을 그대로 노출한다."
+    ),
 ) -> None:
     """단일 PDF를 typography hierarchy 기반으로 처리한다."""
 
+    resolved_output_format = _stage_output_format(output_format)
     legacy_values: dict[str, object] = {
         "skip_existing_bookmarks": skip_existing_bookmarks,
         "heading_candidate_mode": heading_candidate_mode,
@@ -715,11 +825,34 @@ def process(
             set_overrides=set_option,
         )
     except ConfigError as error:
-        raise_config_error(error)
+        _exit_stage_input_error(
+            "process",
+            error,
+            code="invalid_config",
+            output_format=resolved_output_format,
+        )
 
     if flat_output:
-        result = Processor(pdf, output_dir, resolved.config).run()
-        rich_print(to_jsonable(result))
+        _validate_flat_input_pdf(
+            "process",
+            pdf,
+            output_format=resolved_output_format,
+        )
+        try:
+            result = Processor(pdf, output_dir, resolved.config).run()
+        except Exception as error:
+            _exit_stage_runtime_error(
+                "process",
+                error,
+                output_format=resolved_output_format,
+                debug=debug,
+            )
+        _emit_stage_result(
+            "process",
+            result,
+            result,
+            output_format=resolved_output_format,
+        )
         return
 
     try:
@@ -730,24 +863,36 @@ def process(
             repository_root=Path.cwd(),
         )
     except RunError as error:
-        raise_config_error(error)
+        _exit_stage_input_error(
+            "process",
+            error,
+            code="invalid_input",
+            output_format=resolved_output_format,
+        )
     run.start()
     try:
         result = Processor(pdf, run.run_dir, resolved.config).run()
+        manifest = run.complete(result)
     except Exception as error:
         run.fail(error)
-        raise
-    manifest = run.complete(result)
-    rich_print(
-        to_jsonable(
-            {
-                "run_id": manifest.run_id,
-                "run_dir": manifest.run_dir,
-                "manifest_path": run.manifest_path,
-                "config_hash": manifest.config_hash,
-                "result": result,
-            }
+        _exit_stage_runtime_error(
+            "process",
+            error,
+            output_format=resolved_output_format,
+            debug=debug,
         )
+    payload = {
+        "run_id": manifest.run_id,
+        "run_dir": manifest.run_dir,
+        "manifest_path": run.manifest_path,
+        "config_hash": manifest.config_hash,
+        "result": result,
+    }
+    _emit_stage_result(
+        "process",
+        payload,
+        result,
+        output_format=resolved_output_format,
     )
 
 
@@ -840,6 +985,12 @@ def infer(
         "--flat-output",
         help="호환을 위해 immutable run directory 없이 기존 flat output을 사용한다.",
     ),
+    output_format: str = typer.Option(
+        "human", "--format", help="final result 출력 형식이다: human, json."
+    ),
+    debug: bool = typer.Option(
+        False, "--debug", help="예상하지 못한 오류의 traceback을 그대로 노출한다."
+    ),
 ) -> None:
     """typography 추론으로 bookmark plan과 근거 artifact만 만든다.
 
@@ -848,37 +999,73 @@ def infer(
     산출물이 필요하면 이 명령이 만든 plan을 ``apply``에 전달한다.
     """
 
+    resolved_output_format = _stage_output_format(output_format)
     try:
         resolved = resolve_processing_config(config_path, set_overrides=set_option)
     except ConfigError as error:
-        raise_config_error(error)
+        _exit_stage_input_error(
+            "infer",
+            error,
+            code="invalid_config",
+            output_format=resolved_output_format,
+        )
 
     if flat_output:
-        result = _run_infer(pdf, output_dir, resolved.config)
-        rich_print(to_jsonable(result))
+        _validate_flat_input_pdf(
+            "infer",
+            pdf,
+            output_format=resolved_output_format,
+        )
+        try:
+            result = _run_infer(pdf, output_dir, resolved.config)
+        except Exception as error:
+            _exit_stage_runtime_error(
+                "infer",
+                error,
+                output_format=resolved_output_format,
+                debug=debug,
+            )
+        _emit_stage_result(
+            "infer",
+            result,
+            result,
+            output_format=resolved_output_format,
+        )
         return
 
     try:
         run = create_run_context(pdf, output_dir, resolved, repository_root=Path.cwd())
     except RunError as error:
-        raise_config_error(error)
+        _exit_stage_input_error(
+            "infer",
+            error,
+            code="invalid_input",
+            output_format=resolved_output_format,
+        )
     run.start()
     try:
         result = _run_infer(pdf, run.run_dir, resolved.config)
+        manifest = run.complete(result)
     except Exception as error:
         run.fail(error)
-        raise
-    manifest = run.complete(result)
-    rich_print(
-        to_jsonable(
-            {
-                "run_id": manifest.run_id,
-                "run_dir": manifest.run_dir,
-                "manifest_path": run.manifest_path,
-                "config_hash": manifest.config_hash,
-                "result": result,
-            }
+        _exit_stage_runtime_error(
+            "infer",
+            error,
+            output_format=resolved_output_format,
+            debug=debug,
         )
+    payload = {
+        "run_id": manifest.run_id,
+        "run_dir": manifest.run_dir,
+        "manifest_path": run.manifest_path,
+        "config_hash": manifest.config_hash,
+        "result": result,
+    }
+    _emit_stage_result(
+        "infer",
+        payload,
+        result,
+        output_format=resolved_output_format,
     )
 
 
@@ -938,49 +1125,96 @@ def apply(
         "--flat-output",
         help="호환을 위해 immutable run directory 없이 기존 flat output을 사용한다.",
     ),
+    output_format: str = typer.Option(
+        "human", "--format", help="final result 출력 형식이다: human, json."
+    ),
+    debug: bool = typer.Option(
+        False, "--debug", help="예상하지 못한 오류의 traceback을 그대로 노출한다."
+    ),
 ) -> None:
     """검증된 bookmark plan을 읽어 최종 PDF/Markdown만 만든다.
 
     typography extraction과 inference는 다시 실행하지 않는다.
     """
 
+    resolved_output_format = _stage_output_format(output_format)
     try:
         resolved = resolve_processing_config(config_path, set_overrides=set_option)
     except ConfigError as error:
-        raise_config_error(error)
+        _exit_stage_input_error(
+            "apply",
+            error,
+            code="invalid_config",
+            output_format=resolved_output_format,
+        )
 
     try:
         plan = load_bookmark_plan_json(plan_path)
     except PlanError as error:
-        raise_plan_error(error)
+        _exit_stage_input_error(
+            "apply",
+            error,
+            code="invalid_plan",
+            output_format=resolved_output_format,
+        )
 
     if flat_output:
-        result = _run_apply(pdf, output_dir, plan, resolved.config)
-        rich_print(to_jsonable(result))
+        _validate_flat_input_pdf(
+            "apply",
+            pdf,
+            output_format=resolved_output_format,
+        )
+        try:
+            result = _run_apply(pdf, output_dir, plan, resolved.config)
+        except Exception as error:
+            _exit_stage_runtime_error(
+                "apply",
+                error,
+                output_format=resolved_output_format,
+                debug=debug,
+            )
+        _emit_stage_result(
+            "apply",
+            result,
+            result,
+            output_format=resolved_output_format,
+        )
         return
 
     try:
         run = create_run_context(pdf, output_dir, resolved, repository_root=Path.cwd())
     except RunError as error:
-        raise_config_error(error)
+        _exit_stage_input_error(
+            "apply",
+            error,
+            code="invalid_input",
+            output_format=resolved_output_format,
+        )
     run.start()
     try:
         result = _run_apply(pdf, run.run_dir, plan, resolved.config)
+        run.record_plan_source(plan_path, file_sha256(plan_path))
+        manifest = run.complete(result)
     except Exception as error:
         run.fail(error)
-        raise
-    run.record_plan_source(plan_path, file_sha256(plan_path))
-    manifest = run.complete(result)
-    rich_print(
-        to_jsonable(
-            {
-                "run_id": manifest.run_id,
-                "run_dir": manifest.run_dir,
-                "manifest_path": run.manifest_path,
-                "config_hash": manifest.config_hash,
-                "result": result,
-            }
+        _exit_stage_runtime_error(
+            "apply",
+            error,
+            output_format=resolved_output_format,
+            debug=debug,
         )
+    payload = {
+        "run_id": manifest.run_id,
+        "run_dir": manifest.run_dir,
+        "manifest_path": run.manifest_path,
+        "config_hash": manifest.config_hash,
+        "result": result,
+    }
+    _emit_stage_result(
+        "apply",
+        payload,
+        result,
+        output_format=resolved_output_format,
     )
 
 

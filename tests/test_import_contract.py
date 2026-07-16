@@ -19,6 +19,11 @@ def test_public_import_contract() -> None:
     assert pdfbooktree.PdfAnalysis is not None
     assert pdfbooktree.BookmarkInferenceResult is not None
     assert pdfbooktree.ApplyResult is not None
+    assert pdfbooktree.CLI_RESULT_SCHEMA_VERSION == 1
+    assert pdfbooktree.CommandError is not None
+    assert pdfbooktree.CommandErrorEnvelope is not None
+    assert pdfbooktree.CommandResultEnvelope is not None
+    assert pdfbooktree.ProcessingFailedError is not None
     assert pdfbooktree.OutlineQualityConfig is not None
     assert pdfbooktree.OutlineQualityAssessment is not None
     assert pdfbooktree.assess_outline_quality is not None
