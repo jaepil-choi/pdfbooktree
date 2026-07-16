@@ -36,7 +36,7 @@ from pdfbooktree import analyze_pdf, infer_bookmarks
 from pdfbooktree.config import TypographyConfig
 from pdfbooktree.models import BookmarkPlanItem
 from pdfbooktree.pdf.outline import outline_to_plan, read_outline
-from pdfbooktree.typography.position_fallback import _title_similarity
+from pdfbooktree.utils.text_normalize import title_similarity
 
 try:  # 콘솔에서 한글 파일명이 깨지지 않게 한다.
     sys.stdout.reconfigure(encoding="utf-8")
@@ -113,7 +113,7 @@ def _fuzzy_match(
         ):
             candidate_indices.update(pred_by_page.get(page, []))
         for pi in candidate_indices:
-            score = _title_similarity(gold_item.title, pred[pi].title)
+            score = title_similarity(gold_item.title, pred[pi].title)
             if score >= TITLE_MATCH_THRESHOLD:
                 scored_pairs.append((score, gi, pi))
 
