@@ -23,6 +23,8 @@
 - Phase 4 1차 증분 구현 노트: `docs/vibe/implementations/056_0d66ba365dae.md`
 - Phase 5 1차 증분 구현 커밋: `7ac5f61` (`feat: add inspect compare command for bookmark plan diff`)
 - Phase 5 1차 증분 구현 노트: `docs/vibe/implementations/057_7ac5f610657e.md`
+- Phase 7 1차 증분(`batch` 계약) 구현 커밋: `b815316` (`feat: add batch result/error/event contract`)
+- Phase 7 1차 증분 구현 노트: `docs/vibe/implementations/058_b815316c007e.md`
 
 이 handoff의 핵심 판단은 기존 bookmark engine algorithm을 다시 설계하지 않고, 이미 검증된 production pipeline을 agent가 단계별로 실행·검토·비교할 수 있는 public interface로 재구성하는 것이다.
 
@@ -45,7 +47,7 @@ inspect -> infer -> evaluate -> sweep/compare -> apply
 | Phase 4 | evaluator를 production으로 승격 | 1차 증분 완료 (2026-07-16) | `src/pdfbooktree/evaluation.py`로 fuzzy matcher와 matched/missed/extra detail을 승격했다. external reference loader, 3단계 reference quality, structural quality signal은 미착수. |
 | Phase 5 | inspect/compare 개선 | 1차 증분 완료 (2026-07-16) | `inspect compare`로 두 plan의 added/removed/moved/level/source diff를 구현했다. `inspect summary`, plan filter/limit/suspicious item, metric/structural signal delta는 미착수. |
 | Phase 6 | cache-aware sweep | 미착수 | analysis cache, matrix parser, ranking이 없다. |
-| Phase 7 | process/batch/OCR 통합과 문서화 | 미착수 | 기존 workflow는 존재하지만 새 단계형 계약을 공유하지 않는다. |
+| Phase 7 | process/batch/OCR 통합과 문서화 | 1차 증분 완료 (2026-07-16) | `batch` command에 공통 result/error/event 계약(`--config`/`--set`/`--format`/`--debug`/`--log-mode`)을 적용했다. `ocr_policy` 연결, `process` API 재정리, item run manifest, 문서화는 미착수. |
 
 ## 3. Phase 0 진행 상태
 
@@ -603,3 +605,40 @@ structural quality signal, `inspect summary`, plan filter/limit)은 대부분
 낮다. 아직 손대지 않은 Phase 6(cache-aware sweep)과 Phase 7(process/batch/
 OCR 통합과 문서화) 중 하나로 넘어가는 것이 다음 자연스러운 단위다. 둘 다
 범위가 커서, 착수 전에 첫 수직 단위를 좁게 정하는 논의가 먼저 필요하다.
+
+이 판단에 따라 Phase 7의 `batch` command 계약을 첫 수직 단위로 선택해
+완료했다. 진행 기록은 §14를 본다.
+
+## 14. 2026-07-16 갱신: Phase 7 1차 증분(`batch` 계약)과 다음 작업
+
+`feat/batch-result-contract` 브랜치, `develop`에서 분기.
+
+- 구현 커밋: `b815316` (`feat: add batch result/error/event contract`)
+- implementation note 커밋: `bcb926d` (노트 058)
+- `batch`에 `--config`/`--set`, `--log-mode`, `--format`, `--debug`를 추가하고
+  다른 8개 command와 동일한 `CommandResultEnvelope`/`CommandErrorEnvelope`/
+  `CommandEventEnvelope` 계약을 적용했다. 새 `src/pdfbooktree/batch_logger.py`가
+  `classify/logger.py` 구조를 그대로 복제한다(rich/plain/json/none logger,
+  PDF 단위 event).
+- 개별 PDF 실패는 classify/ocr-batch와 동일하게 exit 0 + `failed_count` 유지.
+  command 자체 예외만 exit 1(runtime)/2(input/config)다.
+- 검증: `uv run pytest -q` 246 passed, ruff check/format 통과, 실제 책
+  (`data/native-pdf-indexed/퀀트의 세계 - 홍창수.pdf`)으로 stdout/stderr 분리와
+  existing-outline fast path를 확인했다.
+- 의도적으로 제외한 것: item별 immutable run manifest, `ocr_policy` 연결,
+  `process`를 단계형 API 조립기로 재정리하는 것, README/exit code 문서화.
+  이 항목들이 Phase 7의 남은 범위다(§7 Phase 7 목록 그대로 유효).
+
+이 브랜치는 아직 `develop`에 병합하지 않았다. 다음 작업자는 먼저
+`git checkout develop && git merge feat/batch-result-contract`(fast-forward
+가능)로 병합한 뒤 진행한다.
+
+### 다음 작업 후보
+
+1. Phase 7 나머지 - `ocr_policy`를 `Processor`에 실제 연결하거나 public
+   contract에서 정리, `process`를 analyze/infer/apply 조립기로 마무리
+   재검토(§5.6 확인), item run과 batch summary 연결(batch도 immutable run
+   manifest를 쓰게 만드는 것), README quick start와 exit code 문서화.
+2. Phase 6(cache-aware sweep) - 아직 미착수. analysis cache key, TOML sweep
+   matrix parser, ranking 설계가 먼저 필요해 착수 전 논의 단위가 크다.
+3. Phase 4/5 잔여 항목은 실 소비자/데이터가 생기기 전까지는 그대로 보류.
