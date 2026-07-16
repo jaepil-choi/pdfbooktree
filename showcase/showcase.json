@@ -316,6 +316,18 @@
       "finding": "CLI와 같은 결과를 생성했다. 북마크 수는 57개, 141개, 69개다.",
       "command": "python showcase/026_process_ocr_books_python.py",
       "ran_at": "2026-07-16T17:19:39+09:00"
+    },
+    {
+      "id": "027_install_project_skill_cli",
+      "purpose": "현재 source로 wheel을 빌드해 격리 venv에 설치한 뒤, 설치된 pdfbooktree CLI가 실행 위치의 .agents/skills/use-pdfbooktree를 완전한 package resource로 생성하는지 검증한다.",
+      "inputs": [
+        ".agents\\skills\\use-pdfbooktree",
+        "현재 source에서 빌드한 pdfbooktree wheel"
+      ],
+      "outputs": "showcase\\outputs\\027_install_project_skill_cli\\result.json",
+      "finding": "wheel 설치 CLI가 skill file 5개를 실행 project에 byte-identical하게 생성했고, 기존 target은 exit 2로 보호하며 --force에서 전체 교체했다.",
+      "command": "uv run python showcase/027_install_project_skill_cli.py",
+      "ran_at": "2026-07-17T07:49:48+09:00"
     }
   ]
 }

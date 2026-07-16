@@ -36,3 +36,10 @@ def test_public_import_contract() -> None:
     assert pdfbooktree.PlanError is not None
     assert pdfbooktree.write_inference_artifacts is not None
     assert pdfbooktree.confidence_summary_for_inference is not None
+    assert pdfbooktree.install_project_skill is not None
+    assert pdfbooktree.SkillInstallResult is not None
+    assert pdfbooktree.SkillInstallError is not None
+    assert pdfbooktree.PROJECT_SKILL_NAME == "use-pdfbooktree"
+    assert str(pdfbooktree.PROJECT_SKILL_RELATIVE_PATH).replace("\\", "/") == (
+        ".agents/skills/use-pdfbooktree"
+    )

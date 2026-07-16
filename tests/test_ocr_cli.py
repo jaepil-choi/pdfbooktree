@@ -339,6 +339,8 @@ def test_ocr_overlay_batch_cli_parses_options(monkeypatch, tmp_path: Path) -> No
             "upstage",
             "--render-dpi",
             "240",
+            "--min-page-count",
+            "101",
             "--max-sample-pages",
             "50",
             "--stats-word-level",
@@ -359,6 +361,7 @@ def test_ocr_overlay_batch_cli_parses_options(monkeypatch, tmp_path: Path) -> No
     assert config.force is True
     assert config.confirm_bookmark_ocr_overwrite is True
     assert config.render_dpi == 240
+    assert config.min_page_count == 101
     assert config.max_sample_pages == 50
     assert config.stats_word_level is True
     assert config.engine_options["max_retries"] == 3
@@ -426,6 +429,9 @@ def test_ocr_overlay_batch_json_result_and_events_use_separate_streams(
     assert final["command"] == "ocr-overlay-batch"
     assert final["ok"] is True
     assert final["result"]["failed_count"] == 1
+    assert final["result"]["target_page_count"] == 0
+    assert final["result"]["will_process_page_count"] == 0
+    assert final["result"]["mupdf_warning_count"] == 0
     events = [json.loads(line) for line in result.stderr.splitlines()]
     assert len(events) == 1
     assert events[0]["schema_version"] == 1

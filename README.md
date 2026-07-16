@@ -30,6 +30,14 @@ python -m pip install .
 pdfbooktree --help
 ```
 
+Codex가 현재 project에서 `pdfbooktree`의 전체 CLI와 Python API 사용법을 알 수 있도록 package에 번들된 project scope skill을 설치할 수 있다.
+
+```powershell
+pdfbooktree skill install
+```
+
+현재 directory의 `.agents/skills/use-pdfbooktree`에 설치한다. 기존 skill은 기본적으로 보호하며, package의 최신 번들로 전체 교체할 때만 `--force`를 사용한다.
+
 ## 사용
 
 북마크 계획을 먼저 만들고 검토한 뒤 PDF와 Markdown에 적용하는 흐름을 권장한다.
@@ -49,6 +57,16 @@ pdfbooktree apply $pdf `
 ```powershell
 pdfbooktree process "book.pdf" -o .\runs --format json
 pdfbooktree batch .\books -o .\runs --recursive --log-mode json --format json
+```
+
+OCR overlay batch는 최소 PDF page 수를 inclusive 기준으로 제한할 수 있다. 예를 들어 100쪽을 초과하는 PDF만 먼저 확인하려면 최소값을 101로 지정한다.
+
+```powershell
+pdfbooktree ocr-overlay-batch .\data\300STUDY `
+  -o .\runs\300study-ocr `
+  --recursive `
+  --min-page-count 101 `
+  --dry-run
 ```
 
 기존 북마크가 있는 PDF는 기본적으로 새 구조 추론에서 제외한다. 기존 북마크의 품질이 낮을 때만 교체하려면 다음 설정을 사용한다.

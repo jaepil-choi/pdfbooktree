@@ -177,6 +177,171 @@ class CompositeOcrLogger:
             logger.close()
 
 
+class OcrBatchPreparationProgress:
+    """OCR batch의 탐색·분류 단계를 stderr에 관찰 가능하게 표시한다."""
+
+    def __init__(
+        self,
+        mode: OcrLogMode,
+        *,
+        command: str = "ocr-overlay-batch",
+        file: TextIO | None = None,
+    ) -> None:
+        self._mode = mode
+        self._command = command
+        self._file = file or sys.stderr
+        self._classification_bar: tqdm | None = None
+
+    def search_started(self, input_dir: Path, recursive: bool) -> None:
+        """PDF 탐색 조건을 탐색 전에 출력한다."""
+
+        self._emit(
+            "discovery_started",
+            f"PDF 탐색 시작: input={input_dir}, recursive={recursive}",
+            {"input_dir": input_dir, "recursive": recursive},
+        )
+
+    def search_completed(self, total_pdf_count: int) -> None:
+        """발견한 PDF 수를 출력한다."""
+
+        self._emit(
+            "discovery_completed",
+            f"PDF 탐색 완료: {total_pdf_count:,}개 발견",
+            {"total_pdf_count": total_pdf_count},
+        )
+
+    def classification_started(self, total_pdf_count: int) -> None:
+        """분류 progress를 시작한다."""
+
+        self._emit(
+            "classification_started",
+            f"PDF 분류 시작: {total_pdf_count:,}개",
+            {"total_pdf_count": total_pdf_count},
+        )
+        if self._mode == "tqdm":
+            self._classification_bar = tqdm(
+                total=total_pdf_count,
+                desc="PDF 분류",
+                unit="pdf",
+                file=self._file,
+            )
+
+    def note_classified(
+        self,
+        *,
+        completed_pdf_count: int,
+        total_pdf_count: int,
+        target_count: int,
+        target_page_count: int,
+        error_count: int,
+    ) -> None:
+        """PDF 하나의 분류 완료를 progress에 반영한다."""
+
+        data = {
+            "completed_pdf_count": completed_pdf_count,
+            "total_pdf_count": total_pdf_count,
+            "target_count": target_count,
+            "target_page_count": target_page_count,
+            "error_count": error_count,
+        }
+        if self._mode == "tqdm" and self._classification_bar is not None:
+            self._classification_bar.set_postfix(
+                target=target_count,
+                pages=target_page_count,
+                errors=error_count,
+                refresh=False,
+            )
+            self._classification_bar.update(1)
+        elif self._mode == "json":
+            self._emit(
+                "classification_progress",
+                f"PDF 분류 진행: {completed_pdf_count}/{total_pdf_count}",
+                data,
+            )
+
+    def classification_completed(self, summary: dict[str, object]) -> None:
+        """분류 bar를 닫고 target 요약을 출력한다."""
+
+        if self._classification_bar is not None:
+            self._classification_bar.close()
+            self._classification_bar = None
+        message = (
+            "PDF 분류 완료: "
+            f"전체={summary['total_pdf_count']:,}권, "
+            f"페이지 조건 통과={summary['page_count_eligible_count']:,}권, "
+            f"scanned={summary['scanned_count']:,}권, "
+            f"OCR 대상={summary['target_count']:,}권/"
+            f"{summary['target_page_count']:,}page, "
+            f"실행={summary['will_process_count']:,}권/"
+            f"{summary['will_process_page_count']:,}page, "
+            f"기존 출력={summary['existing_output_count']:,}권, "
+            f"분류 실패={summary['classification_error_count']:,}권, "
+            f"MuPDF 경고={summary['mupdf_warning_pdf_count']:,}권/"
+            f"{summary['mupdf_warning_count']:,}건"
+        )
+        self._emit("classification_completed", message, summary)
+
+    def mupdf_warnings_completed(
+        self,
+        *,
+        warning_pdf_count: int,
+        warning_count: int,
+        detail_jsonl_path: Path,
+    ) -> None:
+        """raw MuPDF stderr 대신 압축된 경고 요약과 상세 경로를 출력한다."""
+
+        if warning_count == 0:
+            return
+        self._emit(
+            "mupdf_warnings_collected",
+            (
+                f"MuPDF 복구 경고: {warning_pdf_count:,}권에서 "
+                f"{warning_count:,}건 감지됨; 상세={detail_jsonl_path}"
+            ),
+            {
+                "warning_pdf_count": warning_pdf_count,
+                "warning_count": warning_count,
+                "detail_jsonl_path": detail_jsonl_path,
+            },
+            level="warning",
+        )
+
+    def close(self) -> None:
+        """열린 분류 bar가 있으면 닫는다."""
+
+        if self._classification_bar is not None:
+            self._classification_bar.close()
+            self._classification_bar = None
+
+    def _emit(
+        self,
+        event: str,
+        message: str,
+        data: object,
+        *,
+        level: OcrLogLevel = "info",
+    ) -> None:
+        if self._mode == "none":
+            return
+        if self._mode == "json":
+            print(
+                render_command_event_json(
+                    self._command,
+                    event,
+                    level=level,
+                    message=message,
+                    data=data,
+                ),
+                file=self._file,
+                flush=True,
+            )
+            return
+        if self._mode == "tqdm":
+            tqdm.write(message, file=self._file)
+            return
+        print(message, file=self._file, flush=True)
+
+
 def build_ocr_logger(
     mode: OcrLogMode,
     output_dir: Path,
@@ -358,7 +523,6 @@ class TqdmBatchOcrProgress:
     ) -> None:
         self._total_books = total_books
         self._books_done = 0
-        self._skipped = 0
         self._file = file
         self._outer = tqdm(
             total=total_pages,
@@ -379,8 +543,8 @@ class TqdmBatchOcrProgress:
         return _BatchBookLoggerAdapter(inner, self._outer)
 
     def note_skip(self) -> None:
-        self._skipped += 1
-        self._outer.set_postfix(skipped=self._skipped, refresh=True)
+        # 비대상·기존 출력 항목은 준비 단계 요약에 표시하고 OCR bar와 섞지 않는다.
+        return None
 
     def note_book_done(self, page_count: int, processed_page_count: int) -> None:
         shortfall = max(0, page_count - processed_page_count)
@@ -388,7 +552,6 @@ class TqdmBatchOcrProgress:
             self._outer.update(shortfall)
         self._books_done += 1
         self._outer.set_description(self._outer_desc())
-        self._outer.set_postfix(skipped=self._skipped, refresh=True)
 
     def close(self) -> None:
         self._outer.close()
