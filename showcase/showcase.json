@@ -232,6 +232,18 @@
       "finding": "금리의 경제학: bookmarks=141 (baseline=79, at_or_above=True), font_candidates=132, position_fallback_candidates=9 (실험101 strict=9), kept_in_plan=9 | 통계학원론: bookmarks=69 (baseline=33, at_or_above=True), font_candidates=69, position_fallback_candidates=0 (실험101 strict=0), kept_in_plan=0 | 한경 읽는법: bookmarks=132 (baseline=None, at_or_above=True), font_candidates=127, position_fallback_candidates=5 (실험101 strict=5), kept_in_plan=5",
       "command": "uv run python showcase/020_position_fallback_bookmark_live.py",
       "ran_at": "2026-07-15T13:48:35+09:00"
+    },
+    {
+      "id": "021_infer_apply_existing_outline_policy",
+      "purpose": "resolve_existing_outline_action()의 existing-outline quality 정책과 analyze_pdf/infer_bookmarks/apply_plan 공개 함수를 실제 책 2권(low-quality embedded outline 1권, clean embedded outline 1권)으로 검증한다.",
+      "inputs": [
+        "data\\300STUDY\\a_books\\textbook\\Travis  Steffen - Viral Hero (2019).pdf",
+        "data\\300STUDY\\a_books\\(Financial Management Association Survey and Synthesis Series) Andrew Ang - Asset Management_ A Systematic Approach to Factor Investing-Oxford University Press (2014).pdf"
+      ],
+      "outputs": "showcase\\outputs\\021_infer_apply_existing_outline_policy\\result.json",
+      "finding": "Viral Hero (Travis Steffen): existing_items=1, default_reuse_existing=True, is_low_quality=True, reasons=['too_few_items'], replace_when_low_quality=True -> reuse_existing=False, inferred_bookmark_count=258 | Asset Management (Andrew Ang): existing_items=29, default_reuse_existing=True, is_low_quality=False, reasons=[]",
+      "command": "uv run python showcase/021_infer_apply_existing_outline_policy.py",
+      "ran_at": "2026-07-16T09:29:29+09:00"
     }
   ]
 }
