@@ -24,7 +24,7 @@ inspect -> infer -> evaluate -> sweep/compare -> apply
 | --- | --- | --- | --- |
 | Phase 0 | 현재 public contract와 결과 고정 | 부분 완료 | 일반 회귀 테스트는 있으나 pipeline parity와 대표 artifact golden contract가 부족하다. |
 | Phase 1 | versioned config와 immutable run 기반 | 완료 | TOML, `--set`, config CLI, config/input hash, run manifest를 구현했다. |
-| Phase 2 | core pipeline을 analyze/infer/apply로 분리 | 다음 작업 | 현재 `Processor.run()`의 orchestration을 public 함수로 추출해야 한다. |
+| Phase 2 | core pipeline을 analyze/infer/apply로 분리 | 완료 (2026-07-16) | `pipeline.py`(analyze_pdf/infer_bookmarks/apply_plan/resolve_existing_outline_action), `infer`/`apply` CLI, 로드맵에 없던 existing-outline quality policy까지 추가. 구현 노트 047~049 참고. |
 | Phase 3 | 공통 result/error/event 계약 | 미착수 | 일부 명령만 JSON을 제공하며 exit code와 progress stream이 통일되지 않았다. |
 | Phase 4 | evaluator를 production으로 승격 | 미착수 | fuzzy evaluator는 `experiments/102_engine_bookmark_fuzzy_eval.py`에만 있다. |
 | Phase 5 | inspect/compare 개선 | 부분 기반 존재 | 기본 inspect API/CLI는 있으나 plan filter, suspicious item, compare가 없다. |
@@ -283,3 +283,19 @@ Phase 2 완료 조건:
 - run manifest는 versioned이지만 기존 plan과 모든 중간 artifact가 독립 schema version을 가진 것은 아니다.
 - 동일 input/config라도 timestamp가 다르면 새 run이 생성되며 cache hit/resume는 아직 없다.
 - corporate PC에서는 권한 상승 shell의 원래 Codex 실행 파일 접근이 거부될 수 있으므로 `AGENTS.md`의 `C:\tmp\codex-apply-patch.exe --codex-run-as-apply-patch` 우회 규칙을 따른다.
+
+## 10. 2026-07-16 갱신: Phase 2 완료, 다음 작업 제안
+
+Phase 2 완료 조건(§5.8) 6개를 모두 충족했다. `feat/pipeline-stages` 브랜치, 커밋:
+
+- `cfb8eaed` analyze/infer/apply 분리 (노트 `047_cfb8eaed0dd3.md`)
+- `f2d80167` existing-outline quality policy 추가 — 로드맵에 없던 스코프. 기존 bookmark가 있으면 기본적으로 skip하는 canonical 동작은 유지하되, 실험 102 기준(item ≤3개, item 수가 page 수의 0.9배 이상) + numeric-only title 신호로 low quality를 항상 판정해 표시하고, `outline_quality.replace_when_low_quality`로만 opt-in 교체한다 (노트 `048_f2d801675acc.md`)
+- `0757e094` `infer`/`apply` CLI를 이 policy 위에 추가 (노트 `049_0757e09437b4.md`)
+
+각 노트의 "남은 리스크"에 다음이 남아 있다:
+
+1. `numeric_only_title`/임계값(`min_item_count=4`, `max_item_to_page_ratio=0.9`)이 실제 300STUDY 코퍼스로 검증되지 않았다 — showcase 2권만 확인함.
+2. Phase 0 잔여 항목(§3) 중 대표 native/OCR PDF artifact contract 고정, `process` CLI/Python 결과 golden test가 여전히 없다.
+3. `experiments/102_engine_bookmark_fuzzy_eval.py::_predict_plan()`이 `infer_bookmarks()`를 호출하도록 단순화되지 않아 production과 갈라질 수 있다.
+
+**다음 작업 우선순위 제안**: (1) 300STUDY 전체로 새 `assess_outline_quality()` 임계값 실측 검증 실험 → (2) Phase 0 golden/contract test 보강 → (3) Phase 3(공통 result/error/event 계약, `infer`/`apply` exit code 정규화 포함) 착수.
