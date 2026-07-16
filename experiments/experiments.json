@@ -18822,6 +18822,33 @@
       },
       "finding": "대상=400권(page>100 and has_toc), 평가 성공=400, 실패=0. 전체 mean precision=0.3393, recall=0.6932, f1=0.4089, accuracy(jaccard)=0.3046. gold 품질로 나누면 clean gold(n=312)는 precision=0.3801, recall=0.7985, f1=0.4662이고, junk gold(n=88, {'per_page_scan_filenames': 33, 'placeholder_or_tiny': 55})는 f1=0.2057로 훨씬 낮다 — junk gold는 스캔/분할 도구가 남긴 자리표시자이지 실제 목차가 아니다. predicted_count=0(추출 가능한 text layer가 사실상 없는 책)은 6권(1.5%)뿐이라 드물다. clean gold 안에서도 최악 사례는 OCR이 수식/기호를 heading 크기로 잘못 인식해 font 골격이 오염되는 경우이고, 최고 사례는 gold 자체가 세밀한(수백 개) 프로그래밍/기술서적처럼 원서 목차 세밀도가 engine의 BPE 세밀도와 가까운 경우다(F1 0.85~0.99). 총 소요=3833.2s.",
       "ran_at": "2026-07-15T15:33:14+09:00"
+    },
+    {
+      "id": "103_project_skill_install",
+      "purpose": "pip 설치 package가 제공할 use-pdfbooktree skill tree를 현재 project의 .agents/skills 아래에 동일하게 설치하는 경로와 overwrite 정책을 검증한다.",
+      "inputs": [
+        ".agents\\skills\\use-pdfbooktree"
+      ],
+      "outputs": "experiments\\outputs\\103_project_skill_install",
+      "method": "repo-local skill의 모든 파일을 project/.agents/skills/use-pdfbooktree로 복사하고 상대 경로별 SHA-256을 비교했다. 기존 target은 기본적으로 거절하고, force일 때 전체 directory를 교체한 뒤 다시 hash를 비교했다.",
+      "summary": {
+        "source_skill_dir": ".agents\\skills\\use-pdfbooktree",
+        "target_skill_dir": "experiments\\outputs\\103_project_skill_install\\project\\.agents\\skills\\use-pdfbooktree",
+        "file_count": 5,
+        "files": [
+          "SKILL.md",
+          "agents/openai.yaml",
+          "references/cli.md",
+          "references/contracts.md",
+          "references/python-api.md"
+        ],
+        "initial_identical": true,
+        "existing_target_rejected": true,
+        "force_identical": true,
+        "finding": "skill file 5개를 project scope에 byte-identical하게 설치했고, 기존 target은 기본 거절, force에서는 전체 교체 후 동일성을 복원했다."
+      },
+      "finding": "skill file 5개를 project scope에 byte-identical하게 설치했고, 기존 target은 기본 거절, force에서는 전체 교체 후 동일성을 복원했다.",
+      "ran_at": "2026-07-17T07:36:52+09:00"
     }
   ]
 }
