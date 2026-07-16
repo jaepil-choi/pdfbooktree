@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 import fitz
+import pytest
 
 from pdfbooktree.batch import BatchProcessor
 from pdfbooktree.config import ProcessingConfig, TypographyConfig
@@ -47,6 +48,17 @@ def test_batch_processes_pdfs(tmp_path: Path) -> None:
     assert result.processed_count == 2
     assert result.failed_count == 0
     assert len(result.results) == 2
+    assert result.batch_run_id is not None
+    assert result.batch_run_dir is not None and result.batch_run_dir.is_dir()
+    assert result.batch_manifest_path is not None
+    batch_manifest = json.loads(result.batch_manifest_path.read_text(encoding="utf-8"))
+    assert batch_manifest["schema_version"] == 1
+    assert batch_manifest["status"] == "succeeded"
+    assert batch_manifest["batch_run_id"] == result.batch_run_id
+    assert batch_manifest["config_hash"] == result.config_hash
+    assert batch_manifest["summary"]["completed_count"] == 2
+    assert batch_manifest["summary"]["failed_count"] == 0
+    assert len(batch_manifest["item_runs"]) == 2
     assert {item.config_hash for item in result.results} == {
         result.results[0].config_hash
     }
@@ -60,6 +72,12 @@ def test_batch_processes_pdfs(tmp_path: Path) -> None:
         assert manifest["status"] == "succeeded"
         assert manifest["config_hash"] == item.config_hash
         assert manifest["run_id"] == item.run_id
+    by_input = {
+        Path(item["input_pdf"]).name: item for item in batch_manifest["item_runs"]
+    }
+    assert set(by_input) == {"a.pdf", "b.pdf"}
+    assert all(item["manifest_path"] for item in by_input.values())
+    assert all(item["output_paths"]["output_pdf"] for item in by_input.values())
 
 
 def test_batch_records_processor_exception_in_item_manifest(
@@ -136,6 +154,10 @@ def test_batch_keeps_partial_processing_failure_in_item_manifests(
     assert failed_manifest["processing_status"] == "failed"
     assert failed_manifest["error"] is None
     assert failed_manifest["warnings"] == ["bookmark plan 검증 실패"]
+    batch_manifest = json.loads(result.batch_manifest_path.read_text(encoding="utf-8"))
+    assert batch_manifest["status"] == "succeeded"
+    assert batch_manifest["summary"]["processed_count"] == 1
+    assert batch_manifest["summary"]["failed_count"] == 1
 
 
 def test_batch_records_unreadable_pdf_in_failed_item_manifest(tmp_path: Path) -> None:
@@ -153,3 +175,39 @@ def test_batch_records_unreadable_pdf_in_failed_item_manifest(tmp_path: Path) ->
     assert manifest["status"] == "failed"
     assert manifest["input"]["page_count"] is None
     assert manifest["error"]["type"] == "FileDataError"
+    batch_manifest = json.loads(result.batch_manifest_path.read_text(encoding="utf-8"))
+    assert batch_manifest["status"] == "succeeded"
+    assert batch_manifest["summary"]["failed_count"] == 1
+
+
+def test_batch_records_command_exception_in_failed_batch_manifest(
+    tmp_path: Path,
+) -> None:
+    input_dir = tmp_path / "pdfs"
+    input_dir.mkdir()
+    _write_pdf(input_dir / "book.pdf", "Chapter 1 Broken Logger")
+
+    class FailingLogger:
+        def emit(self, event) -> None:
+            raise RuntimeError("batch event 출력 실패")
+
+        def close(self) -> None:
+            return None
+
+    output_dir = tmp_path / "out"
+    processor = BatchProcessor(input_dir, output_dir, log=FailingLogger())
+
+    with pytest.raises(RuntimeError, match="batch event 출력 실패"):
+        processor.run()
+
+    manifest_paths = list((output_dir / "_batch_runs").glob("*/batch_manifest.json"))
+    assert len(manifest_paths) == 1
+    manifest = json.loads(manifest_paths[0].read_text(encoding="utf-8"))
+    assert manifest["status"] == "failed"
+    assert manifest["summary"]["completed_count"] == 1
+    assert manifest["error"] == {
+        "type": "RuntimeError",
+        "message": "batch event 출력 실패",
+    }
+    assert len(manifest["item_runs"]) == 1
+    assert manifest["item_runs"][0]["manifest_path"] is not None

@@ -255,6 +255,10 @@ class BatchResult:
     created_bookmarked_pdf_paths: list[Path] = field(default_factory=list)
     created_markdown_dirs: list[Path] = field(default_factory=list)
     results: list[BatchItemResult] = field(default_factory=list)
+    batch_run_id: str | None = None
+    batch_run_dir: Path | None = None
+    batch_manifest_path: Path | None = None
+    config_hash: str | None = None
 
 
 JsonDict = dict[str, Any]

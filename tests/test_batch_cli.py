@@ -181,12 +181,19 @@ def test_batch_cli_json_result_links_item_run_manifest(tmp_path: Path) -> None:
     item = envelope["result"]["results"][0]
     manifest_path = Path(item["manifest_path"])
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    batch_manifest_path = Path(envelope["result"]["batch_manifest_path"])
+    batch_manifest = json.loads(batch_manifest_path.read_text(encoding="utf-8"))
     assert item["status"] == "processed"
     assert Path(item["run_dir"]) == manifest_path.parent
     assert item["run_id"] == manifest["run_id"]
     assert item["config_hash"] == manifest["config_hash"]
     assert manifest["status"] == "succeeded"
     assert manifest["config_sources"][-1]["kind"] == "set_overrides"
+    assert envelope["result"]["batch_run_id"] == batch_manifest["batch_run_id"]
+    assert Path(envelope["result"]["batch_run_dir"]) == batch_manifest_path.parent
+    assert envelope["result"]["config_hash"] == batch_manifest["config_hash"]
+    assert batch_manifest["status"] == "succeeded"
+    assert batch_manifest["item_runs"][0]["manifest_path"] == str(manifest_path)
 
 
 def test_batch_missing_input_uses_json_input_error(tmp_path: Path) -> None:

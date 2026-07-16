@@ -8,6 +8,7 @@ from dataclasses import fields
 from pathlib import Path
 
 from pdfbooktree.batch_logger import BatchLogEvent, BatchLogger, NullBatchLogger
+from pdfbooktree.batch_run import BatchRunContext, create_batch_run_context
 from pdfbooktree.config import ProcessingConfig
 from pdfbooktree.config_io import (
     ResolvedConfig,
@@ -42,12 +43,23 @@ class BatchProcessor:
     def run(self) -> BatchResult:
         """PDF batch 처리를 실행한다."""
 
-        pdf_paths = self._find_pdfs()
-        started_at = time.perf_counter()
+        pdf_paths: list[Path] = []
+        batch_run: BatchRunContext | None = None
         results: list[BatchItemResult] = []
+        logger_closed = False
+        started_at = time.perf_counter()
         processed_count = 0
         failed_count = 0
         try:
+            pdf_paths = self._find_pdfs()
+            batch_run = create_batch_run_context(
+                self.input_dir,
+                self.output_dir,
+                self.resolved,
+                recursive=self.recursive,
+                pdf_paths=pdf_paths,
+            )
+            batch_run.start()
             for path in pdf_paths:
                 result = self._run_one(path)
                 results.append(result)
@@ -70,8 +82,34 @@ class BatchProcessor:
                         ),
                     )
                 )
-        finally:
             self.log.close()
+            logger_closed = True
+            batch_result = self._build_result(pdf_paths, results, batch_run)
+            batch_run.complete(batch_result)
+            return batch_result
+        except Exception as error:
+            if batch_run is not None:
+                partial_result = self._build_result(pdf_paths, results, batch_run)
+                try:
+                    batch_run.fail(error, partial_result)
+                except Exception:  # noqa: BLE001 - 원래 command 오류를 보존해야 한다.
+                    logger.exception("batch manifest 실패 기록 실패")
+            raise
+        finally:
+            if not logger_closed:
+                try:
+                    self.log.close()
+                except Exception:  # noqa: BLE001 - 원래 command 오류를 보존해야 한다.
+                    logger.exception("batch logger 종료 실패")
+
+    def _build_result(
+        self,
+        pdf_paths: list[Path],
+        results: list[BatchItemResult],
+        batch_run: BatchRunContext,
+    ) -> BatchResult:
+        """완료된 item 목록과 batch run identity를 하나의 결과로 묶는다."""
+
         return BatchResult(
             total_pdf_count=len(pdf_paths),
             processed_count=sum(
@@ -100,6 +138,10 @@ class BatchProcessor:
                 and result.output_markdown_dir is not None
             ],
             results=results,
+            batch_run_id=batch_run.manifest.batch_run_id,
+            batch_run_dir=batch_run.batch_run_dir,
+            batch_manifest_path=batch_run.manifest_path,
+            config_hash=batch_run.manifest.config_hash,
         )
 
     def _run_one(self, path: Path) -> BatchItemResult:

@@ -2,6 +2,15 @@
 
 from pdfbooktree.artifacts import write_inference_artifacts
 from pdfbooktree.batch import BatchProcessor
+from pdfbooktree.batch_run import (
+    BATCH_RUN_MANIFEST_SCHEMA_VERSION,
+    BatchItemRunReference,
+    BatchRunContext,
+    BatchRunError,
+    BatchRunManifest,
+    BatchRunSummary,
+    create_batch_run_context,
+)
 from pdfbooktree.config import (
     ConfigError,
     MarkdownSplitConfig,
@@ -82,9 +91,15 @@ __all__ = [
     "ApplyResult",
     "CLI_RESULT_SCHEMA_VERSION",
     "assess_outline_quality",
+    "BATCH_RUN_MANIFEST_SCHEMA_VERSION",
+    "BatchItemRunReference",
     "BatchProcessor",
     "BatchItemResult",
     "BatchResult",
+    "BatchRunContext",
+    "BatchRunError",
+    "BatchRunManifest",
+    "BatchRunSummary",
     "BookmarkInferenceResult",
     "BookmarkPlanItem",
     "BookmarkPlanValidation",
@@ -135,6 +150,7 @@ __all__ = [
     "InputIdentity",
     "ToolIdentity",
     "create_run_context",
+    "create_batch_run_context",
     "Tier",
     "TierSet",
     "TypographyConfig",
