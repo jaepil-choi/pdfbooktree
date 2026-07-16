@@ -17,6 +17,12 @@
 - Phase 3C OCR 구현 노트: `docs/vibe/implementations/053_a9649efeabcf.md`
 - Phase 3C classify 구현 커밋: `308b3c1` (`feat: add classify result and event contracts`)
 - Phase 3C classify 구현 노트: `docs/vibe/implementations/054_308b3c11ea5e.md`
+- Phase 3C ocr-overlay-batch 구현 커밋: `6dc71cf` (`feat: add ocr-overlay-batch event contract`)
+- Phase 3C ocr-overlay-batch 구현 노트: `docs/vibe/implementations/055_6dc71cf39714.md`
+- Phase 4 1차 증분 구현 커밋: `0d66ba3` (`feat: add bookmark plan evaluation module`)
+- Phase 4 1차 증분 구현 노트: `docs/vibe/implementations/056_0d66ba365dae.md`
+- Phase 5 1차 증분 구현 커밋: `7ac5f61` (`feat: add inspect compare command for bookmark plan diff`)
+- Phase 5 1차 증분 구현 노트: `docs/vibe/implementations/057_7ac5f610657e.md`
 
 이 handoff의 핵심 판단은 기존 bookmark engine algorithm을 다시 설계하지 않고, 이미 검증된 production pipeline을 agent가 단계별로 실행·검토·비교할 수 있는 public interface로 재구성하는 것이다.
 
@@ -35,9 +41,9 @@ inspect -> infer -> evaluate -> sweep/compare -> apply
 | Phase 0 | 현재 public contract와 결과 고정 | 완료 (2026-07-16) | pipeline parity, fast path, process Python/CLI result, artifact JSON shape와 manifest-to-file golden contract를 고정했다. |
 | Phase 1 | versioned config와 immutable run 기반 | 완료 | TOML, `--set`, config CLI, config/input hash, run manifest를 구현했다. |
 | Phase 2 | core pipeline을 analyze/infer/apply로 분리 | 완료 (2026-07-16) | `pipeline.py`(analyze_pdf/infer_bookmarks/apply_plan/resolve_existing_outline_action), `infer`/`apply` CLI, 로드맵에 없던 existing-outline quality policy까지 추가. 구현 노트 047~049 참고. |
-| Phase 3 | 공통 result/error/event 계약 | 대부분 완료 (2026-07-16) | `process`/`infer`/`apply`, config, inspect, 단일 OCR, classify에 schema v1 계약을 적용했다. `ocr-overlay-batch`, parser-level error와 기존 `batch`가 남았다. |
-| Phase 4 | evaluator를 production으로 승격 | 미착수 | fuzzy evaluator는 `experiments/102_engine_bookmark_fuzzy_eval.py`에만 있다. |
-| Phase 5 | inspect/compare 개선 | 부분 기반 존재 | 기본 inspect API/CLI는 있으나 plan filter, suspicious item, compare가 없다. |
+| Phase 3 | 공통 result/error/event 계약 | practical complete (2026-07-16) | `process`/`infer`/`apply`, config, inspect, 단일 OCR, classify, `ocr-overlay-batch`까지 schema v1 계약을 적용했다. Typer parser-level error는 `--format` 파싱 전 시점이라 공통 envelope에 넣지 않기로 결정했다. 기존 `batch`는 Phase 7로 미룬다. |
+| Phase 4 | evaluator를 production으로 승격 | 1차 증분 완료 (2026-07-16) | `src/pdfbooktree/evaluation.py`로 fuzzy matcher와 matched/missed/extra detail을 승격했다. external reference loader, 3단계 reference quality, structural quality signal은 미착수. |
+| Phase 5 | inspect/compare 개선 | 1차 증분 완료 (2026-07-16) | `inspect compare`로 두 plan의 added/removed/moved/level/source diff를 구현했다. `inspect summary`, plan filter/limit/suspicious item, metric/structural signal delta는 미착수. |
 | Phase 6 | cache-aware sweep | 미착수 | analysis cache, matrix parser, ranking이 없다. |
 | Phase 7 | process/batch/OCR 통합과 문서화 | 미착수 | 기존 workflow는 존재하지만 새 단계형 계약을 공유하지 않는다. |
 
@@ -251,28 +257,93 @@ Phase 2 완료 조건:
 - `classify-scan`의 JSON final result는 stdout, file progress는 stderr로 분리
 - OCR/classify의 기존 durable artifact JSONL 형식은 호환성을 위해 유지
 - classify의 파일별 오류는 `error_count`와 detail artifact로 반환하고 batch 성공 exit 0 유지
+- `ocr-overlay-batch`를 같은 result/error/event 계약으로 전환(`6dc71cf`, 노트 055).
+  `JsonStderrOcrLogger`/`build_batch_ocr_progress`/`OcrOverlayBatchRunner`에
+  `command` 파라미터를 추가해 batch 내부 책별 event는 `ocr-overlay-batch`,
+  단일 실행은 `ocr-overlay`로 구분되게 만들었다. `failed_count > 0`인 부분
+  실패는 classify와 동일하게 exit 0 + `failed_count`를 유지한다.
+- Typer parser-level(callback 진입 전) usage error의 JSON envelope 처리는
+  **하지 않기로 결정**했다. `--format` 자체가 아직 파싱되지 않은 시점에
+  발생하는 오류라 "JSON으로 낼지 human으로 낼지"를 판단할 수 없는 순서
+  문제가 있고, 이를 해결하려면 `app()` 실행 전체를 감싸 `click.UsageError`/
+  `SystemExit`를 가로채야 해서 침습성 대비 실익이 낮다고 판단했다. 이
+  결정으로 Phase 3을 practical complete로 닫는다.
 
 남은 범위:
 
-- `ocr-overlay-batch`를 같은 result/error/event/stream 계약으로 전환
-- OCR batch에서 책별 event의 command context를 `ocr-overlay`와 구분
-- Typer callback 진입 전 parser-level 오류의 JSON envelope 처리 여부 결정
-- 기존 `batch`는 Phase 7의 config/run/item summary 통합과 함께 전환
+- 기존 `batch`(bookmark 처리 command)는 Phase 7의 config/run/item summary
+  통합과 함께 전환한다.
 
 ### Phase 4. Production evaluator
 
-- 실험 102 fuzzy matcher 승격
-- embedded/external reference loader
-- reference quality `clean/suspicious/unusable`
-- matched/missed/extra detail
-- structural quality signal
+완료된 범위(`0d66ba3`, 노트 056):
+
+- 실험 102 fuzzy matcher 승격 - `src/pdfbooktree/evaluation.py`의
+  `match_bookmark_plans()`. title 유사도 + page tolerance 그리디 1:1 매칭을
+  그대로 승격했다.
+- matched/missed/extra detail - `PlanMatchResult(metrics, matched, missed,
+  extra)`. `MatchedPair`가 gold/predicted 쌍과 title_similarity,
+  exact_page_match를 담는다.
+- embedded reference loader - 새 wrapper를 만들지 않고 기존
+  `pdfbooktree.pdf.outline.read_outline()` + `outline_to_plan()`을 그대로
+  쓴다.
+- reference quality 판정 - 새로 만들지 않고 기존
+  `pdfbooktree.pdf.outline_quality.assess_outline_quality()`를 재사용한다.
+  이 함수의 임계값이 이미 실험 102 결과에서 나왔다(Phase 2에서 먼저
+  production에 들어간 것).
+- title 유사도 함수는 `typography/position_fallback.py`의 private
+  `_title_similarity`였으나, evaluation 모듈도 필요로 하게 돼
+  `utils/text_normalize.py`의 공개 `title_similarity()`로 승격했다.
+- showcase 022가 실제 책 3권(clean gold 고성능, junk gold + zero
+  prediction, clean gold 저성능)으로 검증했고, 세 책 모두 실험 102의
+  원래 400권 결과와 수치가 정확히 일치했다.
+
+남은 범위:
+
+- external reference loader(embedded TOC가 없는 책의 외부 정답 파일) -
+  실제로 쓸 external gold 데이터가 아직 없어 미착수. 데이터가 생기면
+  진행한다.
+- reference quality `clean/suspicious/unusable` 3단계 - 현재
+  `assess_outline_quality()`는 `is_low_quality: bool` + reasons(2가지
+  사유)만 구분하는 2단계다. production existing-outline 정책이 이미 이
+  이진 판정에 의존하고 있어, 3단계로 확장하려면 그 정책의 의미까지 함께
+  재설계해야 한다. 실제 3단계가 필요한 소비자(Phase 5 compare 확장,
+  Phase 6 ranking)가 생기면 진행한다.
+- structural quality signal(레벨 역전, 중복 제목, page 비단조 등 gold
+  없이도 계산 가능한 신호) - 미착수.
 
 ### Phase 5. Inspect와 compare
 
+완료된 범위(`7ac5f61`, 노트 057):
+
+- 두 run/plan의 added/removed/moved/level/source diff -
+  `compare_bookmark_plans()`(evaluation.py)가 `match_bookmark_plans()`를
+  재사용해(before=gold 자리, after=predicted 자리) missed/extra를
+  removed/added로 매핑하고, matched 쌍을 `page_changed`/`level_changed`/
+  `source_changed` 독립 flag로 후처리한다. 세 flag가 모두 False면
+  unchanged다. 같은 pipeline의 두 실행을 비교하는 용도라 page tolerance
+  기본값을 gold matching(1)과 다르게 0으로 뒀다.
+- CLI `inspect compare <plan_a> <plan_b>` - 기존 `inspect plan`과 같은
+  `--format`/`--json`/`--debug` 계약, `--page-tolerance`/
+  `--title-similarity-threshold` 옵션 노출.
+- `inspection.py`의 `inspect_compare_plans()`가 기존
+  `load_bookmark_plan_json()`으로 두 plan 파일을 읽어 JSON 친화적 dict로
+  변환한다.
+- showcase 023이 실제 책 한 권을 서로 다른 두 `TypographyConfig`(기본값,
+  `position_fallback_enabled=False`)로 `infer`해 만든 실제
+  `bookmark_plan.json` 두 개를 비교했다. `position_fallback_enabled=False`
+  가 정확히 fallback이 찾은 17개 항목만 `removed`로 만들었다(added=0,
+  unchanged=154) - config 옵션의 실제 효과와 compare 기능을 함께 검증했다.
+
+남은 범위:
+
 - `inspect summary`
 - plan item filter, limit, suspicious item, JSONL
-- 두 run/plan의 added/removed/moved/level/source diff
-- metric과 structural signal delta
+- metric과 structural signal delta - Phase 4의 structural quality signal이
+  선행돼야 한다.
+- 두 output_dir을 받아 `bookmark_plan.json`을 자동으로 찾는 편의 기능
+  (`inspect plan`처럼) - 이번 1차 증분은 plan 파일 경로 두 개를 직접
+  받는 인터페이스로 좁혔다.
 
 ### Phase 6. Cache-aware sweep
 
@@ -290,7 +361,10 @@ Phase 2 완료 조건:
 - item run과 batch summary 연결
 - README quick start, artifact 구조와 exit code 문서화
 
-## 8. 다음 작업자 체크리스트
+## 8. 다음 작업자 체크리스트 (완료: 2026-07-16, §13 참고)
+
+이 체크리스트는 `ocr-overlay-batch` 계약 작업 계획으로 작성됐고 그대로 완료됐다.
+아래 항목은 실행 기록으로 남기고, 완료 결과와 검증은 §13을 본다.
 
 1. 현재 `feat/classify-event-contract` 브랜치의 `308b3c1`과 `0fbdd7e` 및 이 handoff
    문서 커밋을 확인한 뒤 `develop`에 fast-forward/merge한다.
@@ -318,8 +392,23 @@ Phase 2 완료 조건:
 - `ProcessingConfig.ocr_policy`는 아직 `Processor`에 연결되지 않았다.
 - `process`/`infer`/`apply`의 failed `ProcessingResult`는 exit 3으로 정규화됐다.
   `classify-scan`의 파일별 오류는 유효한 부분 report이므로 exit 0 + `error_count`다.
-- 단일 `ocr-overlay`와 `classify-scan`의 progress는 stderr로 분리됐지만
-  `ocr-overlay-batch`는 아직 공통 final result/event 계약을 사용하지 않는다.
+- 단일 `ocr-overlay`, `classify-scan`, `ocr-overlay-batch` 모두 공통 result/
+  error/event 계약을 쓴다. 기존 `batch`(bookmark 처리 command)만 아직
+  이 계약을 쓰지 않고, Phase 7로 미뤄뒀다.
+- Typer callback 진입 전 parser-level usage error(필수 옵션 누락, 타입
+  변환 오류 등)는 공통 JSON envelope 대상이 **아니다** - `--format` 자체가
+  파싱되기 전에 발생하는 오류라 침습적인 `app()` wrapper 없이는 처리할 수
+  없고, 그 비용이 실익보다 크다고 판단해 의도적으로 범위에서 뺐다(Phase 3
+  practical complete 결정, §13 참고).
+- gold/reference 품질 판정(`assess_outline_quality()`)은 `is_low_quality:
+  bool` + reasons 2가지(`too_few_items`, `near_one_bookmark_per_page`,
+  `numeric_only_title`)만 구분하는 2단계다. 로드맵이 원래 그렸던
+  `clean/suspicious/unusable` 3단계가 아니다 - 3단계가 필요한 실제
+  소비자가 생기기 전까지는 확장하지 않기로 했다.
+- `compare_bookmark_plans()`(두 plan 비교)의 기본 page tolerance는 0이다.
+  `match_bookmark_plans()`(gold vs predicted 비교)의 기본값 1과 의도적으로
+  다르다 - 같은 pipeline의 두 실행은 보통 정확히 같은 page가 나와야 정상이고,
+  달라졌다면 그 자체가 `moved`로 보고할 신호이기 때문이다.
 - run manifest는 versioned이지만 기존 plan과 모든 중간 artifact가 독립 schema version을 가진 것은 아니다.
 - 동일 input/config라도 timestamp가 다르면 새 run이 생성되며 cache hit/resume는 아직 없다.
 - corporate PC에서는 권한 상승 shell의 원래 Codex 실행 파일 접근이 거부될 수 있으므로 `AGENTS.md`의 `C:\tmp\codex-apply-patch.exe --codex-run-as-apply-patch` 우회 규칙을 따른다.
@@ -406,3 +495,111 @@ Phase 3A 이후 다음 세 수직 단위를 완료했다.
 2. parser hook이 과도하게 침습적이면 Phase 3을 practical complete로 닫고 Phase 4
    production evaluator로 이동한다.
 3. 기존 `batch` command는 Phase 7에서 config/run/item summary와 함께 다룬다.
+
+위 세 우선순위가 모두 이후 작업으로 완료됐다. 진행 기록은 §13을 본다.
+
+## 13. 2026-07-16 갱신: Phase 3 완료, Phase 4/5 1차 증분과 다음 작업
+
+`develop`에서 순서대로 세 수직 단위를 완료하고 각각 바로 `develop`에
+fast-forward 병합했다(모두 로컬에만 있고 `origin/develop`에는 아직 push하지
+않았다 - 현재 `develop`이 `origin/develop`보다 31 commit 앞서 있다).
+
+### 13.1 Phase 3 완료: `ocr-overlay-batch` 계약
+
+- 구현 커밋: `6dc71cf` (`feat: add ocr-overlay-batch event contract`)
+- implementation note 커밋: `843353b` (노트 055)
+- `ocr-overlay-batch`에 `--format human|json`, `--debug`를 추가하고 최종
+  결과를 stdout 한 줄로, event/progress를 stderr로 분리했다.
+- `JsonStderrOcrLogger`/`build_ocr_logger`/`build_batch_ocr_progress`/
+  `FlatBatchOcrProgress`/`OcrOverlayBatchRunner`에 `command` 파라미터를
+  keyword-only로 추가해, 단일 실행은 `ocr-overlay`, batch 내부 책별
+  event는 `ocr-overlay-batch`로 표시되게 만들었다. 기본값이 각각 달라
+  기존 호출부는 수정 없이 그대로 동작한다.
+- `failed_count > 0`인 부분 실패는 classify와 동일하게 exit 0을 유지한다
+  - `OcrOverlayBatchRunner`가 이미 책별 실패를 report에 격리하고 계속
+    진행하는 구조이기 때문이다.
+- 검증: `uv run pytest -q` 217 passed, `uv run ruff check/format --check
+  src tests` 통과, `ocr-overlay-batch --help`에서 `--format`/`--debug` 노출
+  확인.
+- 이 커밋을 끝으로 Phase 3의 "그 이후 우선순위" 1~2번(§12)을 처리했다:
+  Typer parser-level usage error의 JSON envelope 처리는 **하지 않기로
+  결정**했다(`--format` 파싱 전 시점이라 순서 문제가 있고, `app()` 전체를
+  감싸야 해서 침습성 대비 실익이 낮음). 이 결정으로 **Phase 3을 practical
+  complete로 닫는다**. 기존 `batch` command는 계획대로 Phase 7로 남긴다.
+
+### 13.2 Phase 4 1차 증분: production evaluator
+
+- 선행 작업: 실험 102의 `_predict_plan()`을 public 단계형 API
+  (`analyze_pdf`/`infer_bookmarks`)로 전환한 `75b7e21`
+  (`fix/experiment-102-public-pipeline` 브랜치, §10의 미반영 항목)을
+  `develop`에 cherry-pick(`65beb2f`)했다. 순수 리팩터링이라 예측 결과는
+  바뀌지 않았다.
+- 구현 커밋: `0d66ba3` (`feat: add bookmark plan evaluation module`)
+- implementation note 커밋: `6025ac3` (노트 056)
+- 부수 커밋: `e5f0794`(`exp:` 실험 102 import 갱신), `c5f0a8d`
+  (`showcase:` showcase 022)
+- `src/pdfbooktree/evaluation.py`를 신설해 실험 102의 `MatchMetrics`/
+  fuzzy matcher를 승격했다. `match_bookmark_plans()`는 집계 지표뿐 아니라
+  `matched`/`missed`/`extra` item 상세를 반환한다(로드맵의 "matched/
+  missed/extra detail").
+- gold reference 품질 판정은 새로 안 만들고 기존
+  `assess_outline_quality()`를 재사용했다 - 그 함수의 임계값이 이미
+  실험 102 결과에서 나온 것이었다(Phase 2에서 먼저 production에 들어감).
+- `_title_similarity()`가 `typography/position_fallback.py`의 private
+  함수였는데 evaluation 모듈도 필요로 하게 돼
+  `utils/text_normalize.py`의 공개 `title_similarity()`로 승격했다.
+- 검증: `uv run pytest -q` 229 passed, ruff 통과. showcase 022가 실제 책
+  3권(clean gold 고성능/junk gold+zero prediction/clean gold 저성능)으로
+  검증했고, 세 책 모두 실험 102의 원래 400권 결과와 F1/count가 정확히
+  일치했다 - public pipeline 전환과 evaluation 모듈 승격 둘 다 예측
+  결과를 바꾸지 않았다는 것을 함께 확인했다.
+- 의도적으로 미룬 것: external reference loader(실제 external gold 데이터
+  없음), reference quality 3단계(실제 소비자 없음), structural quality
+  signal(범위를 매칭 로직으로 좁게 유지).
+
+### 13.3 Phase 5 1차 증분: `inspect compare`
+
+- 구현 커밋: `7ac5f61` (`feat: add inspect compare command for bookmark
+  plan diff`)
+- implementation note 커밋: `fb1fc1f` (노트 057)
+- showcase 커밋: `83ceeab` (showcase 023)
+- `evaluation.py`에 `compare_bookmark_plans()`를 추가했다.
+  `match_bookmark_plans()`를 그대로 재사용하되(`before`가 gold 자리,
+  `after`가 predicted 자리) `missed`→`removed`, `extra`→`added`로
+  매핑하고, matched 쌍은 `page_changed`/`level_changed`/`source_changed`
+  독립 flag로 후처리한다(하나의 enum이 아니라 flag로 만든 이유: 한
+  항목이 동시에 여러 변화를 가질 수 있어서).
+- 같은 pipeline의 두 실행을 비교하는 용도라 page tolerance 기본값을
+  gold matching(1)과 다르게 0으로 뒀다 - page가 달라졌다면 그 자체가
+  `moved` 신호다.
+- CLI `inspect compare <plan_a> <plan_b>`를 기존 inspect command와 같은
+  `--format`/`--json`/`--debug` 계약으로 추가했다.
+  `inspect_compare_plans()`(inspection.py)는 새 wrapper 없이 기존
+  `load_bookmark_plan_json()`으로 plan 파일을 읽는다.
+- 검증: `uv run pytest -q` 238 passed, ruff 통과. showcase 023이 실제 책
+  한 권을 서로 다른 두 `TypographyConfig`(기본값,
+  `position_fallback_enabled=False`)로 `infer`해 만든 실제
+  `bookmark_plan.json` 두 개를 비교했다. fallback을 끄면 정확히 fallback이
+  찾은 17개 항목만 `removed`되고(added=0, unchanged=154) 나머지는
+  그대로였다 - config 옵션의 실제 효과와 compare 기능을 함께 검증했다.
+- 의도적으로 미룬 것: `inspect summary`, plan item filter/limit/suspicious
+  item/JSONL, metric과 structural signal delta(Phase 4의 structural
+  signal이 선행돼야 함), output_dir 자동 탐색 편의 기능.
+
+### 13.4 작업 중 발생한 실수와 수정
+
+Phase 5 작업 중 `feat/inspect-compare` 브랜치를 만들지 않고 `develop`에
+직접 커밋하는 실수가 있었다. 사용자 확인 후 `git branch feat/inspect-compare`
+로 해당 커밋을 보존하고 `git branch -f develop <이전 커밋>`으로 `develop`
+포인터만 되돌렸다(working tree나 커밋 내용에는 영향 없음). 이후 정상적으로
+`feat/inspect-compare`에서 마무리하고 `develop`에 fast-forward 병합했다.
+`develop`의 현재 히스토리에는 이 실수의 흔적이 남아 있지 않다.
+
+### 13.5 다음 작업 후보
+
+Phase 4/5의 남은 항목(external reference loader, 3단계 reference quality,
+structural quality signal, `inspect summary`, plan filter/limit)은 대부분
+실제 소비자나 실제 데이터가 생겨야 진행할 수 있는 상태라 지금 우선순위가
+낮다. 아직 손대지 않은 Phase 6(cache-aware sweep)과 Phase 7(process/batch/
+OCR 통합과 문서화) 중 하나로 넘어가는 것이 다음 자연스러운 단위다. 둘 다
+범위가 커서, 착수 전에 첫 수직 단위를 좁게 정하는 논의가 먼저 필요하다.
