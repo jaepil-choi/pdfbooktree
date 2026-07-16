@@ -279,6 +279,17 @@
       "finding": "실제 PDF 1권을 batch 처리해 item별 immutable run directory와 manifest를 생성했다. status=processed, run_id=20260716T055720275622Z-9cb6bf2b-8ff742ec, config_hash 일치=True, manifest_status=succeeded.",
       "command": "uv run python showcase/024_batch_item_run_manifest.py",
       "ran_at": "2026-07-16T14:57:21+09:00"
+    },
+    {
+      "id": "025_batch_run_manifest",
+      "purpose": "BatchProcessor와 BatchResult가 실제 batch 전체의 immutable manifest, item run, 실제 output 경로를 연결하는지 검증한다.",
+      "inputs": [
+        "data\\native-pdf-indexed\\퀀트의 세계 - 홍창수.pdf"
+      ],
+      "outputs": "showcase\\outputs\\025_batch_run_manifest\\result.json",
+      "finding": "실제 PDF 1권의 batch 실행 자체에 immutable manifest를 생성하고, batch_run_id=20260716T064350779917Z-f9e0ba32-8ff742ec, status=succeeded, completed=1, item run/output 연결=True를 확인했다.",
+      "command": "uv run python showcase/025_batch_run_manifest.py",
+      "ran_at": "2026-07-16T15:43:52+09:00"
     }
   ]
 }
