@@ -17,6 +17,14 @@ from pdfbooktree.cli_contract import (
     ProcessingFailedError,
 )
 from pdfbooktree.config_io import ResolvedConfig, resolve_processing_config
+from pdfbooktree.evaluation import (
+    DEFAULT_PAGE_TOLERANCE,
+    DEFAULT_TITLE_SIMILARITY_THRESHOLD,
+    MatchedPair,
+    MatchMetrics,
+    match_bookmark_plans,
+    PlanMatchResult,
+)
 from pdfbooktree.inspection import (
     inspect_bookmarks,
     inspect_ocr_artifact,
@@ -81,9 +89,14 @@ __all__ = [
     "ProcessingFailedError",
     "confidence_summary_for_inference",
     "ConfigError",
+    "DEFAULT_PAGE_TOLERANCE",
+    "DEFAULT_TITLE_SIMILARITY_THRESHOLD",
     "ExistingOutlineItem",
     "HeadingCandidate",
     "infer_bookmarks",
+    "match_bookmark_plans",
+    "MatchedPair",
+    "MatchMetrics",
     "inspect_bookmarks",
     "inspect_ocr_artifact",
     "inspect_page_count",
@@ -97,6 +110,7 @@ __all__ = [
     "OutlineQualityConfig",
     "PdfAnalysis",
     "PlanError",
+    "PlanMatchResult",
     "ProcessingConfig",
     "ProcessingResult",
     "Processor",

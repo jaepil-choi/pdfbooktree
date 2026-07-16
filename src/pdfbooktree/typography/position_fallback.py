@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from difflib import SequenceMatcher
 
 import numpy as np
 
@@ -29,7 +28,7 @@ from pdfbooktree.typography.geometry import (
     _cluster_patterns,
     _tier_for_size,
 )
-from pdfbooktree.utils.text_normalize import normalize_for_match, normalize_text
+from pdfbooktree.utils.text_normalize import normalize_text, title_similarity
 
 
 @dataclass(frozen=True)
@@ -170,31 +169,7 @@ def _duplicates_existing_title(
 ) -> bool:
     return any(
         item.pdf_page == pdf_page
-        and _title_similarity(item.title, title)
+        and title_similarity(item.title, title)
         >= config.position_fallback_title_dedupe_threshold
         for item in font_plan
     )
-
-
-def _title_similarity(left: str, right: str) -> float:
-    """포함 관계, 문자 순서, token 중복 중 가장 강한 제목 유사도를 반환한다."""
-
-    left_norm = normalize_for_match(left)
-    right_norm = normalize_for_match(right)
-    if not left_norm or not right_norm:
-        return 0.0
-    if left_norm == right_norm:
-        return 1.0
-    if min(len(left_norm), len(right_norm)) >= 4 and (
-        left_norm in right_norm or right_norm in left_norm
-    ):
-        return 1.0
-    sequence = SequenceMatcher(None, left_norm, right_norm).ratio()
-    left_tokens = set(left_norm.split())
-    right_tokens = set(right_norm.split())
-    overlap = (
-        2.0 * len(left_tokens & right_tokens) / (len(left_tokens) + len(right_tokens))
-        if left_tokens and right_tokens
-        else 0.0
-    )
-    return max(sequence, overlap)

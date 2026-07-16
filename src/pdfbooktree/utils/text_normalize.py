@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from difflib import SequenceMatcher
 
 
 LIGATURE_REPLACEMENTS = {
@@ -37,6 +38,30 @@ def normalize_for_match(text: str) -> str:
     text = re.sub(r"\b\d{1,4}\s*$", " ", text)
     text = re.sub(r"[^0-9a-z가-힣]+", " ", text)
     return normalize_text(text)
+
+
+def title_similarity(left: str, right: str) -> float:
+    """포함 관계, 문자 순서, token 중복 중 가장 강한 제목 유사도를 반환한다."""
+
+    left_norm = normalize_for_match(left)
+    right_norm = normalize_for_match(right)
+    if not left_norm or not right_norm:
+        return 0.0
+    if left_norm == right_norm:
+        return 1.0
+    if min(len(left_norm), len(right_norm)) >= 4 and (
+        left_norm in right_norm or right_norm in left_norm
+    ):
+        return 1.0
+    sequence = SequenceMatcher(None, left_norm, right_norm).ratio()
+    left_tokens = set(left_norm.split())
+    right_tokens = set(right_norm.split())
+    overlap = (
+        2.0 * len(left_tokens & right_tokens) / (len(left_tokens) + len(right_tokens))
+        if left_tokens and right_tokens
+        else 0.0
+    )
+    return max(sequence, overlap)
 
 
 def extract_lines(text: str) -> list[str]:
