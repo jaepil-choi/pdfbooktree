@@ -71,6 +71,7 @@ from pdfbooktree.pipeline import (
     resolve_existing_outline_action,
 )
 from pdfbooktree.processor import Processor
+from pdfbooktree.project_skill import SkillInstallError, install_project_skill
 from pdfbooktree.report import write_processing_report
 from pdfbooktree.run import RunError, create_run_context
 from pdfbooktree.utils.hashing import file_sha256
@@ -80,8 +81,10 @@ app = typer.Typer(
 )
 inspect_app = typer.Typer(help="PDF와 처리 artifact를 읽기 전용으로 조사한다.")
 config_app = typer.Typer(help="versioned processing config를 생성하고 검증한다.")
+skill_app = typer.Typer(help="pdfbooktree 사용 skill을 project scope에 설치한다.")
 app.add_typer(inspect_app, name="inspect")
 app.add_typer(config_app, name="config")
+app.add_typer(skill_app, name="skill")
 
 
 def _stage_output_format(value: str) -> OutputFormat:
@@ -181,6 +184,49 @@ def _emit_stage_result(
             details=payload,
         )
     emit_command_result(command, payload, output_format=output_format)
+
+
+@skill_app.command("install")
+def skill_install_cmd(
+    project_dir: Path = typer.Option(
+        Path("."),
+        "--project-dir",
+        "-p",
+        help=".agents/skills를 만들 project root다. 기본값은 현재 directory다.",
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="기존 use-pdfbooktree skill directory 전체를 교체한다.",
+    ),
+    output_format: str = typer.Option(
+        "human", "--format", help="출력 형식이다: human, json."
+    ),
+    debug: bool = typer.Option(
+        False, "--debug", help="예상하지 못한 오류의 traceback을 그대로 노출한다."
+    ),
+) -> None:
+    """현재 또는 지정한 project에 use-pdfbooktree skill을 설치한다."""
+
+    command = "skill.install"
+    resolved_output_format = _stage_output_format(output_format)
+    try:
+        result = install_project_skill(project_dir, force=force)
+    except SkillInstallError as error:
+        _exit_stage_input_error(
+            command,
+            error,
+            code="skill_install_error",
+            output_format=resolved_output_format,
+        )
+    except Exception as error:
+        _exit_stage_runtime_error(
+            command,
+            error,
+            output_format=resolved_output_format,
+            debug=debug,
+        )
+    emit_command_result(command, result, output_format=resolved_output_format)
 
 
 @config_app.command("defaults")

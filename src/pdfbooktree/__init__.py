@@ -76,6 +76,13 @@ from pdfbooktree.pipeline import (
     resolve_existing_outline_action,
 )
 from pdfbooktree.processor import Processor
+from pdfbooktree.project_skill import (
+    PROJECT_SKILL_NAME,
+    PROJECT_SKILL_RELATIVE_PATH,
+    SkillInstallError,
+    SkillInstallResult,
+    install_project_skill,
+)
 from pdfbooktree.run import (
     InputIdentity,
     RunContext,
@@ -118,6 +125,7 @@ __all__ = [
     "ExistingOutlineItem",
     "HeadingCandidate",
     "infer_bookmarks",
+    "install_project_skill",
     "match_bookmark_plans",
     "MatchedPair",
     "MatchMetrics",
@@ -141,12 +149,16 @@ __all__ = [
     "ProcessingConfig",
     "ProcessingResult",
     "Processor",
+    "PROJECT_SKILL_NAME",
+    "PROJECT_SKILL_RELATIVE_PATH",
     "resolve_existing_outline_action",
     "ResolvedConfig",
     "resolve_processing_config",
     "RunContext",
     "RunError",
     "RunManifest",
+    "SkillInstallError",
+    "SkillInstallResult",
     "InputIdentity",
     "ToolIdentity",
     "create_run_context",
