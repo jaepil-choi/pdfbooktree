@@ -1,7 +1,7 @@
 [project]
 name = "pdfbooktree"
 version = "0.1.0"
-description = "Add your description here"
+description = "PDF의 typography hierarchy로 bookmark와 Markdown tree를 생성한다."
 readme = "README.md"
 authors = [
     { name = "Jaepil.Choi", email = "chljeffreyz@gmail.com" }
@@ -10,14 +10,11 @@ requires-python = ">=3.12"
 dependencies = [
     "httpx>=0.28.1",
     "numpy>=2.4.6",
-    "ocrmypdf>=17.8.0",
     "pikepdf>=10.9.1",
-    "pillow>=12.2.0",
     "pymupdf>=1.27.2.3",
     "python-dotenv>=1.2.2",
     "rich>=15.0.0",
     "tqdm>=4.68.1",
-    "truststore>=0.10.4",
     "typer>=0.26.7",
 ]
 
@@ -27,9 +24,6 @@ pdfbooktree = "pdfbooktree.cli:main"
 [project.optional-dependencies]
 analysis = [
     "matplotlib>=3.10.9",
-    "pandas>=3.0.3",
-]
-llm = [
 ]
 
 [build-system]
