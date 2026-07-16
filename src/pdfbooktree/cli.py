@@ -8,10 +8,14 @@ from typing import cast
 
 import fitz
 import typer
-from rich import print as rich_print
 
 from pdfbooktree.artifacts import write_artifact, write_inference_artifacts
 from pdfbooktree.batch import BatchProcessor
+from pdfbooktree.batch_logger import (
+    BatchLogMode,
+    build_batch_logger,
+    default_batch_log_mode,
+)
 from pdfbooktree.classify import (
     ClassifyBatchConfig,
     ClassifyLogMode,
@@ -70,7 +74,6 @@ from pdfbooktree.processor import Processor
 from pdfbooktree.report import write_processing_report
 from pdfbooktree.run import RunError, create_run_context
 from pdfbooktree.utils.hashing import file_sha256
-from pdfbooktree.utils.jsonio import to_jsonable
 
 app = typer.Typer(
     help="PDF 책의 typography hierarchy로 bookmark와 Markdown tree를 만든다."
@@ -1538,11 +1541,83 @@ def batch(
     recursive: bool = typer.Option(
         False, "--recursive", "-r", help="하위 디렉터리까지 찾는다."
     ),
+    config_path: Path | None = typer.Option(
+        None, "--config", help="읽을 versioned TOML processing config다."
+    ),
+    set_option: list[str] = typer.Option(
+        [],
+        "--set",
+        help="최종 config override다. dotted.key=value 형식으로 여러 번 줄 수 있다.",
+    ),
+    log_mode: str = typer.Option(
+        "auto",
+        "--log-mode",
+        help="batch 진행 로그 출력 방식이다. auto, rich, plain, json, none 중 하나다.",
+    ),
+    output_format: str = typer.Option(
+        "human", "--format", help="최종 결과 출력 형식이다: human, json."
+    ),
+    debug: bool = typer.Option(
+        False, "--debug", help="예상하지 못한 오류의 traceback을 그대로 노출한다."
+    ),
 ) -> None:
     """디렉터리 안의 PDF들을 batch 처리한다."""
 
-    result = BatchProcessor(input_dir, output_dir, recursive=recursive).run()
-    rich_print(to_jsonable(result))
+    command = "batch"
+    resolved_output_format = _stage_output_format(output_format)
+    resolved_log_mode = default_batch_log_mode() if log_mode == "auto" else log_mode
+    if resolved_log_mode not in {"rich", "plain", "json", "none"}:
+        _exit_stage_input_error(
+            command,
+            ValueError("log-mode은 auto, rich, plain, json, none 중 하나여야 한다."),
+            code="invalid_input",
+            output_format=resolved_output_format,
+        )
+    if not input_dir.is_dir():
+        _exit_stage_input_error(
+            command,
+            FileNotFoundError(f"입력 디렉터리가 없다: {input_dir.resolve()}"),
+            code="invalid_input",
+            output_format=resolved_output_format,
+        )
+    try:
+        resolved = resolve_processing_config(config_path, set_overrides=set_option)
+    except ConfigError as error:
+        _exit_stage_input_error(
+            command,
+            error,
+            code="invalid_config",
+            output_format=resolved_output_format,
+        )
+    try:
+        batch_logger = build_batch_logger(cast(BatchLogMode, resolved_log_mode))
+        result = BatchProcessor(
+            input_dir,
+            output_dir,
+            resolved.config,
+            recursive=recursive,
+            log=batch_logger,
+        ).run()
+    except (
+        FileExistsError,
+        FileNotFoundError,
+        NotADirectoryError,
+        ValueError,
+    ) as error:
+        _exit_stage_input_error(
+            command,
+            error,
+            code="invalid_input",
+            output_format=resolved_output_format,
+        )
+    except Exception as error:
+        _exit_stage_runtime_error(
+            command,
+            error,
+            output_format=resolved_output_format,
+            debug=debug,
+        )
+    emit_command_result(command, result, output_format=resolved_output_format)
 
 
 @app.command("classify-scan")

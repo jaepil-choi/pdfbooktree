@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import logging
+import time
 from pathlib import Path
 
+from pdfbooktree.batch_logger import BatchLogEvent, BatchLogger, NullBatchLogger
 from pdfbooktree.config import ProcessingConfig
 from pdfbooktree.models import BatchResult, ProcessingResult
 from pdfbooktree.processor import Processor
@@ -21,17 +23,47 @@ class BatchProcessor:
         output_dir: Path | str,
         config: ProcessingConfig | None = None,
         recursive: bool = False,
+        log: BatchLogger | None = None,
     ) -> None:
         self.input_dir = Path(input_dir)
         self.output_dir = Path(output_dir)
         self.config = config or ProcessingConfig()
         self.recursive = recursive
+        self.log = log or NullBatchLogger()
 
     def run(self) -> BatchResult:
         """PDF batch 처리를 실행한다."""
 
         pdf_paths = self._find_pdfs()
-        results = [self._run_one(path) for path in pdf_paths]
+        started_at = time.perf_counter()
+        results: list[ProcessingResult] = []
+        processed_count = 0
+        failed_count = 0
+        try:
+            for path in pdf_paths:
+                result = self._run_one(path)
+                results.append(result)
+                if result.status == "failed":
+                    failed_count += 1
+                else:
+                    processed_count += 1
+                self.log.emit(
+                    BatchLogEvent(
+                        event="failed" if result.status == "failed" else "processed",
+                        level="error" if result.status == "failed" else "info",
+                        input_pdf=path,
+                        completed_count=len(results),
+                        total_count=len(pdf_paths),
+                        processed_count=processed_count,
+                        failed_count=failed_count,
+                        elapsed_sec=time.perf_counter() - started_at,
+                        message=(
+                            result.warnings[0] if result.warnings else result.status
+                        ),
+                    )
+                )
+        finally:
+            self.log.close()
         return BatchResult(
             total_pdf_count=len(pdf_paths),
             processed_count=sum(
