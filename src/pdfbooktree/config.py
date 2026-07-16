@@ -294,6 +294,61 @@ class MarkdownSplitConfig:
 
 
 @dataclass(frozen=True)
+class OutlineQualityConfig:
+    """기존 outline이 실제 목차가 아닐 가능성을 판정하고 대응하는 정책이다."""
+
+    min_item_count: int = _setting(
+        4,
+        description=(
+            "outline item 수가 이 값보다 적으면 low quality로 본다"
+            "(실험 102의 placeholder_or_tiny 기준 <=3을 그대로 따른다)."
+        ),
+        minimum=1,
+    )
+    max_item_to_page_ratio: float = _setting(
+        0.9,
+        description=(
+            "outline item 수가 총 page 수 대비 이 비율 이상이면 스캔 도구가 매 "
+            "page에 붙인 일련번호로 본다(실험 102의 per_page_scan_filenames 기준)."
+        ),
+        minimum=0.0,
+        maximum=1.0,
+        exclusive_minimum=True,
+    )
+    flag_numeric_only_titles: bool = _setting(
+        True,
+        description="title이 숫자로만 이뤄진 item이 하나라도 있으면 low quality로 본다.",
+    )
+    replace_when_low_quality: bool = _setting(
+        False,
+        description=(
+            "low quality로 판정되면 기존 outline을 건너뛰지 않고 typography "
+            "추론 결과로 교체한다."
+        ),
+    )
+
+    def __post_init__(self) -> None:
+        _require_number(
+            "outline_quality.min_item_count", self.min_item_count, minimum=1
+        )
+        _require_number(
+            "outline_quality.max_item_to_page_ratio",
+            self.max_item_to_page_ratio,
+            minimum=0.0,
+            maximum=1.0,
+            exclusive_minimum=True,
+        )
+        if not isinstance(self.flag_numeric_only_titles, bool):
+            raise ConfigError(
+                "outline_quality.flag_numeric_only_titles는 bool이어야 한다."
+            )
+        if not isinstance(self.replace_when_low_quality, bool):
+            raise ConfigError(
+                "outline_quality.replace_when_low_quality는 bool이어야 한다."
+            )
+
+
+@dataclass(frozen=True)
 class ProcessingConfig:
     """단일 PDF 처리 설정이다."""
 
@@ -317,6 +372,10 @@ class ProcessingConfig:
         default=None,
         metadata={"description": "지정하면 coverage 기반 Markdown split을 사용한다."},
     )
+    outline_quality: OutlineQualityConfig = field(
+        default_factory=OutlineQualityConfig,
+        metadata={"description": "기존 outline 품질 판정과 자동 교체 정책이다."},
+    )
 
     def __post_init__(self) -> None:
         if not isinstance(self.skip_existing_bookmarks, bool):
@@ -334,4 +393,8 @@ class ProcessingConfig:
         ):
             raise ConfigError(
                 "processing.markdown_split은 MarkdownSplitConfig 또는 None이어야 한다."
+            )
+        if not isinstance(self.outline_quality, OutlineQualityConfig):
+            raise ConfigError(
+                "processing.outline_quality는 OutlineQualityConfig여야 한다."
             )

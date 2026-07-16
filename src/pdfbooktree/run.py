@@ -66,6 +66,7 @@ class RunManifest:
     report_path: Path | None = None
     warnings: tuple[str, ...] = ()
     error: dict[str, str] | None = None
+    plan_source: dict[str, str] | None = None
 
 
 @dataclass
@@ -113,6 +114,16 @@ class RunContext:
             output_paths=outputs,
             report_path=report,
             warnings=warnings,
+        )
+        self._write()
+        return self.manifest
+
+    def record_plan_source(self, path: Path, sha256: str) -> RunManifest:
+        """명시적 ``apply``가 사용한 plan 파일의 경로와 SHA-256을 기록한다."""
+
+        self.manifest = replace(
+            self.manifest,
+            plan_source={"path": str(path), "sha256": sha256},
         )
         self._write()
         return self.manifest

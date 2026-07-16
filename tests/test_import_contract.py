@@ -13,3 +13,17 @@ def test_public_import_contract() -> None:
     assert pdfbooktree.resolve_processing_config is not None
     assert pdfbooktree.create_run_context is not None
     assert pdfbooktree.RunManifest is not None
+    assert pdfbooktree.analyze_pdf is not None
+    assert pdfbooktree.infer_bookmarks is not None
+    assert pdfbooktree.apply_plan is not None
+    assert pdfbooktree.PdfAnalysis is not None
+    assert pdfbooktree.BookmarkInferenceResult is not None
+    assert pdfbooktree.ApplyResult is not None
+    assert pdfbooktree.OutlineQualityConfig is not None
+    assert pdfbooktree.OutlineQualityAssessment is not None
+    assert pdfbooktree.assess_outline_quality is not None
+    assert pdfbooktree.resolve_existing_outline_action is not None
+    assert pdfbooktree.load_bookmark_plan_json is not None
+    assert pdfbooktree.PlanError is not None
+    assert pdfbooktree.write_inference_artifacts is not None
+    assert pdfbooktree.confidence_summary_for_inference is not None
