@@ -30,6 +30,14 @@ python -m pip install .
 pdfbooktree --help
 ```
 
+Codex가 현재 project에서 `pdfbooktree`의 전체 CLI와 Python API 사용법을 알 수 있도록 package에 번들된 project scope skill을 설치할 수 있다.
+
+```powershell
+pdfbooktree skill install
+```
+
+현재 directory의 `.agents/skills/use-pdfbooktree`에 설치한다. 기존 skill은 기본적으로 보호하며, package의 최신 번들로 전체 교체할 때만 `--force`를 사용한다.
+
 ## 사용
 
 북마크 계획을 먼저 만들고 검토한 뒤 PDF와 Markdown에 적용하는 흐름을 권장한다.

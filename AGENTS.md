@@ -117,10 +117,12 @@
 - 필요할 때만 검증을 실행하되, `src/` 또는 `tests/` 변경은 가능한 한 테스트나 lint로 확인한다.
 - 단순 문서 변경에는 테스트나 lint를 강제하지 않는다.
 
-### 9.1 권한 상승 환경의 `apply_patch` 우회 규칙
+### 9.1 corporate PC의 non-ASCII Windows 사용자명 환경용 `apply_patch` 우회 규칙
 
 - 파일 편집은 원칙적으로 `apply_patch`를 사용한다.
-- 권한 상승 PowerShell에서 원래 Codex 실행 파일의 `apply_patch` 호출이 `Access is denied`로 실패할 수 있다. 이는 PC별 사용자명 문자 구성, Codex 설치 경로, corporate 보안 정책과 권한 경계의 차이에서 발생하는 환경 문제로 취급한다.
+- 이 절의 `C:\tmp\codex-apply-patch.exe` 우회는 corporate PC이면서 Windows 사용자명에 non-ASCII 문자가 포함된 환경에서, 권한 상승 PowerShell의 원래 Codex `apply_patch` 호출이 실제로 `Access is denied`로 실패할 때만 적용한다.
+- Windows 사용자명이 ASCII-only이거나 corporate PC가 아닌 환경에서는 일반 `apply_patch`를 그대로 사용한다. 이 경우 `C:\tmp\codex-apply-patch.exe`를 만들거나 사용하지 않는다.
+- 우회 적용 대상 환경의 실패는 PC별 사용자명 문자 구성, Codex 설치 경로, corporate 보안 정책과 권한 경계의 차이에서 발생하는 환경 문제로 취급한다.
 - 이 오류가 발생하면 동일한 방식을 반복하거나 `git diff`, PowerShell redirection, Python 파일 쓰기 같은 다른 편집 방식으로 우회하지 않는다. `git diff`는 변경 후 검증 용도로만 사용한다.
 - 검증된 우회 방법은 Codex 실행 파일을 ASCII-only 임시 경로인 `C:\tmp\codex-apply-patch.exe`에 복사하고, 권한 상승 PowerShell에서 `--codex-run-as-apply-patch` 모드로 실행하는 것이다.
 - 복사본이 이미 있고 현재 세션에서 정상 동작하면 그대로 사용한다. 복사본이 없거나 Codex 업데이트 후 실행되지 않으면 현재 Codex 실행 파일로 복사본을 갱신한다. 설치별 원본 경로는 달라질 수 있으므로 원본 경로를 저장소 규칙에 고정하지 않는다.
