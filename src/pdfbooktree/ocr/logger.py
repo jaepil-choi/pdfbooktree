@@ -183,6 +183,7 @@ def build_ocr_logger(
     *,
     enable_file: bool = True,
     desc: str | None = None,
+    command: str = "ocr-overlay",
 ) -> OcrLogger:
     """CLI 옵션에 맞는 OCR logger 조합을 만든다."""
 
@@ -194,7 +195,7 @@ def build_ocr_logger(
     elif mode == "plain":
         loggers.append(PlainTextOcrLogger())
     elif mode == "json":
-        loggers.append(JsonStderrOcrLogger())
+        loggers.append(JsonStderrOcrLogger(command=command))
     elif mode == "none":
         pass
     else:
@@ -306,11 +307,14 @@ class NullBatchOcrProgress:
 class FlatBatchOcrProgress:
     """책마다 독립된 flat logger(plain/json)를 그대로 쓰는 batch progress다."""
 
-    def __init__(self, mode: OcrLogMode) -> None:
+    def __init__(self, mode: OcrLogMode, *, command: str = "ocr-overlay-batch") -> None:
         self._mode = mode
+        self._command = command
 
     def logger_for_book(self, name: str, page_count: int, book_index: int) -> OcrLogger:
-        return build_ocr_logger(self._mode, Path(name), enable_file=False)
+        return build_ocr_logger(
+            self._mode, Path(name), enable_file=False, command=self._command
+        )
 
     def note_skip(self) -> None:
         return None
@@ -394,7 +398,11 @@ class TqdmBatchOcrProgress:
 
 
 def build_batch_ocr_progress(
-    mode: OcrLogMode, total_pages: int, total_books: int
+    mode: OcrLogMode,
+    total_pages: int,
+    total_books: int,
+    *,
+    command: str = "ocr-overlay-batch",
 ) -> BatchOcrProgress:
     """CLI log mode에 맞는 batch progress 조립기를 만든다."""
 
@@ -403,5 +411,5 @@ def build_batch_ocr_progress(
     if mode == "none":
         return NullBatchOcrProgress()
     if mode in ("plain", "json"):
-        return FlatBatchOcrProgress(mode)
+        return FlatBatchOcrProgress(mode, command=command)
     raise ValueError(f"지원하지 않는 OCR log mode다: {mode}")

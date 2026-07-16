@@ -288,8 +288,30 @@ def test_ocr_overlay_failed_result_uses_processing_failed_exit(
     assert error["error"]["details"]["status"] == "failed"
 
 
+def _batch_result(config, **overrides):
+    from pdfbooktree.ocr.batch import OcrOverlayBatchResult
+
+    defaults = dict(
+        total_pdf_count=3,
+        target_count=2,
+        processed_count=1,
+        dry_run_count=0,
+        skipped_count=1,
+        failed_count=0,
+        elapsed_sec=1.0,
+        report_csv_path=Path(config.output_dir) / "ocr_overlay_batch_report.csv",
+        detail_jsonl_path=Path(config.output_dir) / "ocr_overlay_batch_detail.jsonl",
+        summary_path=Path(config.output_dir) / "ocr_overlay_batch_summary.json",
+        results=[],
+    )
+    defaults.update(overrides)
+    return OcrOverlayBatchResult(**defaults)
+
+
 def test_ocr_overlay_batch_cli_parses_options(monkeypatch, tmp_path: Path) -> None:
     captured = {}
+    input_dir = tmp_path / "300STUDY"
+    input_dir.mkdir()
 
     class FakeRunner:
         def __init__(self, config, *, log_mode=None, enable_log_file=True):
@@ -298,24 +320,7 @@ def test_ocr_overlay_batch_cli_parses_options(monkeypatch, tmp_path: Path) -> No
             captured["enable_log_file"] = enable_log_file
 
         def run(self):
-            from pdfbooktree.ocr.batch import OcrOverlayBatchResult
-
-            return OcrOverlayBatchResult(
-                total_pdf_count=3,
-                target_count=2,
-                processed_count=1,
-                dry_run_count=0,
-                skipped_count=1,
-                failed_count=0,
-                elapsed_sec=1.0,
-                report_csv_path=Path(captured["config"].output_dir)
-                / "ocr_overlay_batch_report.csv",
-                detail_jsonl_path=Path(captured["config"].output_dir)
-                / "ocr_overlay_batch_detail.jsonl",
-                summary_path=Path(captured["config"].output_dir)
-                / "ocr_overlay_batch_summary.json",
-                results=[],
-            )
+            return _batch_result(captured["config"])
 
     monkeypatch.setattr("pdfbooktree.cli.OcrOverlayBatchRunner", FakeRunner)
 
@@ -323,7 +328,7 @@ def test_ocr_overlay_batch_cli_parses_options(monkeypatch, tmp_path: Path) -> No
         app,
         [
             "ocr-overlay-batch",
-            str(tmp_path / "300STUDY"),
+            str(input_dir),
             "--output-dir",
             str(tmp_path / "out"),
             "--recursive",
@@ -359,3 +364,192 @@ def test_ocr_overlay_batch_cli_parses_options(monkeypatch, tmp_path: Path) -> No
     assert config.engine_options["max_retries"] == 3
     assert captured["log_mode"] == "none"
     assert captured["enable_log_file"] is False
+
+
+def test_ocr_overlay_batch_json_result_and_events_use_separate_streams(
+    monkeypatch, tmp_path: Path
+) -> None:
+    input_dir = tmp_path / "300STUDY"
+    input_dir.mkdir()
+
+    class FakeRunner:
+        def __init__(self, config, *, log_mode=None, enable_log_file=True):
+            self.config = config
+
+        def run(self):
+            from pdfbooktree.ocr.logger import OcrLogEvent, build_batch_ocr_progress
+
+            progress = build_batch_ocr_progress(
+                "json", total_pages=1, total_books=1, command="ocr-overlay-batch"
+            )
+            logger = progress.logger_for_book(self.config.input_dir.name, 1, 1)
+
+            logger.emit(
+                OcrLogEvent(
+                    event="failed",
+                    level="error",
+                    input_pdf=self.config.input_dir / "broken.pdf",
+                    pdf_page=None,
+                    total_pages=1,
+                    completed_pages=0,
+                    cache_hit_count=0,
+                    cache_miss_count=0,
+                    elapsed_sec=0.1,
+                    estimated_remaining_sec=None,
+                    message="OCR 호출이 실패했다.",
+                )
+            )
+            logger.close()
+            progress.close()
+            return _batch_result(self.config, failed_count=1, processed_count=0)
+
+    monkeypatch.setattr("pdfbooktree.cli.OcrOverlayBatchRunner", FakeRunner)
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "ocr-overlay-batch",
+            str(input_dir),
+            "--output-dir",
+            str(tmp_path / "out"),
+            "--log-mode",
+            "none",
+            "--no-log-file",
+            "--format",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 0
+    final = json.loads(result.stdout)
+    assert final["schema_version"] == 1
+    assert final["command"] == "ocr-overlay-batch"
+    assert final["ok"] is True
+    assert final["result"]["failed_count"] == 1
+    events = [json.loads(line) for line in result.stderr.splitlines()]
+    assert len(events) == 1
+    assert events[0]["schema_version"] == 1
+    assert events[0]["command"] == "ocr-overlay-batch"
+    assert events[0]["event"] == "failed"
+
+
+def test_ocr_overlay_batch_missing_input_uses_json_input_error(tmp_path: Path) -> None:
+    result = CliRunner().invoke(
+        app,
+        [
+            "ocr-overlay-batch",
+            str(tmp_path / "missing"),
+            "--output-dir",
+            str(tmp_path / "out"),
+            "--format",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 2
+    assert result.stdout == ""
+    error = json.loads(result.stderr)
+    assert error["schema_version"] == 1
+    assert error["command"] == "ocr-overlay-batch"
+    assert error["ok"] is False
+    assert error["error"]["code"] == "invalid_input"
+
+
+def test_ocr_overlay_batch_invalid_log_mode_uses_json_input_error(
+    tmp_path: Path,
+) -> None:
+    input_dir = tmp_path / "300STUDY"
+    input_dir.mkdir()
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "ocr-overlay-batch",
+            str(input_dir),
+            "--output-dir",
+            str(tmp_path / "out"),
+            "--log-mode",
+            "yaml",
+            "--format",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 2
+    error = json.loads(result.stderr)
+    assert error["error"]["code"] == "invalid_input"
+
+
+def test_ocr_overlay_batch_runtime_error_and_debug_contract(
+    monkeypatch, tmp_path: Path
+) -> None:
+    input_dir = tmp_path / "300STUDY"
+    input_dir.mkdir()
+
+    class FailingRunner:
+        def __init__(self, config, *, log_mode=None, enable_log_file=True):
+            pass
+
+        def run(self):
+            raise RuntimeError("batch 실행 실패")
+
+    monkeypatch.setattr("pdfbooktree.cli.OcrOverlayBatchRunner", FailingRunner)
+    args = [
+        "ocr-overlay-batch",
+        str(input_dir),
+        "--output-dir",
+        str(tmp_path / "out"),
+        "--log-mode",
+        "none",
+        "--no-log-file",
+        "--format",
+        "json",
+    ]
+
+    result = CliRunner().invoke(app, args)
+
+    assert result.exit_code == 1
+    assert result.stdout == ""
+    error = json.loads(result.stderr)
+    assert error["error"]["code"] == "runtime_error"
+
+    debug_result = CliRunner().invoke(app, [*args, "--debug"])
+    assert debug_result.exit_code == 1
+    assert isinstance(debug_result.exception, RuntimeError)
+    assert str(debug_result.exception) == "batch 실행 실패"
+
+
+def test_ocr_overlay_batch_partial_failure_keeps_exit_zero(
+    monkeypatch, tmp_path: Path
+) -> None:
+    input_dir = tmp_path / "300STUDY"
+    input_dir.mkdir()
+
+    class FakeRunner:
+        def __init__(self, config, *, log_mode=None, enable_log_file=True):
+            self.config = config
+
+        def run(self):
+            return _batch_result(self.config, failed_count=1, processed_count=1)
+
+    monkeypatch.setattr("pdfbooktree.cli.OcrOverlayBatchRunner", FakeRunner)
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "ocr-overlay-batch",
+            str(input_dir),
+            "--output-dir",
+            str(tmp_path / "out"),
+            "--log-mode",
+            "none",
+            "--no-log-file",
+            "--format",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 0
+    final = json.loads(result.stdout)
+    assert final["ok"] is True
+    assert final["result"]["failed_count"] == 1

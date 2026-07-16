@@ -844,49 +844,85 @@ def ocr_overlay_batch_cmd(
         "--no-log-file",
         help="파일별 ocr_log.jsonl과 ocr_progress.json 기록을 끈다.",
     ),
+    output_format: str = typer.Option(
+        "human", "--format", help="최종 결과 출력 형식이다: human, json."
+    ),
+    debug: bool = typer.Option(
+        False, "--debug", help="예상하지 못한 오류의 traceback을 그대로 노출한다."
+    ),
 ) -> None:
     """디렉터리 안 target PDF만 골라 OCR overlay를 batch 실행한다."""
 
+    command = "ocr-overlay-batch"
+    resolved_output_format = _stage_output_format(output_format)
     resolved_log_mode = default_ocr_log_mode() if log_mode == "auto" else log_mode
     if resolved_log_mode not in {"tqdm", "plain", "json", "none"}:
-        raise typer.BadParameter(
-            "log-mode은 auto, tqdm, plain, json, none 중 하나여야 한다."
+        _exit_stage_input_error(
+            command,
+            ValueError("log-mode은 auto, tqdm, plain, json, none 중 하나여야 한다."),
+            code="invalid_input",
+            output_format=resolved_output_format,
         )
-    config = OcrOverlayBatchConfig(
-        input_dir=input_dir,
-        output_dir=output_dir,
-        recursive=recursive,
-        dry_run=dry_run,
-        force=force,
-        confirm_bookmark_ocr_overwrite=confirm_bookmark_ocr_overwrite,
-        engine=engine,
-        engine_options=parse_engine_options(engine_option),
-        render_dpi=render_dpi,
-        max_sample_pages=max_sample_pages,
-        stats_word_level=stats_word_level,
-    )
-    runner = OcrOverlayBatchRunner(
-        config,
-        log_mode=cast(OcrLogMode, resolved_log_mode),
-        enable_log_file=not no_log_file,
-    )
-    result = runner.run()
-    rich_print(
-        to_jsonable(
-            {
-                "total_pdf_count": result.total_pdf_count,
-                "target_count": result.target_count,
-                "processed_count": result.processed_count,
-                "dry_run_count": result.dry_run_count,
-                "skipped_count": result.skipped_count,
-                "failed_count": result.failed_count,
-                "elapsed_sec": result.elapsed_sec,
-                "report_csv_path": result.report_csv_path,
-                "detail_jsonl_path": result.detail_jsonl_path,
-                "summary_path": result.summary_path,
-            }
+    if not input_dir.is_dir():
+        _exit_stage_input_error(
+            command,
+            FileNotFoundError(f"입력 디렉터리가 없다: {input_dir.resolve()}"),
+            code="invalid_input",
+            output_format=resolved_output_format,
         )
-    )
+    try:
+        config = OcrOverlayBatchConfig(
+            input_dir=input_dir,
+            output_dir=output_dir,
+            recursive=recursive,
+            dry_run=dry_run,
+            force=force,
+            confirm_bookmark_ocr_overwrite=confirm_bookmark_ocr_overwrite,
+            engine=engine,
+            engine_options=parse_engine_options(engine_option),
+            render_dpi=render_dpi,
+            max_sample_pages=max_sample_pages,
+            stats_word_level=stats_word_level,
+        )
+        runner = OcrOverlayBatchRunner(
+            config,
+            log_mode=cast(OcrLogMode, resolved_log_mode),
+            enable_log_file=not no_log_file,
+        )
+        result = runner.run()
+    except (
+        FileExistsError,
+        FileNotFoundError,
+        NotADirectoryError,
+        ValueError,
+        typer.BadParameter,
+    ) as error:
+        _exit_stage_input_error(
+            command,
+            error,
+            code="invalid_input",
+            output_format=resolved_output_format,
+        )
+    except Exception as error:
+        _exit_stage_runtime_error(
+            command,
+            error,
+            output_format=resolved_output_format,
+            debug=debug,
+        )
+    payload = {
+        "total_pdf_count": result.total_pdf_count,
+        "target_count": result.target_count,
+        "processed_count": result.processed_count,
+        "dry_run_count": result.dry_run_count,
+        "skipped_count": result.skipped_count,
+        "failed_count": result.failed_count,
+        "elapsed_sec": result.elapsed_sec,
+        "report_csv_path": result.report_csv_path,
+        "detail_jsonl_path": result.detail_jsonl_path,
+        "summary_path": result.summary_path,
+    }
+    emit_command_result(command, payload, output_format=resolved_output_format)
 
 
 @app.command()

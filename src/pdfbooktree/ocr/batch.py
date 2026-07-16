@@ -129,6 +129,7 @@ class OcrOverlayBatchRunner:
         *,
         log_mode: OcrLogMode = "none",
         enable_log_file: bool = True,
+        command: str = "ocr-overlay-batch",
     ) -> None:
         self.config = config
         self.input_dir = Path(config.input_dir)
@@ -137,6 +138,7 @@ class OcrOverlayBatchRunner:
         self.artifact_root = self.output_dir / "artifacts"
         self.log_mode = log_mode
         self.enable_log_file = enable_log_file
+        self.command = command
 
     def run(self) -> OcrOverlayBatchResult:
         """PDF를 찾아 target만 OCR overlay하고 report를 저장한다."""
@@ -148,7 +150,9 @@ class OcrOverlayBatchRunner:
         total_pages = sum(c.page_count for c in classifications if c.will_process)
         total_books = sum(1 for c in classifications if c.will_process)
         progress: BatchOcrProgress = (
-            build_batch_ocr_progress(self.log_mode, total_pages, total_books)
+            build_batch_ocr_progress(
+                self.log_mode, total_pages, total_books, command=self.command
+            )
             if total_books
             else NullBatchOcrProgress()
         )

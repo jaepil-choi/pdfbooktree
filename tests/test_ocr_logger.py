@@ -6,6 +6,7 @@ from pathlib import Path
 
 from pdfbooktree.ocr.logger import (
     CompositeOcrLogger,
+    FlatBatchOcrProgress,
     JsonFileOcrLogger,
     JsonStderrOcrLogger,
     NullBatchOcrProgress,
@@ -14,6 +15,7 @@ from pdfbooktree.ocr.logger import (
     TqdmBatchOcrProgress,
     TqdmOcrLogger,
     build_batch_ocr_progress,
+    build_ocr_logger,
 )
 
 
@@ -182,3 +184,40 @@ def test_tqdm_batch_progress_reconciles_shortfall_on_failure() -> None:
 
 def test_build_batch_ocr_progress_dispatches_by_mode() -> None:
     assert isinstance(build_batch_ocr_progress("none", 10, 2), NullBatchOcrProgress)
+
+
+def test_build_ocr_logger_json_mode_defaults_to_ocr_overlay_command(
+    tmp_path: Path, capsys
+) -> None:
+    logger = build_ocr_logger("json", tmp_path, enable_file=False)
+
+    logger.emit(make_event("page_done", 1))
+
+    envelope = json.loads(capsys.readouterr().err)
+    assert envelope["command"] == "ocr-overlay"
+
+
+def test_build_ocr_logger_json_mode_accepts_explicit_command(
+    tmp_path: Path, capsys
+) -> None:
+    logger = build_ocr_logger(
+        "json", tmp_path, enable_file=False, command="ocr-overlay-batch"
+    )
+
+    logger.emit(make_event("page_done", 1))
+
+    envelope = json.loads(capsys.readouterr().err)
+    assert envelope["command"] == "ocr-overlay-batch"
+
+
+def test_flat_batch_progress_tags_book_loggers_with_batch_command(capsys) -> None:
+    progress = build_batch_ocr_progress(
+        "json", total_pages=1, total_books=1, command="ocr-overlay-batch"
+    )
+    assert isinstance(progress, FlatBatchOcrProgress)
+
+    logger = progress.logger_for_book("book.pdf", 1, 1)
+    logger.emit(make_event("page_done", 1))
+
+    envelope = json.loads(capsys.readouterr().err)
+    assert envelope["command"] == "ocr-overlay-batch"
