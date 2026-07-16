@@ -4,8 +4,8 @@ data/300STUDY 아래 page_count>100이고 embedded bookmark(TOC)가 있는 PDF�
 그 embedded bookmark를 정답(gold)으로 보고 production typography 파이프라인
 (font 골격 + body-tier position fallback, TypographyConfig 기본값)이 만든
 예측 plan과 fuzzy title 유사도 + page tolerance로 매칭한다. Processor.run()
-전체(PDF/Markdown export 포함) 대신 그 안에서 실제로 쓰는 것과 동일한 public
-building block만 호출해 대용량 코퍼스에서 불필요한 export I/O를 줄인다.
+전체(PDF/Markdown export 포함) 대신 public 단계형 API인 `analyze_pdf()`와
+`infer_bookmarks()`만 호출해 대용량 코퍼스에서 불필요한 export I/O를 줄인다.
 
 정답/예측 모두 title+page 집합으로만 비교하고(level은 비교하지 않는다 — gold의
 level은 원서 편집 방침을, 예측 level은 font tier/geometry를 반영해 서로 다른
@@ -32,22 +32,11 @@ from typing import Any
 
 import fitz
 
+from pdfbooktree import analyze_pdf, infer_bookmarks
 from pdfbooktree.config import TypographyConfig
 from pdfbooktree.models import BookmarkPlanItem
-from pdfbooktree.outline.plan import insert_position_fallback, normalize_bookmark_plan
 from pdfbooktree.pdf.outline import outline_to_plan, read_outline
-from pdfbooktree.typography.bpe import infer_bpe_outline
-from pdfbooktree.typography.geometry import (
-    build_geometry_context,
-    compute_geometry_font_tier_set,
-    select_geometry_headings,
-)
-from pdfbooktree.typography.lines import extract_typography_lines
-from pdfbooktree.typography.margins import exclude_margin_artifacts
-from pdfbooktree.typography.position_fallback import (
-    _title_similarity,
-    select_body_tier_position_fallback,
-)
+from pdfbooktree.typography.position_fallback import _title_similarity
 
 try:  # 콘솔에서 한글 파일명이 깨지지 않게 한다.
     sys.stdout.reconfigure(encoding="utf-8")
@@ -92,7 +81,9 @@ def discover_corpus() -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
                 page_count = document.page_count
                 toc = document.get_toc(simple=True)
         except Exception as exc:  # noqa: BLE001
-            scan_errors.append({"path": str(path.relative_to(ROOT_DIR)), "error": str(exc)})
+            scan_errors.append(
+                {"path": str(path.relative_to(ROOT_DIR)), "error": str(exc)}
+            )
             continue
         if page_count > MIN_PAGE_COUNT and toc:
             qualifying.append(
@@ -105,7 +96,9 @@ def discover_corpus() -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     return qualifying, scan_errors
 
 
-def _fuzzy_match(gt: list[BookmarkPlanItem], pred: list[BookmarkPlanItem]) -> MatchMetrics:
+def _fuzzy_match(
+    gt: list[BookmarkPlanItem], pred: list[BookmarkPlanItem]
+) -> MatchMetrics:
     """title 유사도 + page tolerance로 gold-예측을 그리디 1:1 매칭한다."""
 
     pred_by_page: dict[int, list[int]] = defaultdict(list)
@@ -160,20 +153,12 @@ def _fuzzy_match(gt: list[BookmarkPlanItem], pred: list[BookmarkPlanItem]) -> Ma
     )
 
 
-def _predict_plan(pdf_path: Path, total_pages: int) -> list[BookmarkPlanItem]:
-    """Processor.run()과 동일한 public building block으로 예측 plan만 만든다."""
+def _predict_plan(pdf_path: Path) -> list[BookmarkPlanItem]:
+    """Production과 동일한 public 단계형 API로 예측 plan만 만든다."""
 
     config = TypographyConfig()
-    raw_lines = extract_typography_lines(pdf_path, config)
-    lines = exclude_margin_artifacts(raw_lines, config)
-    font_tiers = compute_geometry_font_tier_set(lines)
-    context = build_geometry_context(lines, font_tiers, config)
-    candidates = select_geometry_headings(context, config)
-    font_plan = normalize_bookmark_plan(infer_bpe_outline(candidates, config))
-    fallback = select_body_tier_position_fallback(context, font_plan, config)
-    return normalize_bookmark_plan(
-        insert_position_fallback(font_plan, fallback, total_pages)
-    )
+    analysis = analyze_pdf(pdf_path, config)
+    return infer_bookmarks(analysis, config).plan
 
 
 def evaluate_book(pdf_path: Path) -> dict[str, Any]:
@@ -184,7 +169,7 @@ def evaluate_book(pdf_path: Path) -> dict[str, Any]:
         raise ValueError("embedded outline에 유효한 page 번호가 하나도 없다.")
 
     start = time.time()
-    predicted = _predict_plan(pdf_path, total_pages)
+    predicted = _predict_plan(pdf_path)
     elapsed = time.time() - start
 
     metrics = _fuzzy_match(gold, predicted)
@@ -300,15 +285,27 @@ def build_summary(
         "zero_prediction_count": len(zero_prediction_rows),
         "zero_prediction_paths": [row["path"] for row in zero_prediction_rows],
         "worst_by_f1": [
-            {"path": row["path"], "page_count": row["page_count"], "metrics": row["metrics"]}
+            {
+                "path": row["path"],
+                "page_count": row["page_count"],
+                "metrics": row["metrics"],
+            }
             for row in worst_by_f1
         ],
         "worst_clean_gold_by_f1": [
-            {"path": row["path"], "page_count": row["page_count"], "metrics": row["metrics"]}
+            {
+                "path": row["path"],
+                "page_count": row["page_count"],
+                "metrics": row["metrics"],
+            }
             for row in worst_clean_by_f1
         ],
         "best_clean_gold_by_f1": [
-            {"path": row["path"], "page_count": row["page_count"], "metrics": row["metrics"]}
+            {
+                "path": row["path"],
+                "page_count": row["page_count"],
+                "metrics": row["metrics"],
+            }
             for row in best_clean_by_f1
         ],
         "total_elapsed_seconds": round(elapsed_seconds, 1),
