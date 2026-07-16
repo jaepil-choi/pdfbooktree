@@ -234,6 +234,16 @@ class ProcessingResult:
 
 
 @dataclass(frozen=True)
+class BatchItemResult(ProcessingResult):
+    """단일 batch item의 처리 결과와 immutable run identity다."""
+
+    run_id: str | None = None
+    run_dir: Path | None = None
+    manifest_path: Path | None = None
+    config_hash: str | None = None
+
+
+@dataclass(frozen=True)
 class BatchResult:
     """디렉터리 단위 처리 요약이다."""
 
@@ -244,7 +254,7 @@ class BatchResult:
     bookmark_reference_candidate_count: int
     created_bookmarked_pdf_paths: list[Path] = field(default_factory=list)
     created_markdown_dirs: list[Path] = field(default_factory=list)
-    results: list[ProcessingResult] = field(default_factory=list)
+    results: list[BatchItemResult] = field(default_factory=list)
 
 
 JsonDict = dict[str, Any]

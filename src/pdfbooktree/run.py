@@ -32,7 +32,7 @@ class InputIdentity:
     path: Path
     sha256: str
     size_bytes: int
-    page_count: int
+    page_count: int | None
 
 
 @dataclass(frozen=True)
@@ -154,6 +154,7 @@ def create_run_context(
     *,
     run_dir: Path | str | None = None,
     repository_root: Path | str | None = None,
+    allow_unreadable_input: bool = False,
 ) -> RunContext:
     """입력/config hash로 충돌하지 않는 immutable run directory를 만든다."""
 
@@ -164,9 +165,11 @@ def create_run_context(
         with fitz.open(input_path) as document:
             page_count = document.page_count
     except (fitz.FileDataError, RuntimeError) as error:
-        raise RunError(
-            f"입력 PDF를 열지 못했다: {input_path}, reason={error}"
-        ) from error
+        if not allow_unreadable_input:
+            raise RunError(
+                f"입력 PDF를 열지 못했다: {input_path}, reason={error}"
+            ) from error
+        page_count = None
 
     input_hash = file_sha256(input_path)
     identity = InputIdentity(

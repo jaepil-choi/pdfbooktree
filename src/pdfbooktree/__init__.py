@@ -39,6 +39,7 @@ from pdfbooktree.inspection import (
 )
 from pdfbooktree.models import (
     ApplyResult,
+    BatchItemResult,
     BatchResult,
     BookmarkInferenceResult,
     BookmarkPlanItem,
@@ -82,6 +83,7 @@ __all__ = [
     "CLI_RESULT_SCHEMA_VERSION",
     "assess_outline_quality",
     "BatchProcessor",
+    "BatchItemResult",
     "BatchResult",
     "BookmarkInferenceResult",
     "BookmarkPlanItem",

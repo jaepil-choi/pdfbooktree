@@ -123,3 +123,21 @@ def test_run_manifest는_exception을_failed로_기록한다(tmp_path: Path) -> 
     payload = json.loads(context.manifest_path.read_text(encoding="utf-8"))
     assert payload["status"] == "failed"
     assert payload["error"] == {"type": "RuntimeError", "message": "boom"}
+
+
+def test_unreadable_input도_batch용_run_identity를_만들_수_있다(
+    tmp_path: Path,
+) -> None:
+    pdf = tmp_path / "broken.pdf"
+    pdf.write_bytes(b"not a pdf")
+
+    context = create_run_context(
+        pdf,
+        tmp_path / "runs",
+        resolve_processing_config(),
+        allow_unreadable_input=True,
+    )
+
+    assert context.manifest.input.page_count is None
+    assert context.manifest.input.sha256
+    assert context.manifest_path.is_file()

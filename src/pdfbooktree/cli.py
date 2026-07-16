@@ -1594,7 +1594,7 @@ def batch(
         result = BatchProcessor(
             input_dir,
             output_dir,
-            resolved.config,
+            resolved,
             recursive=recursive,
             log=batch_logger,
         ).run()

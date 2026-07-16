@@ -3,11 +3,29 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import fitz
 from typer.testing import CliRunner
 
 from pdfbooktree.batch_logger import BatchLogEvent
 from pdfbooktree.cli import app
-from pdfbooktree.models import BatchResult, ProcessingResult
+from pdfbooktree.config_io import ResolvedConfig
+from pdfbooktree.models import BatchItemResult, BatchResult
+
+
+def _write_outline_pdf(path: Path) -> None:
+    """batch CLI run manifest 검사용 기존 outline PDF를 만든다."""
+
+    document = fitz.open()
+    try:
+        toc = []
+        for page_no in range(1, 6):
+            page = document.new_page()
+            page.insert_text((72, 72), f"Chapter {page_no}")
+            toc.append([1, f"Chapter {page_no}", page_no])
+        document.set_toc(toc)
+        document.save(path)
+    finally:
+        document.close()
 
 
 def test_batch_cli_parses_options(monkeypatch, tmp_path: Path) -> None:
@@ -62,6 +80,8 @@ def test_batch_cli_parses_options(monkeypatch, tmp_path: Path) -> None:
     assert captured["output_dir"] == tmp_path / "out"
     assert captured["recursive"] is True
     assert captured["log_mode"] == "plain"
+    assert isinstance(captured["config"], ResolvedConfig)
+    assert captured["config"].config_hash
 
 
 def test_batch_json_result_and_events_use_separate_streams(
@@ -97,7 +117,7 @@ def test_batch_json_result_and_events_use_separate_streams(
                 failed_count=1,
                 bookmark_reference_candidate_count=0,
                 results=[
-                    ProcessingResult(
+                    BatchItemResult(
                         status="failed",
                         input_pdf=self.input_dir / "broken.pdf",
                         warnings=["PDF를 열지 못했다."],
@@ -132,6 +152,41 @@ def test_batch_json_result_and_events_use_separate_streams(
     assert events[0]["schema_version"] == 1
     assert events[0]["command"] == "batch"
     assert events[0]["event"] == "failed"
+
+
+def test_batch_cli_json_result_links_item_run_manifest(tmp_path: Path) -> None:
+    input_dir = tmp_path / "pdfs"
+    input_dir.mkdir()
+    _write_outline_pdf(input_dir / "book.pdf")
+    output_dir = tmp_path / "runs"
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "batch",
+            str(input_dir),
+            "--output-dir",
+            str(output_dir),
+            "--set",
+            "processing.write_artifacts=false",
+            "--log-mode",
+            "none",
+            "--format",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 0
+    envelope = json.loads(result.stdout)
+    item = envelope["result"]["results"][0]
+    manifest_path = Path(item["manifest_path"])
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert item["status"] == "processed"
+    assert Path(item["run_dir"]) == manifest_path.parent
+    assert item["run_id"] == manifest["run_id"]
+    assert item["config_hash"] == manifest["config_hash"]
+    assert manifest["status"] == "succeeded"
+    assert manifest["config_sources"][-1]["kind"] == "set_overrides"
 
 
 def test_batch_missing_input_uses_json_input_error(tmp_path: Path) -> None:
