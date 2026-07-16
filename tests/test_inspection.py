@@ -9,6 +9,7 @@ from typer.testing import CliRunner
 from pdfbooktree.cli import app
 from pdfbooktree.inspection import (
     inspect_bookmarks,
+    inspect_compare_plans,
     inspect_ocr_artifact,
     inspect_page_count,
     inspect_plan_artifact,
@@ -141,6 +142,37 @@ def test_inspect_plan_artifact_summarizes_validation_and_markdown(
     assert result["markdown_export"]["file_count"] == 2
 
 
+def test_inspect_compare_plans_reports_added_removed_and_moved(
+    tmp_path: Path,
+) -> None:
+    plan_a = tmp_path / "before.json"
+    plan_b = tmp_path / "after.json"
+    write_json(
+        plan_a,
+        [
+            {"title": "Chapter 1", "level": 1, "pdf_page": 10},
+            {"title": "Chapter 2", "level": 1, "pdf_page": 40},
+        ],
+    )
+    write_json(
+        plan_b,
+        [
+            {"title": "Chapter 1", "level": 1, "pdf_page": 12},
+            {"title": "Chapter 3", "level": 1, "pdf_page": 70},
+        ],
+    )
+
+    result = inspect_compare_plans(plan_a, plan_b, page_tolerance=2)
+
+    assert result["plan_a_item_count"] == 2
+    assert result["plan_b_item_count"] == 2
+    assert result["moved_count"] == 1
+    assert result["added_count"] == 1
+    assert result["removed_count"] == 1
+    statuses = {entry["status"] for entry in result["entries"]}
+    assert statuses == {"matched", "added", "removed"}
+
+
 def test_inspect_cli_emits_json_for_page_text(tmp_path: Path) -> None:
     pdf_path = tmp_path / "book.pdf"
     make_pdf(pdf_path)
@@ -202,6 +234,56 @@ def test_inspect_cli_format_json은_모든_command를_envelope로_출력한다(
     assert json_result(bookmarks, "inspect.bookmarks")["bookmark_count"] == 2
     assert json_result(ocr, "inspect.ocr")["artifact_dir"] == str(artifact_dir)
     assert json_result(plan, "inspect.plan")["bookmark_plan_item_count"] == 1
+
+
+def test_inspect_cli_compare_reports_diff_counts_as_json(tmp_path: Path) -> None:
+    plan_a = tmp_path / "before.json"
+    plan_b = tmp_path / "after.json"
+    write_json(plan_a, [{"title": "Chapter 1", "level": 1, "pdf_page": 10}])
+    write_json(plan_b, [{"title": "Chapter 1", "level": 2, "pdf_page": 10}])
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "inspect",
+            "compare",
+            str(plan_a),
+            str(plan_b),
+            "--format",
+            "json",
+        ],
+    )
+
+    payload = json_result(result, "inspect.compare")
+    assert payload["matched_count"] == 1
+    assert payload["level_changed_count"] == 1
+    assert payload["entries"][0]["level_changed"] is True
+
+
+def test_inspect_cli_compare_missing_plan_uses_json_input_error(
+    tmp_path: Path,
+) -> None:
+    plan_a = tmp_path / "before.json"
+    write_json(plan_a, [{"title": "Chapter 1", "level": 1, "pdf_page": 10}])
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "inspect",
+            "compare",
+            str(plan_a),
+            str(tmp_path / "missing.json"),
+            "--format",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 2
+    assert result.stdout == ""
+    envelope = json.loads(result.stderr)
+    assert envelope["command"] == "inspect.compare"
+    assert envelope["ok"] is False
+    assert envelope["error"]["code"] == "invalid_input"
 
 
 def test_inspect_cli_missing_input은_json_stderr와_exit_2를_사용한다(

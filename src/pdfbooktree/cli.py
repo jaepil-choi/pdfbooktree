@@ -39,6 +39,7 @@ from pdfbooktree.config_io import (
 )
 from pdfbooktree.inspection import (
     inspect_bookmarks,
+    inspect_compare_plans,
     inspect_ocr_artifact,
     inspect_page_count,
     inspect_plan_artifact,
@@ -592,6 +593,62 @@ def inspect_plan_cmd(
             debug=debug,
         )
     emit_command_result("inspect.plan", result, output_format=resolved_output_format)
+
+
+@inspect_app.command("compare")
+def inspect_compare_cmd(
+    plan_a: Path = typer.Argument(
+        ..., help="비교 기준(before) bookmark plan JSON이다."
+    ),
+    plan_b: Path = typer.Argument(..., help="비교 대상(after) bookmark plan JSON이다."),
+    page_tolerance: int = typer.Option(
+        0,
+        "--page-tolerance",
+        min=0,
+        help="같은 항목으로 볼 page 오차 허용치다.",
+    ),
+    title_similarity_threshold: float = typer.Option(
+        0.7,
+        "--title-similarity-threshold",
+        min=0.0,
+        max=1.0,
+        help="같은 항목으로 볼 title 유사도 최소값이다.",
+    ),
+    output_format: str = typer.Option(
+        "human", "--format", help="출력 형식이다: human, json."
+    ),
+    as_json: bool = typer.Option(
+        False, "--json", help="호환 alias다. --format json과 같다."
+    ),
+    debug: bool = typer.Option(
+        False, "--debug", help="예상하지 못한 오류의 traceback을 그대로 노출한다."
+    ),
+) -> None:
+    """두 bookmark plan JSON을 added/removed/moved/level/source로 비교한다."""
+
+    resolved_output_format = _inspection_output_format(output_format, as_json=as_json)
+    try:
+        result = inspect_compare_plans(
+            plan_a,
+            plan_b,
+            page_tolerance=page_tolerance,
+            title_similarity_threshold=title_similarity_threshold,
+        )
+    except (FileNotFoundError, ValueError) as error:
+        _exit_stage_input_error(
+            "inspect.compare",
+            error,
+            code="invalid_input",
+            output_format=resolved_output_format,
+        )
+    except Exception as error:
+        _exit_stage_runtime_error(
+            "inspect.compare",
+            error,
+            output_format=resolved_output_format,
+            debug=debug,
+        )
+    emit_command_result("inspect.compare", result, output_format=resolved_output_format)
 
 
 def _coerce_engine_option_value(value: str) -> object:

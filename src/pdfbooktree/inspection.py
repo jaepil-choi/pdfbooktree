@@ -9,6 +9,9 @@ from typing import Any
 
 import fitz
 
+from pdfbooktree.evaluation import PlanDiffEntry, compare_bookmark_plans
+from pdfbooktree.models import BookmarkPlanItem
+from pdfbooktree.outline.plan_io import load_bookmark_plan_json
 from pdfbooktree.pdf.bookmarks import extract_existing_bookmarks
 
 
@@ -199,6 +202,65 @@ def inspect_plan_artifact(output_dir: Path | str) -> dict[str, Any]:
         "report_path": str(report_path) if report_path else None,
         "markdown_export": markdown_export,
         "warnings": warnings,
+    }
+
+
+def inspect_compare_plans(
+    plan_a: Path | str,
+    plan_b: Path | str,
+    *,
+    page_tolerance: int | None = None,
+    title_similarity_threshold: float | None = None,
+) -> dict[str, Any]:
+    """두 bookmark plan JSON을 title+page 매칭으로 비교한다."""
+
+    path_a = _require_file(plan_a, "plan A")
+    path_b = _require_file(plan_b, "plan B")
+    before = load_bookmark_plan_json(path_a)
+    after = load_bookmark_plan_json(path_b)
+    kwargs: dict[str, Any] = {}
+    if page_tolerance is not None:
+        kwargs["page_tolerance"] = page_tolerance
+    if title_similarity_threshold is not None:
+        kwargs["title_similarity_threshold"] = title_similarity_threshold
+    diff = compare_bookmark_plans(before, after, **kwargs)
+
+    return {
+        "plan_a_path": str(path_a),
+        "plan_b_path": str(path_b),
+        "plan_a_item_count": len(before),
+        "plan_b_item_count": len(after),
+        "added_count": diff.added_count,
+        "removed_count": diff.removed_count,
+        "matched_count": diff.matched_count,
+        "unchanged_count": diff.unchanged_count,
+        "moved_count": diff.moved_count,
+        "level_changed_count": diff.level_changed_count,
+        "source_changed_count": diff.source_changed_count,
+        "entries": [_diff_entry_to_dict(entry) for entry in diff.entries],
+    }
+
+
+def _diff_entry_to_dict(entry: PlanDiffEntry) -> dict[str, Any]:
+    return {
+        "status": entry.status,
+        "title_similarity": entry.title_similarity,
+        "page_changed": entry.page_changed,
+        "level_changed": entry.level_changed,
+        "source_changed": entry.source_changed,
+        "before": _plan_item_to_dict(entry.before),
+        "after": _plan_item_to_dict(entry.after),
+    }
+
+
+def _plan_item_to_dict(item: BookmarkPlanItem | None) -> dict[str, Any] | None:
+    if item is None:
+        return None
+    return {
+        "title": item.title,
+        "level": item.level,
+        "pdf_page": item.pdf_page,
+        "source": item.source,
     }
 
 
