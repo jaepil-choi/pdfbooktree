@@ -290,6 +290,32 @@
       "finding": "실제 PDF 1권의 batch 실행 자체에 immutable manifest를 생성하고, batch_run_id=20260716T064350779917Z-f9e0ba32-8ff742ec, status=succeeded, completed=1, item run/output 연결=True를 확인했다.",
       "command": "uv run python showcase/025_batch_run_manifest.py",
       "ran_at": "2026-07-16T15:43:52+09:00"
+    },
+    {
+      "id": "026_process_ocr_books_cli",
+      "purpose": "완성된 process CLI로 OCR 책 세 권을 처리한다.",
+      "inputs": [
+        "showcase\\outputs\\016_econometrics_note1_ocr_overlay\\kim_econometrics_note1_ocr.pdf",
+        "showcase\\outputs\\017_interest_economics_ocr_overlay\\interest_economics_ocr.pdf",
+        "showcase\\outputs\\018_statistics_principles_ocr_overlay\\statistics_principles_ocr.pdf"
+      ],
+      "outputs": "showcase\\outputs\\026_process_ocr_books_cli",
+      "finding": "세 책 모두 processed. 북마크 수는 57개, 141개, 69개다.",
+      "command": "pwsh -File showcase/026_process_ocr_books_cli.ps1",
+      "ran_at": "2026-07-16T17:19:39+09:00"
+    },
+    {
+      "id": "026_process_ocr_books_python",
+      "purpose": "완성된 Processor Python API로 OCR 책 세 권을 처리한다.",
+      "inputs": [
+        "showcase\\outputs\\016_econometrics_note1_ocr_overlay\\kim_econometrics_note1_ocr.pdf",
+        "showcase\\outputs\\017_interest_economics_ocr_overlay\\interest_economics_ocr.pdf",
+        "showcase\\outputs\\018_statistics_principles_ocr_overlay\\statistics_principles_ocr.pdf"
+      ],
+      "outputs": "showcase\\outputs\\026_process_ocr_books_python",
+      "finding": "CLI와 같은 결과를 생성했다. 북마크 수는 57개, 141개, 69개다.",
+      "command": "python showcase/026_process_ocr_books_python.py",
+      "ran_at": "2026-07-16T17:19:39+09:00"
     }
   ]
 }
