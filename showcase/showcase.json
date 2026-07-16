@@ -244,6 +244,19 @@
       "finding": "Viral Hero (Travis Steffen): existing_items=1, default_reuse_existing=True, is_low_quality=True, reasons=['too_few_items'], replace_when_low_quality=True -> reuse_existing=False, inferred_bookmark_count=258 | Asset Management (Andrew Ang): existing_items=29, default_reuse_existing=True, is_low_quality=False, reasons=[]",
       "command": "uv run python showcase/021_infer_apply_existing_outline_policy.py",
       "ran_at": "2026-07-16T09:29:29+09:00"
+    },
+    {
+      "id": "022_bookmark_plan_evaluation",
+      "purpose": "src/pdfbooktree/evaluation.py로 승격한 match_bookmark_plans()와 gold reference 품질 판정에 재사용한 assess_outline_quality()를 실제 책 3권(clean gold 고성능, junk gold, clean gold 저성능)으로 검증한다.",
+      "inputs": [
+        "data\\300STUDY\\a_books\\textbook\\실습과_그림으로_배우는_리눅스_구조_다케우치_사토루.pdf",
+        "data\\300STUDY\\a_books\\normalbook\\생각정리를위한_시간의기술_나가타도요시_생각정리연구소.pdf",
+        "data\\300STUDY\\textbooks\\Books\\Case Studies, 3rd Edition\\Case Studies, 3rd Edition.pdf"
+      ],
+      "outputs": "showcase\\outputs\\022_bookmark_plan_evaluation\\result.json",
+      "finding": "실습과 그림으로 배우는 리눅스 구조 (다케우치 사토루): gold=148, predicted=171, is_low_quality=False([]), f1=0.9028, missed=4, extra=27 | 생각정리를위한 시간의기술 (나가타 도요시): gold=2, predicted=0, is_low_quality=True(['too_few_items']), f1=0.0, missed=2, extra=0 | Case Studies, 3rd Edition: gold=11, predicted=57, is_low_quality=False([]), f1=0.0, missed=11, extra=57",
+      "command": "uv run python showcase/022_bookmark_plan_evaluation.py",
+      "ran_at": "2026-07-16T13:31:26+09:00"
     }
   ]
 }
