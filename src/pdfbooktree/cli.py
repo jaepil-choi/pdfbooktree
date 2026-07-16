@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from dataclasses import replace as dataclass_replace
 from pathlib import Path
 from typing import cast
@@ -78,26 +77,6 @@ inspect_app = typer.Typer(help="PDF와 처리 artifact를 읽기 전용으로 �
 config_app = typer.Typer(help="versioned processing config를 생성하고 검증한다.")
 app.add_typer(inspect_app, name="inspect")
 app.add_typer(config_app, name="config")
-
-
-def print_config_output(value: object, *, output_format: str) -> None:
-    """config command 결과를 human 또는 JSON 형식으로 출력한다."""
-
-    if output_format == "json":
-        typer.echo(json.dumps(to_jsonable(value), ensure_ascii=False))
-        return
-    if output_format != "human":
-        raise typer.BadParameter("format은 human 또는 json이어야 한다.")
-    if isinstance(value, str):
-        typer.echo(value)
-    else:
-        rich_print(value)
-
-
-def raise_config_error(error: Exception) -> None:
-    """config 오류를 stack trace 없는 CLI 입력 오류로 바꾼다."""
-
-    raise typer.BadParameter(str(error)) from error
 
 
 def _stage_output_format(value: str) -> OutputFormat:
@@ -204,16 +183,35 @@ def config_defaults_cmd(
     output_format: str = typer.Option(
         "human", "--format", help="출력 형식이다: human, json."
     ),
+    debug: bool = typer.Option(
+        False, "--debug", help="예상하지 못한 오류의 traceback을 그대로 노출한다."
+    ),
 ) -> None:
     """현재 package의 resolved 기본 config를 출력한다."""
 
-    resolved = resolve_processing_config()
+    resolved_output_format = _stage_output_format(output_format)
+    try:
+        resolved = resolve_processing_config()
+    except ConfigError as error:
+        _exit_stage_input_error(
+            "config.defaults",
+            error,
+            code="invalid_config",
+            output_format=resolved_output_format,
+        )
+    except Exception as error:
+        _exit_stage_runtime_error(
+            "config.defaults",
+            error,
+            output_format=resolved_output_format,
+            debug=debug,
+        )
     value: object = (
         resolved.data
-        if output_format == "json"
+        if resolved_output_format == "json"
         else render_config_toml(resolved.config)
     )
-    print_config_output(value, output_format=output_format)
+    emit_command_result("config.defaults", value, output_format=resolved_output_format)
 
 
 @config_app.command("schema")
@@ -221,10 +219,23 @@ def config_schema_cmd(
     output_format: str = typer.Option(
         "json", "--format", help="출력 형식이다: human, json."
     ),
+    debug: bool = typer.Option(
+        False, "--debug", help="예상하지 못한 오류의 traceback을 그대로 노출한다."
+    ),
 ) -> None:
     """public config의 JSON Schema를 출력한다."""
 
-    print_config_output(config_schema(), output_format=output_format)
+    resolved_output_format = _stage_output_format(output_format)
+    try:
+        value = config_schema()
+    except Exception as error:
+        _exit_stage_runtime_error(
+            "config.schema",
+            error,
+            output_format=resolved_output_format,
+            debug=debug,
+        )
+    emit_command_result("config.schema", value, output_format=resolved_output_format)
 
 
 @config_app.command("init")
@@ -233,14 +244,37 @@ def config_init_cmd(
     force: bool = typer.Option(
         False, "--force", help="config 파일이 이미 있어도 덮어쓴다."
     ),
+    output_format: str = typer.Option(
+        "human", "--format", help="출력 형식이다: human, json."
+    ),
+    debug: bool = typer.Option(
+        False, "--debug", help="예상하지 못한 오류의 traceback을 그대로 노출한다."
+    ),
 ) -> None:
     """주석이 포함된 기본 TOML config 파일을 만든다."""
 
+    resolved_output_format = _stage_output_format(output_format)
     try:
         created = write_config_template(path, force=force)
     except ConfigError as error:
-        raise_config_error(error)
-    rich_print({"status": "created", "config_path": str(created)})
+        _exit_stage_input_error(
+            "config.init",
+            error,
+            code="invalid_config",
+            output_format=resolved_output_format,
+        )
+    except Exception as error:
+        _exit_stage_runtime_error(
+            "config.init",
+            error,
+            output_format=resolved_output_format,
+            debug=debug,
+        )
+    emit_command_result(
+        "config.init",
+        {"status": "created", "config_path": str(created)},
+        output_format=resolved_output_format,
+    )
 
 
 @config_app.command("explain")
@@ -251,17 +285,36 @@ def config_explain_cmd(
     output_format: str = typer.Option(
         "human", "--format", help="출력 형식이다: human, json."
     ),
+    debug: bool = typer.Option(
+        False, "--debug", help="예상하지 못한 오류의 traceback을 그대로 노출한다."
+    ),
 ) -> None:
     """config field의 타입, 기본값, 범위와 설명을 출력한다."""
 
-    specs = config_field_specs()
-    if key is not None:
-        if key not in specs:
-            raise_config_error(ConfigError(f"알 수 없는 config key다: {key}"))
-        value: object = {"key": key, **specs[key]}
-    else:
-        value = specs
-    print_config_output(value, output_format=output_format)
+    resolved_output_format = _stage_output_format(output_format)
+    try:
+        specs = config_field_specs()
+        if key is not None:
+            if key not in specs:
+                raise ConfigError(f"알 수 없는 config key다: {key}")
+            value: object = {"key": key, **specs[key]}
+        else:
+            value = specs
+    except ConfigError as error:
+        _exit_stage_input_error(
+            "config.explain",
+            error,
+            code="invalid_config",
+            output_format=resolved_output_format,
+        )
+    except Exception as error:
+        _exit_stage_runtime_error(
+            "config.explain",
+            error,
+            output_format=resolved_output_format,
+            debug=debug,
+        )
+    emit_command_result("config.explain", value, output_format=resolved_output_format)
 
 
 @config_app.command("validate")
@@ -275,14 +328,31 @@ def config_validate_cmd(
     output_format: str = typer.Option(
         "human", "--format", help="출력 형식이다: human, json."
     ),
+    debug: bool = typer.Option(
+        False, "--debug", help="예상하지 못한 오류의 traceback을 그대로 노출한다."
+    ),
 ) -> None:
     """TOML과 override를 합친 resolved config를 검증한다."""
 
+    resolved_output_format = _stage_output_format(output_format)
     try:
         resolved = resolve_processing_config(path, set_overrides=set_option)
     except ConfigError as error:
-        raise_config_error(error)
-    print_config_output(
+        _exit_stage_input_error(
+            "config.validate",
+            error,
+            code="invalid_config",
+            output_format=resolved_output_format,
+        )
+    except Exception as error:
+        _exit_stage_runtime_error(
+            "config.validate",
+            error,
+            output_format=resolved_output_format,
+            debug=debug,
+        )
+    emit_command_result(
+        "config.validate",
         {
             "status": "valid",
             "config_path": str(path),
@@ -290,7 +360,7 @@ def config_validate_cmd(
             "resolved_config": resolved.data,
             "sources": resolved.sources,
         },
-        output_format=output_format,
+        output_format=resolved_output_format,
     )
 
 
@@ -333,88 +403,194 @@ def parse_engine_options(values: list[str]) -> dict[str, object]:
     return options
 
 
-def print_inspection(result: dict[str, object], *, as_json: bool) -> None:
-    """inspection 결과를 사람용 또는 machine-readable JSON으로 출력한다."""
+def _inspection_output_format(value: str, *, as_json: bool) -> OutputFormat:
+    """canonical format을 검증하고 기존 ``--json`` alias를 적용한다."""
 
-    if as_json:
-        typer.echo(json.dumps(to_jsonable(result), ensure_ascii=False))
-        return
-    rich_print(result)
-
-
-def raise_inspection_error(error: Exception) -> None:
-    """agent가 다음 확인 작업을 고를 수 있는 CLI 오류로 바꾼다."""
-
-    raise typer.BadParameter(str(error)) from error
+    resolved = _stage_output_format(value)
+    return "json" if as_json else resolved
 
 
 @inspect_app.command("page-count")
 def inspect_page_count_cmd(
     pdf: Path = typer.Argument(..., help="확인할 PDF 파일이다."),
-    as_json: bool = typer.Option(False, "--json", help="JSON 한 줄로 출력한다."),
+    output_format: str = typer.Option(
+        "human", "--format", help="출력 형식이다: human, json."
+    ),
+    as_json: bool = typer.Option(
+        False, "--json", help="호환 alias다. --format json과 같다."
+    ),
+    debug: bool = typer.Option(
+        False, "--debug", help="예상하지 못한 오류의 traceback을 그대로 노출한다."
+    ),
 ) -> None:
     """PDF 총 page 수를 확인한다."""
 
+    resolved_output_format = _inspection_output_format(output_format, as_json=as_json)
     try:
-        print_inspection(inspect_page_count(pdf), as_json=as_json)
+        result = inspect_page_count(pdf)
     except (FileNotFoundError, ValueError) as error:
-        raise_inspection_error(error)
+        _exit_stage_input_error(
+            "inspect.page-count",
+            error,
+            code="invalid_input",
+            output_format=resolved_output_format,
+        )
+    except Exception as error:
+        _exit_stage_runtime_error(
+            "inspect.page-count",
+            error,
+            output_format=resolved_output_format,
+            debug=debug,
+        )
+    emit_command_result(
+        "inspect.page-count", result, output_format=resolved_output_format
+    )
 
 
 @inspect_app.command("text")
 def inspect_text_cmd(
     pdf: Path = typer.Argument(..., help="확인할 PDF 파일이다."),
     pages: str = typer.Option(..., "--pages", help="1-based page 목록이다. 예: 1-3,42"),
-    as_json: bool = typer.Option(False, "--json", help="JSON 한 줄로 출력한다."),
+    output_format: str = typer.Option(
+        "human", "--format", help="출력 형식이다: human, json."
+    ),
+    as_json: bool = typer.Option(
+        False, "--json", help="호환 alias다. --format json과 같다."
+    ),
+    debug: bool = typer.Option(
+        False, "--debug", help="예상하지 못한 오류의 traceback을 그대로 노출한다."
+    ),
 ) -> None:
     """지정한 1-based page 범위의 text를 확인한다."""
 
+    resolved_output_format = _inspection_output_format(output_format, as_json=as_json)
     try:
         parsed_pages = parse_page_ranges(pages)
         if parsed_pages is None:
             raise ValueError("확인할 PDF page를 하나 이상 지정해야 한다.")
-        print_inspection(inspect_text(pdf, parsed_pages), as_json=as_json)
-    except (FileNotFoundError, ValueError) as error:
-        raise_inspection_error(error)
+        result = inspect_text(pdf, parsed_pages)
+    except (FileNotFoundError, ValueError, typer.BadParameter) as error:
+        _exit_stage_input_error(
+            "inspect.text",
+            error,
+            code="invalid_input",
+            output_format=resolved_output_format,
+        )
+    except Exception as error:
+        _exit_stage_runtime_error(
+            "inspect.text",
+            error,
+            output_format=resolved_output_format,
+            debug=debug,
+        )
+    emit_command_result("inspect.text", result, output_format=resolved_output_format)
 
 
 @inspect_app.command("bookmarks")
 def inspect_bookmarks_cmd(
     pdf: Path = typer.Argument(..., help="확인할 PDF 파일이다."),
-    as_json: bool = typer.Option(False, "--json", help="JSON 한 줄로 출력한다."),
+    output_format: str = typer.Option(
+        "human", "--format", help="출력 형식이다: human, json."
+    ),
+    as_json: bool = typer.Option(
+        False, "--json", help="호환 alias다. --format json과 같다."
+    ),
+    debug: bool = typer.Option(
+        False, "--debug", help="예상하지 못한 오류의 traceback을 그대로 노출한다."
+    ),
 ) -> None:
     """PDF의 기존 bookmark를 확인한다."""
 
+    resolved_output_format = _inspection_output_format(output_format, as_json=as_json)
     try:
-        print_inspection(inspect_bookmarks(pdf), as_json=as_json)
+        result = inspect_bookmarks(pdf)
     except (FileNotFoundError, ValueError) as error:
-        raise_inspection_error(error)
+        _exit_stage_input_error(
+            "inspect.bookmarks",
+            error,
+            code="invalid_input",
+            output_format=resolved_output_format,
+        )
+    except Exception as error:
+        _exit_stage_runtime_error(
+            "inspect.bookmarks",
+            error,
+            output_format=resolved_output_format,
+            debug=debug,
+        )
+    emit_command_result(
+        "inspect.bookmarks", result, output_format=resolved_output_format
+    )
 
 
 @inspect_app.command("ocr")
 def inspect_ocr_cmd(
     artifact_dir: Path = typer.Argument(..., help="OCR artifact directory다."),
-    as_json: bool = typer.Option(False, "--json", help="JSON 한 줄로 출력한다."),
+    output_format: str = typer.Option(
+        "human", "--format", help="출력 형식이다: human, json."
+    ),
+    as_json: bool = typer.Option(
+        False, "--json", help="호환 alias다. --format json과 같다."
+    ),
+    debug: bool = typer.Option(
+        False, "--debug", help="예상하지 못한 오류의 traceback을 그대로 노출한다."
+    ),
 ) -> None:
     """OCR 진행 상태, cache, stats와 마지막 log event를 확인한다."""
 
+    resolved_output_format = _inspection_output_format(output_format, as_json=as_json)
     try:
-        print_inspection(inspect_ocr_artifact(artifact_dir), as_json=as_json)
+        result = inspect_ocr_artifact(artifact_dir)
     except (FileNotFoundError, ValueError) as error:
-        raise_inspection_error(error)
+        _exit_stage_input_error(
+            "inspect.ocr",
+            error,
+            code="invalid_input",
+            output_format=resolved_output_format,
+        )
+    except Exception as error:
+        _exit_stage_runtime_error(
+            "inspect.ocr",
+            error,
+            output_format=resolved_output_format,
+            debug=debug,
+        )
+    emit_command_result("inspect.ocr", result, output_format=resolved_output_format)
 
 
 @inspect_app.command("plan")
 def inspect_plan_cmd(
     output_dir: Path = typer.Argument(..., help="process output directory다."),
-    as_json: bool = typer.Option(False, "--json", help="JSON 한 줄로 출력한다."),
+    output_format: str = typer.Option(
+        "human", "--format", help="출력 형식이다: human, json."
+    ),
+    as_json: bool = typer.Option(
+        False, "--json", help="호환 alias다. --format json과 같다."
+    ),
+    debug: bool = typer.Option(
+        False, "--debug", help="예상하지 못한 오류의 traceback을 그대로 노출한다."
+    ),
 ) -> None:
     """bookmark plan validation과 Markdown export 결과를 확인한다."""
 
+    resolved_output_format = _inspection_output_format(output_format, as_json=as_json)
     try:
-        print_inspection(inspect_plan_artifact(output_dir), as_json=as_json)
+        result = inspect_plan_artifact(output_dir)
     except (FileNotFoundError, ValueError) as error:
-        raise_inspection_error(error)
+        _exit_stage_input_error(
+            "inspect.plan",
+            error,
+            code="invalid_input",
+            output_format=resolved_output_format,
+        )
+    except Exception as error:
+        _exit_stage_runtime_error(
+            "inspect.plan",
+            error,
+            output_format=resolved_output_format,
+            debug=debug,
+        )
+    emit_command_result("inspect.plan", result, output_format=resolved_output_format)
 
 
 def _coerce_engine_option_value(value: str) -> object:

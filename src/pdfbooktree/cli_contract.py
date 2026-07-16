@@ -71,7 +71,10 @@ def emit_command_result(
     """성공 결과를 human 또는 JSON stdout으로 출력한다."""
 
     if output_format == "human":
-        rich_print(to_jsonable(result))
+        if isinstance(result, str):
+            typer.echo(result)
+        else:
+            rich_print(to_jsonable(result))
         return
     envelope = CommandResultEnvelope(
         schema_version=CLI_RESULT_SCHEMA_VERSION,

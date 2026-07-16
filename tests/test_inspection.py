@@ -16,6 +16,19 @@ from pdfbooktree.inspection import (
 )
 
 
+def json_result(result, command: str) -> dict[str, object]:
+    """schema v1 success envelope에서 inspection result를 꺼낸다."""
+
+    assert result.exit_code == 0, result.output
+    assert result.stderr == ""
+    envelope = json.loads(result.stdout)
+    assert set(envelope) == {"schema_version", "command", "ok", "result"}
+    assert envelope["schema_version"] == 1
+    assert envelope["command"] == command
+    assert envelope["ok"] is True
+    return envelope["result"]
+
+
 def make_pdf(path: Path) -> None:
     """검사용 2-page PDF와 기존 bookmark를 만든다."""
 
@@ -137,6 +150,86 @@ def test_inspect_cli_emits_json_for_page_text(tmp_path: Path) -> None:
         ["inspect", "text", str(pdf_path), "--pages", "1-2", "--json"],
     )
 
-    assert result.exit_code == 0
-    payload = json.loads(result.stdout)
+    payload = json_result(result, "inspect.text")
     assert [page["pdf_page"] for page in payload["pages"]] == [1, 2]
+
+
+def test_inspect_cli_format_json은_모든_command를_envelope로_출력한다(
+    tmp_path: Path,
+) -> None:
+    pdf_path = tmp_path / "book.pdf"
+    artifact_dir = tmp_path / "ocr_artifacts"
+    plan_dir = tmp_path / "plan_artifacts"
+    make_pdf(pdf_path)
+    artifact_dir.mkdir()
+    write_json(
+        plan_dir / "bookmark_plan.json",
+        [{"title": "Chapter 1", "level": 1, "pdf_page": 1}],
+    )
+
+    runner = CliRunner()
+    page_count = runner.invoke(
+        app,
+        ["inspect", "page-count", str(pdf_path), "--format", "json"],
+    )
+    text = runner.invoke(
+        app,
+        [
+            "inspect",
+            "text",
+            str(pdf_path),
+            "--pages",
+            "1",
+            "--format",
+            "json",
+        ],
+    )
+    bookmarks = runner.invoke(
+        app,
+        ["inspect", "bookmarks", str(pdf_path), "--format", "json"],
+    )
+    ocr = runner.invoke(
+        app,
+        ["inspect", "ocr", str(artifact_dir), "--format", "json"],
+    )
+    plan = runner.invoke(
+        app,
+        ["inspect", "plan", str(plan_dir), "--format", "json"],
+    )
+
+    assert json_result(page_count, "inspect.page-count")["page_count"] == 2
+    assert json_result(text, "inspect.text")["pages"][0]["pdf_page"] == 1
+    assert json_result(bookmarks, "inspect.bookmarks")["bookmark_count"] == 2
+    assert json_result(ocr, "inspect.ocr")["artifact_dir"] == str(artifact_dir)
+    assert json_result(plan, "inspect.plan")["bookmark_plan_item_count"] == 1
+
+
+def test_inspect_cli_missing_input은_json_stderr와_exit_2를_사용한다(
+    tmp_path: Path,
+) -> None:
+    missing = tmp_path / "missing.pdf"
+
+    result = CliRunner().invoke(
+        app,
+        ["inspect", "page-count", str(missing), "--format", "json"],
+    )
+
+    assert result.exit_code == 2
+    assert result.stdout == ""
+    envelope = json.loads(result.stderr)
+    assert envelope["schema_version"] == 1
+    assert envelope["command"] == "inspect.page-count"
+    assert envelope["ok"] is False
+    assert envelope["error"]["code"] == "invalid_input"
+    assert envelope["error"]["type"] == "FileNotFoundError"
+
+
+def test_inspect_cli_human_output은_기존_표현을_유지한다(tmp_path: Path) -> None:
+    pdf_path = tmp_path / "book.pdf"
+    make_pdf(pdf_path)
+
+    result = CliRunner().invoke(app, ["inspect", "page-count", str(pdf_path)])
+
+    assert result.exit_code == 0
+    assert "page_count" in result.stdout
+    assert "schema_version" not in result.stdout

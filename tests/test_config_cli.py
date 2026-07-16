@@ -11,16 +11,27 @@ from pdfbooktree.cli import app
 from pdfbooktree.config import CONFIG_SCHEMA_VERSION
 
 
+def json_result(result, command: str) -> object:
+    """schema v1 success envelope에서 command result를 꺼낸다."""
+
+    assert result.exit_code == 0, result.output
+    assert result.stderr == ""
+    envelope = json.loads(result.stdout)
+    assert set(envelope) == {"schema_version", "command", "ok", "result"}
+    assert envelope["schema_version"] == 1
+    assert envelope["command"] == command
+    assert envelope["ok"] is True
+    return envelope["result"]
+
+
 def test_config_defaults와_schema는_json으로_parse된다() -> None:
     runner = CliRunner()
 
     defaults = runner.invoke(app, ["config", "defaults", "--format", "json"])
     schema = runner.invoke(app, ["config", "schema", "--format", "json"])
 
-    assert defaults.exit_code == 0
-    assert schema.exit_code == 0
-    default_payload = json.loads(defaults.stdout)
-    schema_payload = json.loads(schema.stdout)
+    default_payload = json_result(defaults, "config.defaults")
+    schema_payload = json_result(schema, "config.schema")
     assert default_payload["schema_version"] == CONFIG_SCHEMA_VERSION
     assert default_payload["typography"]["heading_candidate_mode"] == "font"
     assert schema_payload["properties"]["schema_version"]["const"] == 1
@@ -30,7 +41,7 @@ def test_config_init_validate_explain_workflow(tmp_path: Path) -> None:
     runner = CliRunner()
     path = tmp_path / "book.toml"
 
-    created = runner.invoke(app, ["config", "init", str(path)])
+    created = runner.invoke(app, ["config", "init", str(path), "--format", "json"])
     validated = runner.invoke(
         app,
         [
@@ -54,17 +65,16 @@ def test_config_init_validate_explain_workflow(tmp_path: Path) -> None:
         ],
     )
 
-    assert created.exit_code == 0
+    created_payload = json_result(created, "config.init")
+    assert created_payload == {"status": "created", "config_path": str(path)}
     assert path.is_file()
-    assert validated.exit_code == 0
-    payload = json.loads(validated.stdout)
+    payload = json_result(validated, "config.validate")
     assert payload["status"] == "valid"
     assert (
         payload["resolved_config"]["typography"]["position_fallback_tolerance"] == 1.5
     )
     assert len(payload["config_hash"]) == 64
-    assert explained.exit_code == 0
-    assert json.loads(explained.stdout)["type"] == "number"
+    assert json_result(explained, "config.explain")["type"] == "number"
 
 
 def test_config_init은_기존_파일을_기본적으로_보호한다(tmp_path: Path) -> None:
@@ -96,11 +106,19 @@ def test_config_validate는_잘못된_key를_nonzero로_거절한다(
             str(path),
             "--set",
             "typography.unknown=1",
+            "--format",
+            "json",
         ],
     )
 
     assert result.exit_code == 2
-    assert "알 수 없는 config key" in result.stderr
+    assert result.stdout == ""
+    envelope = json.loads(result.stderr)
+    assert envelope["command"] == "config.validate"
+    assert envelope["ok"] is False
+    assert envelope["error"]["code"] == "invalid_config"
+    assert envelope["error"]["type"] == "ConfigError"
+    assert "알 수 없는 config key" in envelope["error"]["message"]
 
 
 def test_config_help에서_하위_command를_발견할_수_있다() -> None:
