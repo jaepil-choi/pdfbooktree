@@ -11,6 +11,12 @@
 - Phase 0 contract 구현 노트: `docs/vibe/implementations/050_7ceaa53bdd91.md`
 - Phase 3A 구현 커밋: `65598b4` (`feat: add versioned CLI result contracts`)
 - Phase 3A 구현 노트: `docs/vibe/implementations/051_65598b424d93.md`
+- Phase 3B 구현 커밋: `29a15ec` (`feat: add config and inspect result contracts`)
+- Phase 3B 구현 노트: `docs/vibe/implementations/052_29a15ec50dd6.md`
+- Phase 3C OCR 구현 커밋: `a9649ef` (`feat: add versioned OCR event contract`)
+- Phase 3C OCR 구현 노트: `docs/vibe/implementations/053_a9649efeabcf.md`
+- Phase 3C classify 구현 커밋: `308b3c1` (`feat: add classify result and event contracts`)
+- Phase 3C classify 구현 노트: `docs/vibe/implementations/054_308b3c11ea5e.md`
 
 이 handoff의 핵심 판단은 기존 bookmark engine algorithm을 다시 설계하지 않고, 이미 검증된 production pipeline을 agent가 단계별로 실행·검토·비교할 수 있는 public interface로 재구성하는 것이다.
 
@@ -29,7 +35,7 @@ inspect -> infer -> evaluate -> sweep/compare -> apply
 | Phase 0 | 현재 public contract와 결과 고정 | 완료 (2026-07-16) | pipeline parity, fast path, process Python/CLI result, artifact JSON shape와 manifest-to-file golden contract를 고정했다. |
 | Phase 1 | versioned config와 immutable run 기반 | 완료 | TOML, `--set`, config CLI, config/input hash, run manifest를 구현했다. |
 | Phase 2 | core pipeline을 analyze/infer/apply로 분리 | 완료 (2026-07-16) | `pipeline.py`(analyze_pdf/infer_bookmarks/apply_plan/resolve_existing_outline_action), `infer`/`apply` CLI, 로드맵에 없던 existing-outline quality policy까지 추가. 구현 노트 047~049 참고. |
-| Phase 3 | 공통 result/error/event 계약 | 부분 완료 (2026-07-16) | `process`/`infer`/`apply`에 schema v1 envelope, `--format`, `--debug`, stdout/stderr와 exit code 계약을 적용했다. 다른 명령과 event protocol은 남았다. |
+| Phase 3 | 공통 result/error/event 계약 | 대부분 완료 (2026-07-16) | `process`/`infer`/`apply`, config, inspect, 단일 OCR, classify에 schema v1 계약을 적용했다. `ocr-overlay-batch`, parser-level error와 기존 `batch`가 남았다. |
 | Phase 4 | evaluator를 production으로 승격 | 미착수 | fuzzy evaluator는 `experiments/102_engine_bookmark_fuzzy_eval.py`에만 있다. |
 | Phase 5 | inspect/compare 개선 | 부분 기반 존재 | 기본 inspect API/CLI는 있으나 plan filter, suspicious item, compare가 없다. |
 | Phase 6 | cache-aware sweep | 미착수 | analysis cache, matrix parser, ranking이 없다. |
@@ -230,21 +236,28 @@ Phase 2 완료 조건:
 
 ### Phase 3. 공통 result/error/event 계약
 
-완료된 Phase 3A:
+완료된 범위:
 
-- schema version 1의 public result/error envelope
+- Phase 3A: schema version 1의 public result/error envelope
 - `process`/`infer`/`apply`의 `--format human|json`, `--debug`
 - JSON final result는 stdout, error는 stderr로 분리
 - exit code 0(success/skipped), 1(runtime), 2(input/config/plan),
   3(processing validation failure) 고정
 - immutable run의 complete/fail manifest를 envelope 출력보다 먼저 기록
+- Phase 3B: config와 inspect 전체 command에 같은 result/error 계약 적용
+- inspect의 기존 `--json`은 호환 alias로 유지하고 `--format`을 canonical option으로 지정
+- Phase 3C: `CommandEventEnvelope` schema version 1과 stderr JSONL renderer 추가
+- 단일 `ocr-overlay`의 JSON final result는 stdout, OCR progress는 stderr로 분리
+- `classify-scan`의 JSON final result는 stdout, file progress는 stderr로 분리
+- OCR/classify의 기존 durable artifact JSONL 형식은 호환성을 위해 유지
+- classify의 파일별 오류는 `error_count`와 detail artifact로 반환하고 batch 성공 exit 0 유지
 
 남은 범위:
 
-- config/inspect/OCR/classify/batch를 같은 envelope와 `--format` 계약으로 전환
+- `ocr-overlay-batch`를 같은 result/error/event/stream 계약으로 전환
+- OCR batch에서 책별 event의 command context를 `ocr-overlay`와 구분
 - Typer callback 진입 전 parser-level 오류의 JSON envelope 처리 여부 결정
-- pipeline event protocol과 JSONL renderer
-- 장시간 명령의 stderr progress와 stdout final result 분리
+- 기존 `batch`는 Phase 7의 config/run/item summary 통합과 함께 전환
 
 ### Phase 4. Production evaluator
 
@@ -279,25 +292,34 @@ Phase 2 완료 조건:
 
 ## 8. 다음 작업자 체크리스트
 
-1. 완료된 feature/fix 브랜치를 `develop`에 반영하고 새 `feat/` 브랜치를 만든다.
-2. Phase 3B는 production pipeline을 실행하지 않는 config/inspect command부터 공통
-   envelope로 전환한다.
-3. inspect의 기존 `--json`은 호환 alias로 유지하고 `--format human|json`을 canonical
-   option으로 만든다.
-4. 기존 config JSON payload를 새 envelope의 `result` 안으로 이동하고 error를
-   stderr envelope + exit 2로 통일한다.
-5. parser-level Typer error와 runtime error는 command callback error와 구분해
-   테스트하고, app-level hook이 필요한 변경은 별도 증분으로 남긴다.
-6. `uv run pytest`, `uv run ruff check src tests`,
-   `uv run ruff format --check src tests`를 실행한다.
-7. 구현 커밋 뒤 implementation note를 별도 커밋한다.
+1. 현재 `feat/classify-event-contract` 브랜치의 `308b3c1`과 `0fbdd7e` 및 이 handoff
+   문서 커밋을 확인한 뒤 `develop`에 fast-forward/merge한다.
+2. `develop`에서 `feat/ocr-batch-event-contract` 브랜치를 만든다.
+3. 첫 구현 범위는 `ocr-overlay-batch` 하나로 제한한다. 기존 `batch` command나
+   parser-level Typer error까지 한 커밋에 포함하지 않는다.
+4. `ocr-overlay-batch`에 `--format human|json`, `--debug`를 추가하고 final JSON result는
+   stdout 한 줄, error와 progress event는 stderr로 고정한다.
+5. `ocr/logger.py`의 JSON event renderer가 command 이름을 주입받게 만들어 단일 실행은
+   `ocr-overlay`, batch 내부 책별 event는 `ocr-overlay-batch`로 표시한다. 책 식별은
+   기존 `data.input_pdf`를 유지하고 durable `ocr_log.jsonl` 형식은 바꾸지 않는다.
+6. batch result의 `failed_count > 0` 정책은 기존 `OcrOverlayBatchRunner` 의미를 먼저
+   확인한다. 개별 책 실패를 report에 격리하고 batch가 끝나는 구조라면 classify와
+   마찬가지로 exit 0 + `failed_count`를 유지하고, 명령 전체 중단만 exit 1로 둔다.
+7. 최소 계약 테스트는 JSON stdout/stderr 분리, batch command event context, missing
+   input, invalid log mode, runtime error/debug, 부분 실패 결과를 포함한다.
+8. `uv run pytest`, `uv run ruff check src tests`,
+   `uv run ruff format --check src tests`, 실제 command help를 실행한다.
+9. 구현 커밋 직후 `scripts/create-implementation-note.ps1`을 실행하고 implementation
+   note를 별도 `docs:` 커밋으로 남긴다.
 
 ## 9. 알려진 주의사항
 
 - 기존 긴 `process` option은 Rich help의 기본 폭에서 일부 이름이 생략된다.
 - `ProcessingConfig.ocr_policy`는 아직 `Processor`에 연결되지 않았다.
 - `process`/`infer`/`apply`의 failed `ProcessingResult`는 exit 3으로 정규화됐다.
-  다른 command의 result/error/exit code는 아직 통일되지 않았다.
+  `classify-scan`의 파일별 오류는 유효한 부분 report이므로 exit 0 + `error_count`다.
+- 단일 `ocr-overlay`와 `classify-scan`의 progress는 stderr로 분리됐지만
+  `ocr-overlay-batch`는 아직 공통 final result/event 계약을 사용하지 않는다.
 - run manifest는 versioned이지만 기존 plan과 모든 중간 artifact가 독립 schema version을 가진 것은 아니다.
 - 동일 input/config라도 timestamp가 다르면 새 run이 생성되며 cache hit/resume는 아직 없다.
 - corporate PC에서는 권한 상승 shell의 원래 Codex 실행 파일 접근이 거부될 수 있으므로 `AGENTS.md`의 `C:\tmp\codex-apply-patch.exe --codex-run-as-apply-patch` 우회 규칙을 따른다.
@@ -341,3 +363,46 @@ config/inspect command를 공통 envelope에 먼저 연결한다. 기존 config 
 inspect `--json` 기반이 있어 pipeline algorithm을 건드리지 않고 contract 확장과
 호환 검증을 한 작업 단위로 끝낼 수 있다. 그 다음 Phase 3C에서 event protocol과
 OCR/batch progress를 다룬다.
+
+위 제안은 이후 Phase 3B와 Phase 3C 구현으로 완료되었으며 최신 다음 작업은 §8과
+§12를 따른다.
+
+## 12. 2026-07-16 갱신: Phase 3B/3C 완료 범위와 handoff
+
+Phase 3A 이후 다음 세 수직 단위를 완료했다.
+
+- `29a15ec`: config/inspect result/error 계약. 구현 노트 052.
+- `a9649ef`: 단일 `ocr-overlay` result/error/event와 stdout/stderr 분리. 구현 노트 053.
+- `308b3c1`: `classify-scan` result/error/event와 stdout/stderr 분리. 구현 노트 054.
+
+현재 branch 상태:
+
+- branch: `feat/classify-event-contract`
+- 구현 커밋: `308b3c1`
+- implementation note 커밋: `0fbdd7e`
+- 검증: `uv run pytest -q` 209 passed, `uv run ruff check src tests` 통과,
+  `uv run ruff format --check src tests` 100 files 통과,
+  `uv run pdfbooktree classify-scan --help` 정상
+
+이번 classify 계약에서 확정한 의미:
+
+1. JSON final result는 stdout 한 줄, progress event와 error는 stderr다.
+2. terminal JSONL event는 `CommandEventEnvelope` v1을 사용하지만 durable report
+   JSONL은 기존 형식을 유지한다.
+3. 개별 PDF 오류는 batch 전체 실패가 아니다. 완성된 report를 성공 result로 반환하고
+   `error_count`, detail artifact와 stderr event로 오류를 노출한다.
+4. callback 진입 전 Typer parser error는 아직 공통 envelope 대상이 아니다.
+
+다음 권장 작업은 `ocr-overlay-batch` 계약이다. 이 작업에서 가장 중요한 설계점은
+단일 OCR과 batch가 공유하는 logger에 command context를 주입하는 것이다. 현재
+`JsonStderrOcrLogger`는 event command를 `ocr-overlay`로 고정하므로 batch에서 발생한
+책별 event도 단일 command처럼 보인다. logger/batch progress 조립기가 command를
+받도록 좁게 변경하고, batch final result를 공통 envelope로 전환한 뒤 다음 단계로
+넘긴다.
+
+그 이후 우선순위:
+
+1. Typer parser-level JSON error 경계의 필요성과 구현 비용을 짧게 검토한다.
+2. parser hook이 과도하게 침습적이면 Phase 3을 practical complete로 닫고 Phase 4
+   production evaluator로 이동한다.
+3. 기존 `batch` command는 Phase 7에서 config/run/item summary와 함께 다룬다.
