@@ -352,6 +352,18 @@
       "finding": "native_hull: plan=1098, attention=836, valid=True; scanned_indexed_shreve: plan=357, attention=270, valid=True; ocr_math_statistics: plan=74, attention=40, valid=True",
       "command": "uv run python showcase/029_bookmark_review_progressive_inspection.py",
       "ran_at": "2026-07-17T11:21:29+09:00"
+    },
+    {
+      "id": "030_ocr_policy_fail_fast",
+      "purpose": "실제 PDF를 process CLI에 전달했을 때 unsupported ocr_policy가 분석·output·외부 OCR 호출 전에 ConfigError/exit 2로 종료되는지 검증한다.",
+      "inputs": [
+        "data\\native-pdf-indexed\\John Hull - Options, Futures, and Other Derivatives, Global Edition-Pearson (2021).pdf",
+        "showcase\\outputs\\030_ocr_policy_fail_fast\\unsupported-auto.toml"
+      ],
+      "outputs": "showcase\\outputs\\030_ocr_policy_fail_fast",
+      "finding": "actual_pdf_pages=881, schema=['never'], config_auto_exit=2, process_always_exit=2, output_created=False",
+      "command": "uv run python showcase/030_ocr_policy_fail_fast.py",
+      "ran_at": "2026-07-17T12:29:57+09:00"
     }
   ]
 }
