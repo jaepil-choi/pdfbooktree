@@ -18872,6 +18872,33 @@
       },
       "finding": "(Springer Finance) Steven E. Shreve - Stochastic Calculus for Finance I The Binomial Asset Pricing Model-Springer (2005)-indexed.pdf: node 238개를 current/candidate로 생성했다. current inclusive payload는 846,863자, candidate direct payload는 399,688자로 중복 비율은 2.1188배였다. candidate YAML/link/관계/page validation=True, same-page boundary=58건, unassigned page=12개다.",
       "ran_at": "2026-07-17T08:46:03+09:00"
+    },
+    {
+      "id": "105_markdown_split_graph_contract",
+      "purpose": "현재 flat length-limited split과 원래 plan identity를 보존하는 split graph 후보를 실제 PDF에서 비교하고 YAML, wiki link, relation, page coverage와 evidence reference 계약을 검증한다.",
+      "inputs": [
+        "data\\scanned-pdf-indexed\\(Springer Finance) Steven E. Shreve - Stochastic Calculus for Finance I The Binomial Asset Pricing Model-Springer (2005)-indexed.pdf"
+      ],
+      "outputs": "experiments\\outputs\\105_markdown_split_graph_contract",
+      "method": "같은 outline plan과 max_words=10000, coverage=0.95 조건으로 현재 flat 파일과 candidate nodes/toc/bookmark_plan/markdown_manifest를 생성했다.",
+      "summary": {
+        "page_count": 349,
+        "plan_item_count": 238,
+        "chosen_level": 1,
+        "constraint_satisfied": true,
+        "node_count": 34,
+        "current_file_count": 34,
+        "candidate_file_count": 34,
+        "current_yaml_file_count": 0,
+        "candidate_yaml_file_count": 35,
+        "dangling_link_count": 0,
+        "duplicated_page_count": 0,
+        "unassigned_page_count": 12,
+        "navigation_only_node_count": 0,
+        "validation_passed": true
+      },
+      "finding": "chosen_level=1, node=34, current YAML=0, candidate YAML=35, dangling=0, duplicated_page=0, validation=True",
+      "ran_at": "2026-07-17T09:44:33+09:00"
     }
   ]
 }
