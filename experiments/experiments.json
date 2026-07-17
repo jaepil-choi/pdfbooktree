@@ -18940,6 +18940,38 @@
       },
       "finding": "plan=357, candidate matched=357, missing=0, ambiguous=0, JSONL=357, validation=True",
       "ran_at": "2026-07-17T10:52:00+09:00"
+    },
+    {
+      "id": "107_ocr_policy_supported_contract",
+      "purpose": "현재 실행되지 않는 processing.ocr_policy=auto|always를 public config에서 조기 거부하는 계약을 검증한다.",
+      "inputs": [
+        "ProcessingConfig",
+        "processing_config_from_data",
+        "resolve_processing_config --set",
+        "config_schema"
+      ],
+      "outputs": "experiments\\outputs\\107_ocr_policy_supported_contract\\result.json",
+      "method": "현재 direct/data/--set/JSON Schema 계약과 never만 허용하는 후보 validator를 같은 값 집합으로 비교했다.",
+      "summary": {
+        "current_schema_enum": [
+          "never",
+          "auto",
+          "always"
+        ],
+        "current_auto_accepted_paths": 3,
+        "current_always_accepted_paths": 3,
+        "candidate_schema_enum": [
+          "never"
+        ],
+        "candidate_never_accepted": true,
+        "candidate_auto_rejected": true,
+        "candidate_always_rejected": true,
+        "candidate_error_type": "ConfigError",
+        "candidate_cli_exit_code": 2,
+        "validation_passed": true
+      },
+      "finding": "현재 auto/always는 direct config, data loader, --set 세 경로에서 모두 허용되지만 실행되지 않는다. 후보 계약은 never만 schema에 노출하고 나머지는 별도 ocr-overlay workflow를 안내하며 ConfigError로 조기 거부한다.",
+      "ran_at": "2026-07-17T12:24:34+09:00"
     }
   ]
 }
