@@ -10,7 +10,7 @@ import fitz
 from pdfbooktree.config import MarkdownSplitConfig, TypographyConfig
 from pdfbooktree.models import BookmarkPlanItem, PdfAnalysis, TypographyLine
 from pdfbooktree.outline.validate import validate_bookmark_plan
-from pdfbooktree.pipeline import analyze_pdf, apply_plan, infer_bookmarks
+from pdfbooktree.pipeline import analyze_pdf, apply_plan, infer_bookmarks, validate_plan
 
 PAGE_WIDTH = 595.0
 PAGE_HEIGHT = 842.0
@@ -235,3 +235,20 @@ def test_apply_plan_uses_markdown_split_when_configured(tmp_path: Path) -> None:
 
     assert result.markdown_export is not None
     assert result.output_markdown_dir == result.markdown_export.output_dir
+
+
+def test_validate_plan_reads_page_count_without_writing(tmp_path: Path) -> None:
+    pdf = tmp_path / "book.pdf"
+    _make_simple_pdf(pdf)
+    before = sorted(path.name for path in tmp_path.iterdir())
+
+    valid = validate_plan(
+        pdf, [BookmarkPlanItem(title="Chapter 1", level=1, pdf_page=1)]
+    )
+    invalid = validate_plan(
+        pdf, [BookmarkPlanItem(title="Outside", level=1, pdf_page=99)]
+    )
+
+    assert valid.valid is True
+    assert invalid.valid is False
+    assert sorted(path.name for path in tmp_path.iterdir()) == before

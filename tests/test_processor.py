@@ -189,3 +189,19 @@ def test_processor_replaces_low_quality_existing_outline_when_configured(
     assert result.artifact_paths["bookmark_review_summary"].is_file()
     assert result.artifact_paths["bookmark_review_items"].is_file()
     assert result.artifact_paths["existing_outline_plan"].is_file()
+
+
+def test_processor_failed_result_does_not_claim_nonexistent_outputs(
+    tmp_path: Path,
+) -> None:
+    pdf = tmp_path / "blank.pdf"
+    document = fitz.open()
+    document.new_page()
+    document.save(pdf)
+    document.close()
+
+    result = Processor(pdf, tmp_path / "out").run()
+
+    assert result.status == "failed"
+    assert result.output_pdf is None
+    assert result.output_markdown_dir is None

@@ -31,6 +31,7 @@ from pdfbooktree.pdf.bookmarks import (
 from pdfbooktree.pdf.scan_classification import classify_scan
 from pdfbooktree.pdf.scan_signals import DEFAULT_MAX_SAMPLE_PAGES
 from pdfbooktree.utils.jsonio import to_jsonable, write_json
+from pdfbooktree.utils.pdf_discovery import discover_pdfs
 
 OcrBatchStatus = Literal["processed", "dry_run", "skipped", "failed"]
 
@@ -69,6 +70,8 @@ class OcrOverlayBatchConfig:
     min_page_count: int = 1
     max_sample_pages: int = DEFAULT_MAX_SAMPLE_PAGES
     stats_word_level: bool = False
+    include_globs: tuple[str, ...] = ()
+    exclude_globs: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         """최소 page 수가 public Python interface에서도 유효한지 확인한다."""
@@ -121,6 +124,9 @@ class OcrOverlayBatchResult:
     will_process_page_count: int = 0
     mupdf_warning_pdf_count: int = 0
     mupdf_warning_count: int = 0
+    include_globs: tuple[str, ...] = ()
+    exclude_globs: tuple[str, ...] = ()
+    excluded_output_subtree: Path | None = None
 
 
 @dataclass(frozen=True)
@@ -174,7 +180,14 @@ class OcrOverlayBatchRunner:
         preparation = OcrBatchPreparationProgress(self.log_mode, command=self.command)
         try:
             preparation.search_started(self.input_dir, self.config.recursive)
-            pdf_paths = self._find_pdfs()
+            discovery = discover_pdfs(
+                self.input_dir,
+                self.output_dir,
+                recursive=self.config.recursive,
+                include_globs=self.config.include_globs,
+                exclude_globs=self.config.exclude_globs,
+            )
+            pdf_paths = list(discovery.paths)
             preparation.search_completed(len(pdf_paths))
             preparation.classification_started(len(pdf_paths))
             classifications: list[_Classification] = []
@@ -292,6 +305,9 @@ class OcrOverlayBatchRunner:
                 1 for result in results if result.mupdf_warnings
             ),
             mupdf_warning_count=sum(len(result.mupdf_warnings) for result in results),
+            include_globs=discovery.include_globs,
+            exclude_globs=discovery.exclude_globs,
+            excluded_output_subtree=discovery.excluded_output_subtree,
         )
         write_json(summary_path, _summary_dict(batch_result))
         preparation.mupdf_warnings_completed(
@@ -303,7 +319,7 @@ class OcrOverlayBatchRunner:
         return batch_result
 
     def _classify(self, pdf_path: Path) -> _Classification:
-        relative_path = str(pdf_path.relative_to(self.input_dir))
+        relative_path = pdf_path.relative_to(self.input_dir).as_posix()
         output_pdf = self.output_pdf_root / relative_path
         artifact_dir = self.artifact_root / Path(relative_path).with_suffix("")
         mupdf_warnings: list[str] = []
@@ -484,10 +500,6 @@ class OcrOverlayBatchRunner:
                 elapsed_sec=time.monotonic() - started_at,
             )
 
-    def _find_pdfs(self) -> list[Path]:
-        pattern = "**/*.pdf" if self.config.recursive else "*.pdf"
-        return sorted(self.input_dir.glob(pattern))
-
 
 @contextmanager
 def _capture_mupdf_warnings(collected: list[str]) -> Iterator[None]:
@@ -540,6 +552,9 @@ def _summary_dict(batch_result: OcrOverlayBatchResult) -> dict[str, object]:
         "failed_count": batch_result.failed_count,
         "mupdf_warning_pdf_count": batch_result.mupdf_warning_pdf_count,
         "mupdf_warning_count": batch_result.mupdf_warning_count,
+        "include_globs": list(batch_result.include_globs),
+        "exclude_globs": list(batch_result.exclude_globs),
+        "excluded_output_subtree": batch_result.excluded_output_subtree,
         "elapsed_sec": batch_result.elapsed_sec,
         "report_csv_path": batch_result.report_csv_path,
         "detail_jsonl_path": batch_result.detail_jsonl_path,

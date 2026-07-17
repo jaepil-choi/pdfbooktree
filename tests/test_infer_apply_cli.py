@@ -239,6 +239,74 @@ def test_apply_rejects_invalid_plan_json(tmp_path: Path) -> None:
     assert "level" in result.output
 
 
+def test_apply_dry_run_validates_without_writing(tmp_path: Path) -> None:
+    pdf = tmp_path / "book.pdf"
+    output_root = tmp_path / "runs"
+    _make_typography_book(pdf)
+    plan_path = tmp_path / "plan.json"
+    plan_path.write_text(
+        json.dumps([{"title": "Chapter 1", "level": 1, "pdf_page": 1}]),
+        encoding="utf-8",
+    )
+
+    result = RUNNER.invoke(
+        app,
+        [
+            "apply",
+            str(pdf),
+            "--plan",
+            str(plan_path),
+            "--output-dir",
+            str(output_root),
+            "--dry-run",
+            "--format",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    assert payload["result"]["dry_run"] is True
+    assert payload["result"]["validation"]["valid"] is True
+    assert payload["result"]["bookmark_count"] == 1
+    assert payload["result"]["input_sha256"] == file_sha256(pdf)
+    assert not output_root.exists()
+
+
+def test_apply_dry_run_semantic_failure_uses_exit_three_without_writing(
+    tmp_path: Path,
+) -> None:
+    pdf = tmp_path / "book.pdf"
+    output_root = tmp_path / "runs"
+    _make_typography_book(pdf)
+    plan_path = tmp_path / "plan.json"
+    plan_path.write_text(
+        json.dumps([{"title": "Outside", "level": 1, "pdf_page": 999}]),
+        encoding="utf-8",
+    )
+
+    result = RUNNER.invoke(
+        app,
+        [
+            "apply",
+            str(pdf),
+            "--plan",
+            str(plan_path),
+            "--output-dir",
+            str(output_root),
+            "--dry-run",
+            "--format",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 3
+    payload = json.loads(result.stderr)
+    assert payload["error"]["code"] == "processing_failed"
+    assert payload["error"]["details"]["validation"]["valid"] is False
+    assert not output_root.exists()
+
+
 def test_apply_records_plan_source_sha256_in_run_manifest(tmp_path: Path) -> None:
     pdf = tmp_path / "book.pdf"
     output_root = tmp_path / "runs"

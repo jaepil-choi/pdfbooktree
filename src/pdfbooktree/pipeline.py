@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import time
 
 import fitz
 
@@ -21,6 +22,7 @@ from pdfbooktree.models import (
     ApplyResult,
     BookmarkInferenceResult,
     BookmarkPlanItem,
+    BookmarkPlanValidation,
     ConfidenceSummary,
     ExistingOutlineItem,
     OutlineQualityAssessment,
@@ -31,6 +33,11 @@ from pdfbooktree.outline.plan import insert_position_fallback, normalize_bookmar
 from pdfbooktree.outline.validate import validate_bookmark_plan
 from pdfbooktree.pdf.outline import read_outline
 from pdfbooktree.pdf.outline_quality import assess_outline_quality
+from pdfbooktree.processing_logger import (
+    NullProcessingLogger,
+    ProcessingLogEvent,
+    ProcessingLogger,
+)
 from pdfbooktree.typography.bpe import infer_bpe_outline
 from pdfbooktree.typography.geometry import (
     build_geometry_context,
@@ -83,7 +90,12 @@ def resolve_existing_outline_action(
     )
 
 
-def analyze_pdf(input_pdf: Path, config: TypographyConfig | None = None) -> PdfAnalysis:
+def analyze_pdf(
+    input_pdf: Path,
+    config: TypographyConfig | None = None,
+    *,
+    log: ProcessingLogger | None = None,
+) -> PdfAnalysis:
     """PDF에서 raw ``TypographyLine``만 추출한다.
 
     margin exclusion, tiering, heading 선택, BPE, fallback은 여기서 하지 않는다
@@ -91,15 +103,69 @@ def analyze_pdf(input_pdf: Path, config: TypographyConfig | None = None) -> PdfA
     """
 
     resolved = config or TypographyConfig()
+    logger = log or NullProcessingLogger()
+    started_at = time.perf_counter()
     with fitz.open(input_pdf) as document:
         total_pages = document.page_count
-    lines = extract_typography_lines(input_pdf, resolved)
+    logger.emit(
+        ProcessingLogEvent(
+            event="analysis_started",
+            level="info",
+            input_pdf=input_pdf,
+            completed_pages=0,
+            total_pages=total_pages,
+            bookmark_count=0,
+            elapsed_sec=0.0,
+            message="typography 분석 시작",
+        )
+    )
+
+    def on_page(completed_pages: int, page_count: int) -> None:
+        logger.emit(
+            ProcessingLogEvent(
+                event="page_extracted",
+                level="info",
+                input_pdf=input_pdf,
+                completed_pages=completed_pages,
+                total_pages=page_count,
+                bookmark_count=0,
+                elapsed_sec=time.perf_counter() - started_at,
+                message=f"PDF page {completed_pages} 추출 완료",
+            )
+        )
+
+    lines = extract_typography_lines(input_pdf, resolved, on_page)
+    logger.emit(
+        ProcessingLogEvent(
+            event="analysis_completed",
+            level="info",
+            input_pdf=input_pdf,
+            completed_pages=total_pages,
+            total_pages=total_pages,
+            bookmark_count=0,
+            elapsed_sec=time.perf_counter() - started_at,
+            message=f"typography 분석 완료: lines={len(lines)}",
+        )
+    )
     return PdfAnalysis(
         input_pdf=input_pdf,
         total_pages=total_pages,
         lines=lines,
         extraction_config_hash=stable_json_hash(resolved),
     )
+
+
+def validate_plan(
+    input_pdf: Path | str, plan: list[BookmarkPlanItem]
+) -> BookmarkPlanValidation:
+    """PDF page 수를 직접 읽어 외부 bookmark plan을 쓰기 없이 검증한다."""
+
+    input_path = Path(input_pdf)
+    if not input_path.is_file():
+        raise FileNotFoundError(f"입력 PDF가 없다: {input_path.resolve()}")
+    with fitz.open(input_path) as document:
+        total_pages = document.page_count
+    return validate_bookmark_plan(plan, total_pages)
 
 
 def infer_bookmarks(

@@ -21,7 +21,7 @@ description: 이 저장소의 pdfbooktree Python API와 CLI를 사용해 PDF 책
 3. OCR batch에서 일정 길이 이상의 책만 대상으로 삼으려면 `--min-page-count N`을 사용하라. `page_count >= N`인 문서만 target이 되며, 실제 호출 전 확인에는 `--dry-run`을 함께 사용하라.
 4. 추출 가능한 text가 없거나 부족하면 북마크 추론 전에 `ocr-overlay` 또는 `ocr-overlay-batch`를 별도 전처리로 실행하라. `ProcessingConfig.ocr_policy`는 현재 `never`만 지원하며 `auto|always`는 config validation에서 거부된다.
 5. 빠른 최종 결과가 필요하면 `process` 또는 `Processor.run()`을 사용하라.
-6. 계획을 검토·수정·비교해야 하면 `infer` → `inspect plan`/`inspect compare` → `apply` 흐름을 사용하라.
+6. 계획을 검토·수정·비교해야 하면 `infer` → `inspect plan`/`inspect compare` → `apply --dry-run` → `apply` 흐름을 사용하라.
 7. 여러 PDF를 구조화하려면 `batch` 또는 `BatchProcessor.run()`을 사용하라.
 8. 결과를 기계적으로 소비하려면 `--format json`을 사용하고 exit code와 stderr를 함께 검사하라.
 
@@ -38,6 +38,7 @@ description: 이 저장소의 pdfbooktree Python API와 CLI를 사용해 PDF 책
 
 - 현재 내장 OCR engine은 Upstage Document Parse다. 기본 환경 변수 `UPSTAGE_API_KEY`가 필요하며 `.env`도 검색한다.
 - `ocr-overlay`는 입력과 별도의 output PDF를 만들도록 구성하라. 기존 output을 덮어쓸 때만 `--force`를 사용하라.
+- `ocr-overlay --output-dir`을 생략하면 output PDF 옆의 `<output-stem>_artifacts`를 사용한다. input/output 동일 경로는 `--force`와 무관하게 거부된다.
 - 기존 bookmark가 있는 PDF의 text layer를 교체할 때는 `--confirm-bookmark-ocr-overwrite`가 필요하다.
 - `--cache-policy reuse`는 cache hit를 재사용하고 miss만 live call한다. `refresh`는 다시 호출하며, `only`는 API를 호출하지 않고 cache가 없으면 실패한다.
 - `ocr-overlay-batch --min-page-count N`은 전체 PDF page 수가 `N` 이상인 문서만 OCR target으로 남긴다. 기본값은 `1`이며 1 이상의 정수만 사용하라.
@@ -51,6 +52,7 @@ description: 이 저장소의 pdfbooktree Python API와 CLI를 사용해 PDF 책
 - attention signal과 `confidence`는 품질 합격/불합격 판정이나 정확도 확률이 아니다. 빈 plan, page 범위와 level jump 같은 구조 validation과 내용 eye-check를 구분하라.
 - `infer`는 bookmarked PDF와 Markdown을 만들지 않는다. 최종 산출물에는 반드시 `apply`를 이어서 사용하라.
 - `apply`는 plan을 다시 검증하며 typography 분석이나 추론을 반복하지 않는다.
+- 수정한 plan은 `apply --dry-run --format json`으로 page 범위와 level 구조를 쓰기 없이 확인한 뒤 실제 `apply`에 전달하라.
 - 설정 A/B 비교에는 두 infer run의 `bookmark_plan.json`을 `inspect compare` 또는 `inspect_compare_plans()`에 전달하라.
 - 사람이 수정한 plan을 적용하기 전에 `inspect plan`이 아니라 plan JSON 자체의 필수 field·level·page 범위를 확인하고, `apply`의 validation 결과를 검사하라.
 
@@ -68,7 +70,7 @@ description: 이 저장소의 pdfbooktree Python API와 CLI를 사용해 PDF 책
 - 기본 `process`, `infer`, `apply`는 immutable run directory와 `run_manifest.json`, `config.resolved.json`을 만든다. JSON 결과가 반환한 `run_dir`과 `manifest_path`를 기준으로 후속 작업을 이어가라. typography inference run은 manifest의 `artifact_paths.bookmark_review_summary`와 `artifact_paths.bookmark_review_items`도 연결한다.
 - tree와 length-limited split 결과는 모두 `toc.md`, `bookmark_plan.json`, `nodes/`, `markdown_manifest.json`을 만든다. split은 `export_mode=split`, `content_mode=bounded`이며 원래 plan order 기반 node ID를 유지한다. run manifest의 `artifact_paths.markdown_manifest` 또는 `inspect plan` 결과에서 manifest를 찾을 수 있다.
 - `--flat-output`은 호환 모드다. 재현 가능한 작업에는 기본 run directory를 유지하라.
-- JSON 성공 결과는 stdout의 단일 envelope이고, 오류는 stderr envelope다. batch/OCR/classify의 JSON 진행 event는 stderr JSONL이다.
+- JSON 성공 결과는 stdout의 단일 envelope이고, 오류는 stderr envelope다. process/infer/batch/OCR/classify의 JSON 진행 event는 stderr JSONL이다.
 - 성공 `0`, runtime 오류 `1`, 입력·config·plan 오류 `2`, 유효한 결과를 만들지 못한 처리 `3`을 구분하라.
 - 완료 보고에는 입력, 선택한 workflow/config, run 또는 artifact 경로, bookmark 수, validation·warning·실패 사유를 포함하라.
 
@@ -77,6 +79,7 @@ description: 이 저장소의 pdfbooktree Python API와 CLI를 사용해 PDF 책
 - 재현 가능한 사용자 실행, agent orchestration, shell 자동화에는 CLI를 우선하라.
 - 기존 Python 코드에 조합하거나 중간 `PdfAnalysis`/`BookmarkInferenceResult`를 직접 다룰 때는 Python API를 사용하라.
 - 한 파일의 고수준 처리에는 `Processor`; 단계형 처리에는 `analyze_pdf`, `infer_bookmarks`, `write_inference_artifacts`, `apply_plan`; directory 처리에는 `BatchProcessor`를 사용하라.
+- `validate_plan(input_pdf, plan)`으로 외부 plan을 쓰기 없이 검증하라. 긴 `Processor`/`analyze_pdf` 작업은 optional processing logger로 관찰할 수 있다.
 - OCR은 `pdfbooktree.ocr`, 분류는 `pdfbooktree.classify`, 낮은 수준 typography geometry 기능은 `pdfbooktree.typography`에서 import하라.
 - 공개 import는 각 package의 `__all__`을 기준으로 삼고 private helper에 의존하지 마라.
 

@@ -18,6 +18,7 @@ from pdfbooktree.models import BatchItemResult, BatchResult, ProcessingResult
 from pdfbooktree.processor import Processor
 from pdfbooktree.run import RunContext, create_run_context
 from pdfbooktree.utils.hashing import stable_json_hash
+from pdfbooktree.utils.pdf_discovery import discover_pdfs
 
 logger = logging.getLogger(__name__)
 
@@ -32,12 +33,17 @@ class BatchProcessor:
         config: ProcessingConfig | ResolvedConfig | None = None,
         recursive: bool = False,
         log: BatchLogger | None = None,
+        *,
+        include_globs: tuple[str, ...] = (),
+        exclude_globs: tuple[str, ...] = (),
     ) -> None:
         self.input_dir = Path(input_dir)
         self.output_dir = Path(output_dir)
         self.resolved = _resolve_batch_config(config)
         self.config = self.resolved.config
         self.recursive = recursive
+        self.include_globs = include_globs
+        self.exclude_globs = exclude_globs
         self.log = log or NullBatchLogger()
 
     def run(self) -> BatchResult:
@@ -51,13 +57,23 @@ class BatchProcessor:
         processed_count = 0
         failed_count = 0
         try:
-            pdf_paths = self._find_pdfs()
+            discovery = discover_pdfs(
+                self.input_dir,
+                self.output_dir,
+                recursive=self.recursive,
+                include_globs=self.include_globs,
+                exclude_globs=self.exclude_globs,
+            )
+            pdf_paths = list(discovery.paths)
             batch_run = create_batch_run_context(
                 self.input_dir,
                 self.output_dir,
                 self.resolved,
                 recursive=self.recursive,
                 pdf_paths=pdf_paths,
+                include_globs=discovery.include_globs,
+                exclude_globs=discovery.exclude_globs,
+                excluded_output_subtree=discovery.excluded_output_subtree,
             )
             batch_run.start()
             for path in pdf_paths:
@@ -170,10 +186,6 @@ class BatchProcessor:
                 warnings=[str(error)],
             )
             return _batch_item_result(result, run)
-
-    def _find_pdfs(self) -> list[Path]:
-        pattern = "**/*.pdf" if self.recursive else "*.pdf"
-        return sorted(self.input_dir.glob(pattern))
 
 
 def _resolve_batch_config(

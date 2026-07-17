@@ -187,6 +187,10 @@ class OcrOverlayBuilder:
     def _validate_output(self) -> None:
         if not self.input_pdf.exists():
             raise FileNotFoundError(f"입력 PDF가 없다: {self.input_pdf}")
+        if self.input_pdf.resolve() == self.output_pdf.resolve():
+            raise ValueError(
+                f"입력 PDF와 출력 PDF는 같은 파일일 수 없다: {self.input_pdf.resolve()}"
+            )
         if self.output_pdf.exists() and not self.config.force:
             raise FileExistsError(
                 f"출력 PDF가 이미 있다. 덮어쓰려면 --force를 사용한다: {self.output_pdf}"

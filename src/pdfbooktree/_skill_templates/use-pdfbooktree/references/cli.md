@@ -69,6 +69,7 @@ uv run pdfbooktree infer $pdf -o .\runs --format json
 uv run pdfbooktree inspect plan "<infer-run-dir>" --summary --format json
 uv run pdfbooktree inspect plan "<infer-run-dir>" --attention-only --limit 20 --format json
 uv run pdfbooktree inspect plan "<infer-run-dir>" --item-id n0042 --format json
+uv run pdfbooktree apply $pdf --plan "<infer-run-dir>\bookmark_plan.json" -o .\runs --dry-run --format json
 uv run pdfbooktree apply $pdf --plan "<infer-run-dir>\bookmark_plan.json" -o .\runs --format json
 ```
 
@@ -98,6 +99,7 @@ uv run pdfbooktree process $pdf -o .\runs `
 ```powershell
 uv run pdfbooktree process <PDF> [-o <OUTPUT_ROOT>] `
   [--config <CONFIG.toml>] [--set <KEY=VALUE>] [--flat-output] `
+  [--log-mode auto|rich|plain|json|none] `
   [--format human|json]
 ```
 
@@ -121,6 +123,7 @@ bookmark plan과 근거 artifact만 만들고 PDF/Markdown 생성은 건너뛰�
 ```powershell
 uv run pdfbooktree infer <PDF> -o <OUTPUT_ROOT> `
   [--config <CONFIG.toml>] [--set <KEY=VALUE>] [--flat-output] `
+  [--log-mode auto|rich|plain|json|none] `
   [--format human|json]
 ```
 
@@ -135,10 +138,11 @@ typography 추론을 실행한 run은 `bookmark_review_summary.json`과 `bookmar
 ```powershell
 uv run pdfbooktree apply <PDF> --plan <BOOKMARK_PLAN.json> `
   -o <OUTPUT_ROOT> [--config <CONFIG.toml>] [--set <KEY=VALUE>] `
-  [--flat-output] [--format human|json]
+  [--flat-output] [--dry-run] [--format human|json]
 ```
 
 run manifest는 plan 경로와 SHA-256을 `plan_source`로 기록하고 생성된 graph manifest를 `artifact_paths.markdown_manifest`로 연결한다.
+`--dry-run`은 plan JSON과 PDF page/level 구조를 검증하고 hash, page/bookmark 수와 예상 output 경로를 반환하지만 run directory나 artifact를 만들지 않는다. 구조 오류는 exit `3`이다.
 
 ### `batch`
 
@@ -147,10 +151,12 @@ run manifest는 plan 경로와 SHA-256을 `plan_source`로 기록하고 생성�
 ```powershell
 uv run pdfbooktree batch <INPUT_DIR> -o <OUTPUT_ROOT> `
   [--recursive] [--config <CONFIG.toml>] [--set <KEY=VALUE>] `
+  [--include-glob <PATTERN>] [--exclude-glob <PATTERN>] `
   [--log-mode auto|rich|plain|json|none] [--format human|json]
 ```
 
 batch JSON 결과의 `batch_run_id`, `batch_manifest_path`, 각 item의 `run_id`, `manifest_path`, output path를 사용하라.
+glob은 input 기준 상대 POSIX 경로에 case-insensitive로 적용되며 exclude가 우선한다. output이 input 하위이면 자동 제외한다.
 
 ## OCR과 분류 명령
 
@@ -161,6 +167,7 @@ PDF를 native/scanned로 분류하고 bookmark 유무를 합쳐 OCR overwrite ta
 ```powershell
 uv run pdfbooktree classify-scan <INPUT_DIR> -o <OUTPUT_DIR> `
   [--recursive] [--dry-run] [--write-report] `
+  [--include-glob <PATTERN>] [--exclude-glob <PATTERN>] `
   [--max-sample-pages 50] `
   [--log-mode auto|rich|plain|json|none] [--format human|json]
 ```
@@ -173,7 +180,7 @@ PDF page를 이미지로 렌더링하고 OCR한 뒤 원본 위에 invisible text
 
 ```powershell
 uv run pdfbooktree ocr-overlay <PDF> `
-  --output <OCR_PDF> --output-dir <ARTIFACT_DIR> `
+  --output <OCR_PDF> [--output-dir <ARTIFACT_DIR>] `
   [--engine upstage] [--render-dpi 300] [--pages 1-3,42] `
   [--cache-policy reuse|refresh|only] [--force] `
   [--confirm-bookmark-ocr-overwrite] [--stats-word-level] `
@@ -183,6 +190,7 @@ uv run pdfbooktree ocr-overlay <PDF> `
 ```
 
 기본 engine은 `UPSTAGE_API_KEY`를 읽는다. 지원 engine option에는 `model`, `output_formats`, `coordinates`, `words`, `base_url`, `api_key_env`, `timeout`, `max_retries`, `retry_initial_wait_sec`가 있다. option 값은 `--engine-option key=value`로 여러 번 전달하라.
+`--output-dir`을 생략하면 output PDF 옆의 `<output-stem>_artifacts`를 사용한다. input/output 동일 경로는 `--force`여도 거부한다.
 
 ### `ocr-overlay-batch`
 
@@ -191,6 +199,7 @@ uv run pdfbooktree ocr-overlay <PDF> `
 ```powershell
 uv run pdfbooktree ocr-overlay-batch <INPUT_DIR> -o <OUTPUT_DIR> `
   [--recursive] [--dry-run] [--force] `
+  [--include-glob <PATTERN>] [--exclude-glob <PATTERN>] `
   [--confirm-bookmark-ocr-overwrite] [--engine upstage] `
   [--render-dpi 300] [--min-page-count 1] [--max-sample-pages 50] `
   [--stats-word-level] [--engine-option <KEY=VALUE>] `
@@ -265,6 +274,6 @@ uv run pdfbooktree config validate .\pdfbooktree.toml `
 
 - `--format json` 성공: stdout의 단일 `{"schema_version":1,"command":"...","ok":true,"result":...}` envelope를 parse하라.
 - `--format json` 오류: stdout은 비고 stderr의 단일 `ok:false` error envelope를 parse하라.
-- `--log-mode json`: 진행 event를 stderr JSONL로 parse하라. 최종 결과는 stdout과 분리하라.
+- `--log-mode json`: process/infer/batch/OCR/classify 진행 event를 stderr JSONL로 parse하라. 최종 결과는 stdout과 분리하라.
 - exit `0`: 성공, `1`: runtime 오류, `2`: 입력/config/plan 오류, `3`: pipeline validation 실패로 처리하라.
 - `--debug`가 없으면 예상하지 못한 traceback을 사용자에게 노출하지 않는 계약을 유지하라.

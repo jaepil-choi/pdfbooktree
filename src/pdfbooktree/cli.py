@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from dataclasses import replace as dataclass_replace
 from importlib import metadata
 from pathlib import Path
@@ -51,6 +52,8 @@ from pdfbooktree.inspection import (
     inspect_text,
 )
 from pdfbooktree.models import BookmarkPlanItem, ConfidenceSummary, ProcessingResult
+from pdfbooktree.export.markdown import plan_markdown_dir_path
+from pdfbooktree.export.pdf import plan_bookmarked_pdf_path
 from pdfbooktree.ocr import (
     ExistingBookmarkConfirmationRequired,
     OcrOverlayBatchConfig,
@@ -70,6 +73,16 @@ from pdfbooktree.pipeline import (
     confidence_summary_for_inference,
     infer_bookmarks,
     resolve_existing_outline_action,
+    validate_plan,
+)
+from pdfbooktree.processing_logger import (
+    NullProcessingLogger,
+    ProcessingLogEvent,
+    ProcessingLogLevel,
+    ProcessingLogger,
+    ProcessingLogMode,
+    build_processing_logger,
+    default_processing_log_mode,
 )
 from pdfbooktree.processor import Processor
 from pdfbooktree.project_skill import SkillInstallError, install_project_skill
@@ -122,6 +135,25 @@ def _stage_output_format(value: str) -> OutputFormat:
         return parse_output_format(value)
     except ValueError as error:
         raise typer.BadParameter(str(error)) from error
+
+
+def _build_stage_processing_logger(
+    command: str,
+    log_mode: str,
+    *,
+    output_format: OutputFormat,
+) -> ProcessingLogger:
+    """process/infer log mode를 검증하고 stderr logger를 만든다."""
+
+    resolved = default_processing_log_mode() if log_mode == "auto" else log_mode
+    if resolved not in {"rich", "plain", "json", "none"}:
+        _exit_stage_input_error(
+            command,
+            ValueError("log-mode은 auto, rich, plain, json, none 중 하나여야 한다."),
+            code="invalid_input",
+            output_format=output_format,
+        )
+    return build_processing_logger(cast(ProcessingLogMode, resolved), command=command)
 
 
 def _exit_stage_input_error(
@@ -883,8 +915,10 @@ def ocr_overlay(
     output_pdf: Path = typer.Option(
         ..., "--output", "-o", help="생성할 searchable OCR PDF 경로다."
     ),
-    output_dir: Path = typer.Option(
-        ..., "--output-dir", help="OCR cache와 stats artifact를 저장할 디렉터리다."
+    output_dir: Path | None = typer.Option(
+        None,
+        "--output-dir",
+        help="OCR cache와 stats artifact 디렉터리다. 기본값은 <output-stem>_artifacts다.",
     ),
     engine: str = typer.Option("upstage", "--engine", help="OCR engine 이름이다."),
     render_dpi: int = typer.Option(300, "--render-dpi", min=72, help="렌더링 DPI다."),
@@ -953,16 +987,19 @@ def ocr_overlay(
             output_format=resolved_output_format,
         )
     try:
+        resolved_ocr_output_dir = output_dir or (
+            output_pdf.parent / f"{output_pdf.stem}_artifacts"
+        )
         logger = build_ocr_logger(
             cast(OcrLogMode, resolved_log_mode),
-            output_dir,
+            resolved_ocr_output_dir,
             enable_file=not no_log_file,
             desc=f"OCR overlay: {pdf.name}",
         )
         config = OcrOverlayConfig(
             input_pdf=pdf,
             output_pdf=output_pdf,
-            output_dir=output_dir,
+            output_dir=resolved_ocr_output_dir,
             engine=engine,
             engine_options=parse_engine_options(engine_option),
             render_dpi=render_dpi,
@@ -1023,6 +1060,16 @@ def ocr_overlay_batch_cmd(
     ),
     recursive: bool = typer.Option(
         False, "--recursive", "-r", help="하위 디렉터리까지 찾는다."
+    ),
+    include_glob: list[str] = typer.Option(
+        [],
+        "--include-glob",
+        help="포함할 상대 POSIX 경로 glob이다. 여러 번 지정할 수 있다.",
+    ),
+    exclude_glob: list[str] = typer.Option(
+        [],
+        "--exclude-glob",
+        help="제외할 상대 POSIX 경로 glob이다. include보다 우선한다.",
     ),
     dry_run: bool = typer.Option(
         False,
@@ -1115,6 +1162,8 @@ def ocr_overlay_batch_cmd(
             min_page_count=min_page_count,
             max_sample_pages=max_sample_pages,
             stats_word_level=stats_word_level,
+            include_globs=tuple(include_glob),
+            exclude_globs=tuple(exclude_glob),
         )
         runner = OcrOverlayBatchRunner(
             config,
@@ -1158,6 +1207,9 @@ def ocr_overlay_batch_cmd(
         "report_csv_path": result.report_csv_path,
         "detail_jsonl_path": result.detail_jsonl_path,
         "summary_path": result.summary_path,
+        "include_globs": result.include_globs,
+        "exclude_globs": result.exclude_globs,
+        "excluded_output_subtree": result.excluded_output_subtree,
     }
     emit_command_result(command, payload, output_format=resolved_output_format)
 
@@ -1279,6 +1331,11 @@ def process(
         max=1.0,
         help="max-words 이하가 되어야 하는 Markdown 파일 비율이다.",
     ),
+    log_mode: str = typer.Option(
+        "auto",
+        "--log-mode",
+        help="처리 진행 로그 방식이다. auto, rich, plain, json, none 중 하나다.",
+    ),
     output_format: str = typer.Option(
         "human", "--format", help="final result 출력 형식이다: human, json."
     ),
@@ -1329,8 +1386,11 @@ def process(
             pdf,
             output_format=resolved_output_format,
         )
+        logger = _build_stage_processing_logger(
+            "process", log_mode, output_format=resolved_output_format
+        )
         try:
-            result = Processor(pdf, output_dir, resolved.config).run()
+            result = Processor(pdf, output_dir, resolved.config, log=logger).run()
         except Exception as error:
             _exit_stage_runtime_error(
                 "process",
@@ -1361,8 +1421,11 @@ def process(
             output_format=resolved_output_format,
         )
     run.start()
+    logger = _build_stage_processing_logger(
+        "process", log_mode, output_format=resolved_output_format
+    )
     try:
-        result = Processor(pdf, run.run_dir, resolved.config).run()
+        result = Processor(pdf, run.run_dir, resolved.config, log=logger).run()
         manifest = run.complete(result)
     except Exception as error:
         run.fail(error)
@@ -1388,80 +1451,151 @@ def process(
 
 
 def _run_infer(
-    pdf: Path, output_dir: Path, config: ProcessingConfig
+    pdf: Path,
+    output_dir: Path,
+    config: ProcessingConfig,
+    log: ProcessingLogger | None = None,
 ) -> ProcessingResult:
     """existing-outline policy를 따르고, 필요할 때만 typography 추론을 실행한다."""
 
-    output_dir.mkdir(parents=True, exist_ok=True)
-    with fitz.open(pdf) as document:
-        total_pages = document.page_count
+    logger = log or NullProcessingLogger()
+    started_at = time.perf_counter()
+    total_pages = 0
 
-    decision = resolve_existing_outline_action(pdf, total_pages, config)
-    if decision.reuse_existing:
-        plan = outline_to_plan(decision.existing_outline)
-        validation = validate_bookmark_plan(plan, total_pages)
-        artifacts: dict[str, Path] = {}
-        if config.write_artifacts:
-            artifacts["existing_outline_plan"] = write_artifact(
-                output_dir, "existing_outline_plan", plan
-            )
-            artifacts["bookmark_plan_validation"] = write_artifact(
-                output_dir, "bookmark_plan_validation", validation
-            )
-            if decision.quality is not None:
-                artifacts["existing_outline_quality"] = write_artifact(
-                    output_dir, "existing_outline_quality", decision.quality
-                )
-        warnings = [
-            f"기존 outline {len(plan)}개를 재사용했고 typography 추론은 실행하지 않았다."
-        ] + validation.warnings
-        if decision.quality is not None and decision.quality.is_low_quality:
-            warnings.append(
-                "기존 outline이 low quality로 판정됐다: "
-                f"reasons={decision.quality.reasons}. "
-                "outline_quality.replace_when_low_quality=true로 재추론할 수 있다."
-            )
-        result = ProcessingResult(
-            status="skipped",
-            input_pdf=pdf,
-            bookmark_count=len(plan),
-            confidence_summary=ConfidenceSummary(outline=1.0),
-            warnings=warnings,
-            artifact_paths=artifacts,
-            existing_outline_quality=decision.quality,
-        )
-    else:
-        analysis = analyze_pdf(pdf, config.typography)
-        inference = infer_bookmarks(analysis, config.typography)
-        artifacts = (
-            write_inference_artifacts(
-                output_dir,
-                inference,
-                decision.quality,
+    def emit(
+        event: str,
+        message: str,
+        *,
+        level: ProcessingLogLevel = "info",
+        completed_pages: int = 0,
+        bookmark_count: int = 0,
+    ) -> None:
+        logger.emit(
+            ProcessingLogEvent(
+                event=event,
+                level=level,
                 input_pdf=pdf,
-                total_pages=analysis.total_pages,
-                existing_outline=decision.existing_outline,
+                completed_pages=completed_pages,
+                total_pages=total_pages,
+                bookmark_count=bookmark_count,
+                elapsed_sec=time.perf_counter() - started_at,
+                message=message,
             )
-            if config.write_artifacts
-            else {}
         )
-        warnings = list(inference.validation.warnings)
-        if decision.quality is not None and decision.quality.is_low_quality:
-            warnings.append(
-                "기존 outline이 low quality로 판정돼 typography 추론 결과로 "
-                f"교체했다: reasons={decision.quality.reasons}"
+
+    try:
+        output_dir.mkdir(parents=True, exist_ok=True)
+        with fitz.open(pdf) as document:
+            total_pages = document.page_count
+
+        emit("existing_outline_check_started", "기존 outline 확인 시작")
+        decision = resolve_existing_outline_action(pdf, total_pages, config)
+        emit(
+            "existing_outline_check_completed",
+            f"기존 outline 확인 완료: items={len(decision.existing_outline)}",
+        )
+        if decision.reuse_existing:
+            plan = outline_to_plan(decision.existing_outline)
+            validation = validate_bookmark_plan(plan, total_pages)
+            artifacts: dict[str, Path] = {}
+            if config.write_artifacts:
+                artifacts["existing_outline_plan"] = write_artifact(
+                    output_dir, "existing_outline_plan", plan
+                )
+                artifacts["bookmark_plan_validation"] = write_artifact(
+                    output_dir, "bookmark_plan_validation", validation
+                )
+                if decision.quality is not None:
+                    artifacts["existing_outline_quality"] = write_artifact(
+                        output_dir, "existing_outline_quality", decision.quality
+                    )
+            warnings = [
+                f"기존 outline {len(plan)}개를 재사용했고 typography 추론은 실행하지 않았다."
+            ] + validation.warnings
+            if decision.quality is not None:
+                if decision.quality.is_low_quality:
+                    warnings.append(
+                        "기존 outline이 low quality로 판정됐다: "
+                        f"reasons={decision.quality.reasons}. "
+                        "outline_quality.replace_when_low_quality=true로 재추론할 수 있다."
+                    )
+            result = ProcessingResult(
+                status="skipped",
+                input_pdf=pdf,
+                bookmark_count=len(plan),
+                confidence_summary=ConfidenceSummary(outline=1.0),
+                warnings=warnings,
+                artifact_paths=artifacts,
+                existing_outline_quality=decision.quality,
             )
-        result = ProcessingResult(
-            status="processed" if inference.validation.valid else "failed",
-            input_pdf=pdf,
-            bookmark_count=len(inference.plan),
-            confidence_summary=confidence_summary_for_inference(inference),
-            warnings=warnings,
-            artifact_paths=artifacts,
-            existing_outline_quality=decision.quality,
+            emit(
+                "artifacts_written",
+                f"기존 outline artifact 기록 완료: count={len(artifacts)}",
+                completed_pages=total_pages,
+                bookmark_count=len(plan),
+            )
+        else:
+            analysis = analyze_pdf(pdf, config.typography, log=logger)
+            emit(
+                "inference_started",
+                "bookmark 추론 시작",
+                completed_pages=total_pages,
+            )
+            inference = infer_bookmarks(analysis, config.typography)
+            emit(
+                "inference_completed",
+                f"bookmark 추론 완료: items={len(inference.plan)}, "
+                f"valid={inference.validation.valid}",
+                completed_pages=total_pages,
+                bookmark_count=len(inference.plan),
+            )
+            artifacts = (
+                write_inference_artifacts(
+                    output_dir,
+                    inference,
+                    decision.quality,
+                    input_pdf=pdf,
+                    total_pages=analysis.total_pages,
+                    existing_outline=decision.existing_outline,
+                )
+                if config.write_artifacts
+                else {}
+            )
+            emit(
+                "artifacts_written",
+                f"추론 artifact 기록 완료: count={len(artifacts)}",
+                completed_pages=total_pages,
+                bookmark_count=len(inference.plan),
+            )
+            warnings = list(inference.validation.warnings)
+            if decision.quality is not None and decision.quality.is_low_quality:
+                warnings.append(
+                    "기존 outline이 low quality로 판정돼 typography 추론 결과로 "
+                    f"교체했다: reasons={decision.quality.reasons}"
+                )
+            result = ProcessingResult(
+                status="processed" if inference.validation.valid else "failed",
+                input_pdf=pdf,
+                bookmark_count=len(inference.plan),
+                confidence_summary=confidence_summary_for_inference(inference),
+                warnings=warnings,
+                artifact_paths=artifacts,
+                existing_outline_quality=decision.quality,
+            )
+        report_path = write_processing_report(result, output_dir)
+        final_result = dataclass_replace(result, report_path=report_path)
+        emit(
+            "done",
+            "bookmark plan 추론 완료",
+            completed_pages=total_pages,
+            bookmark_count=result.bookmark_count,
         )
-    report_path = write_processing_report(result, output_dir)
-    return dataclass_replace(result, report_path=report_path)
+        return final_result
+    except Exception as error:
+        emit("failed", f"bookmark plan 추론 실패: {error}", level="error")
+        raise
+    finally:
+        logger.close()
 
 
 @app.command()
@@ -1482,6 +1616,11 @@ def infer(
         False,
         "--flat-output",
         help="호환을 위해 immutable run directory 없이 기존 flat output을 사용한다.",
+    ),
+    log_mode: str = typer.Option(
+        "auto",
+        "--log-mode",
+        help="추론 진행 로그 방식이다. auto, rich, plain, json, none 중 하나다.",
     ),
     output_format: str = typer.Option(
         "human", "--format", help="final result 출력 형식이다: human, json."
@@ -1514,8 +1653,11 @@ def infer(
             pdf,
             output_format=resolved_output_format,
         )
+        logger = _build_stage_processing_logger(
+            "infer", log_mode, output_format=resolved_output_format
+        )
         try:
-            result = _run_infer(pdf, output_dir, resolved.config)
+            result = _run_infer(pdf, output_dir, resolved.config, logger)
         except Exception as error:
             _exit_stage_runtime_error(
                 "infer",
@@ -1541,8 +1683,11 @@ def infer(
             output_format=resolved_output_format,
         )
     run.start()
+    logger = _build_stage_processing_logger(
+        "infer", log_mode, output_format=resolved_output_format
+    )
     try:
-        result = _run_infer(pdf, run.run_dir, resolved.config)
+        result = _run_infer(pdf, run.run_dir, resolved.config, logger)
         manifest = run.complete(result)
     except Exception as error:
         run.fail(error)
@@ -1635,6 +1780,11 @@ def apply(
         "--flat-output",
         help="호환을 위해 immutable run directory 없이 기존 flat output을 사용한다.",
     ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="plan과 PDF page 범위만 검증하고 run directory나 산출물을 만들지 않는다.",
+    ),
     output_format: str = typer.Option(
         "human", "--format", help="final result 출력 형식이다: human, json."
     ),
@@ -1667,6 +1817,44 @@ def apply(
             code="invalid_plan",
             output_format=resolved_output_format,
         )
+
+    if dry_run:
+        _validate_flat_input_pdf(
+            "apply",
+            pdf,
+            output_format=resolved_output_format,
+        )
+        validation = validate_plan(pdf, plan)
+        with fitz.open(pdf) as document:
+            total_pages = document.page_count
+        payload = {
+            "status": "valid" if validation.valid else "failed",
+            "dry_run": True,
+            "input_pdf": pdf.resolve(),
+            "input_sha256": file_sha256(pdf),
+            "plan_path": plan_path.resolve(),
+            "plan_sha256": file_sha256(plan_path),
+            "total_pages": total_pages,
+            "bookmark_count": len(plan),
+            "validation": validation,
+            "planned_output_pdf": plan_bookmarked_pdf_path(pdf, output_dir),
+            "planned_output_markdown_dir": plan_markdown_dir_path(pdf, output_dir),
+        }
+        if not validation.valid:
+            exit_command_error(
+                "apply",
+                ProcessingFailedError("bookmark plan 구조 검증에 실패했다."),
+                code="processing_failed",
+                exit_code=CLI_EXIT_PROCESSING_FAILED,
+                output_format=resolved_output_format,
+                details=payload,
+            )
+        emit_command_result(
+            "apply",
+            payload,
+            output_format=resolved_output_format,
+        )
+        return
 
     if flat_output:
         _validate_flat_input_pdf(
@@ -1737,6 +1925,16 @@ def batch(
     recursive: bool = typer.Option(
         False, "--recursive", "-r", help="하위 디렉터리까지 찾는다."
     ),
+    include_glob: list[str] = typer.Option(
+        [],
+        "--include-glob",
+        help="포함할 상대 POSIX 경로 glob이다. 여러 번 지정할 수 있다.",
+    ),
+    exclude_glob: list[str] = typer.Option(
+        [],
+        "--exclude-glob",
+        help="제외할 상대 POSIX 경로 glob이다. include보다 우선한다.",
+    ),
     config_path: Path | None = typer.Option(
         None, "--config", help="읽을 versioned TOML processing config다."
     ),
@@ -1792,6 +1990,8 @@ def batch(
             output_dir,
             resolved,
             recursive=recursive,
+            include_globs=tuple(include_glob),
+            exclude_globs=tuple(exclude_glob),
             log=batch_logger,
         ).run()
     except (
@@ -1824,6 +2024,16 @@ def classify_scan_cmd(
     ),
     recursive: bool = typer.Option(
         False, "--recursive", "-r", help="하위 디렉터리까지 찾는다."
+    ),
+    include_glob: list[str] = typer.Option(
+        [],
+        "--include-glob",
+        help="포함할 상대 POSIX 경로 glob이다. 여러 번 지정할 수 있다.",
+    ),
+    exclude_glob: list[str] = typer.Option(
+        [],
+        "--exclude-glob",
+        help="제외할 상대 POSIX 경로 glob이다. include보다 우선한다.",
     ),
     dry_run: bool = typer.Option(
         False,
@@ -1881,6 +2091,8 @@ def classify_scan_cmd(
             dry_run=dry_run,
             write_report=write_report,
             max_sample_pages=max_sample_pages,
+            include_globs=tuple(include_glob),
+            exclude_globs=tuple(exclude_glob),
         )
         result = ScanBookmarkClassifier(config, logger=logger).run()
     except (
@@ -1913,6 +2125,9 @@ def classify_scan_cmd(
         "write_report": write_report,
         "report_csv_path": result.report_csv_path,
         "detail_jsonl_path": result.detail_jsonl_path,
+        "include_globs": result.include_globs,
+        "exclude_globs": result.exclude_globs,
+        "excluded_output_subtree": result.excluded_output_subtree,
     }
     emit_command_result(command, payload, output_format=resolved_output_format)
 

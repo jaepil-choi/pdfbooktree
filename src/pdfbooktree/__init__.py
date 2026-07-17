@@ -74,6 +74,14 @@ from pdfbooktree.pipeline import (
     confidence_summary_for_inference,
     infer_bookmarks,
     resolve_existing_outline_action,
+    validate_plan,
+)
+from pdfbooktree.processing_logger import (
+    ProcessingLogEvent,
+    ProcessingLogger,
+    ProcessingLogMode,
+    build_processing_logger,
+    default_processing_log_mode,
 )
 from pdfbooktree.processor import Processor
 from pdfbooktree.project_skill import (
@@ -147,6 +155,9 @@ __all__ = [
     "PlanError",
     "PlanMatchResult",
     "ProcessingConfig",
+    "ProcessingLogEvent",
+    "ProcessingLogger",
+    "ProcessingLogMode",
     "ProcessingResult",
     "Processor",
     "PROJECT_SKILL_NAME",
@@ -154,6 +165,7 @@ __all__ = [
     "resolve_existing_outline_action",
     "ResolvedConfig",
     "resolve_processing_config",
+    "validate_plan",
     "RunContext",
     "RunError",
     "RunManifest",
@@ -168,4 +180,6 @@ __all__ = [
     "TypographyConfig",
     "TypographyLine",
     "write_inference_artifacts",
+    "build_processing_logger",
+    "default_processing_log_mode",
 ]

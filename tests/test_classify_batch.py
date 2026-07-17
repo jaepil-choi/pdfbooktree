@@ -176,3 +176,34 @@ def test_batch_recursive_finds_pdfs_in_subdirectories(tmp_path: Path) -> None:
 
     assert non_recursive.total_pdf_count == 0
     assert recursive.total_pdf_count == 1
+
+
+def test_classify_discovery_filters_uppercase_and_output_subtree(
+    tmp_path: Path,
+) -> None:
+    input_dir = tmp_path / "pdfs"
+    (input_dir / "nested").mkdir(parents=True)
+    _write_scanned_pdf_without_bookmark(input_dir / "KEEP.PDF")
+    _write_scanned_pdf_without_bookmark(input_dir / "nested" / "skip.pdf")
+    output_dir = input_dir / "report"
+    output_dir.mkdir()
+    _write_scanned_pdf_without_bookmark(output_dir / "old.pdf")
+
+    result = ScanBookmarkClassifier(
+        ClassifyBatchConfig(
+            input_dir=input_dir,
+            output_dir=output_dir,
+            recursive=True,
+            dry_run=True,
+            include_globs=("*.pdf",),
+            exclude_globs=("nested/*",),
+        )
+    ).run()
+
+    assert [item.relative_path for item in result.results] == ["KEEP.PDF"]
+    assert result.excluded_output_subtree == output_dir.resolve()
+    summary = json.loads(
+        (output_dir / "classification_summary.json").read_text(encoding="utf-8")
+    )
+    assert summary["include_globs"] == ["*.pdf"]
+    assert summary["exclude_globs"] == ["nested/*"]

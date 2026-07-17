@@ -44,3 +44,6 @@ class ClassifyBatchResult:
     report_csv_path: Path | None
     detail_jsonl_path: Path | None
     results: list[ClassifyFileResult] = field(default_factory=list)
+    include_globs: tuple[str, ...] = ()
+    exclude_globs: tuple[str, ...] = ()
+    excluded_output_subtree: Path | None = None

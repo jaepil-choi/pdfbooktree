@@ -63,7 +63,7 @@ print(result.status, result.skill_dir, result.files)
 
 ## 단일 PDF 고수준 처리
 
-`Processor(input_pdf, output_dir, config=None).run() -> ProcessingResult`를 사용해 기존 outline 정책부터 PDF/Markdown/report 생성까지 한 번에 실행하라.
+`Processor(input_pdf, output_dir, config=None, log=None).run() -> ProcessingResult`를 사용해 기존 outline 정책부터 PDF/Markdown/report 생성까지 한 번에 실행하라.
 
 ```python
 from pathlib import Path
@@ -104,10 +104,11 @@ print(result.output_pdf, result.output_markdown_dir, result.bookmark_count)
 
 다음 공개 함수를 단계별로 조합하라.
 
-- `analyze_pdf(input_pdf: Path, config: TypographyConfig | None = None) -> PdfAnalysis`: PDF의 raw `TypographyLine`과 총 page 수를 추출한다.
+- `analyze_pdf(input_pdf: Path, config: TypographyConfig | None = None, *, log=None) -> PdfAnalysis`: PDF의 raw `TypographyLine`과 총 page 수를 추출하고 optional page progress를 전달한다.
 - `infer_bookmarks(analysis: PdfAnalysis, config: TypographyConfig | None = None) -> BookmarkInferenceResult`: margin 제거, tiering, geometry, heading, BPE, position fallback, normalize, validation을 실행한다.
 - `write_inference_artifacts(output_dir, inference, quality=None, *, input_pdf=None, total_pages=None, existing_outline=None) -> dict[str, Path]`: 원시 추론 근거와 `bookmark_review_summary.json`, `bookmark_review_items.jsonl`을 저장한다.
 - `apply_plan(input_pdf, output_dir, plan, total_pages, markdown_split=None, markdown_content_mode="direct") -> ApplyResult`: plan을 다시 검증한 뒤 bookmarked PDF와 Markdown을 만든다.
+- `validate_plan(input_pdf, plan) -> BookmarkPlanValidation`: PDF page 수를 직접 읽고 외부 plan을 쓰기 없이 검증한다.
 - `confidence_summary_for_inference(inference) -> ConfidenceSummary`: 단계 신뢰도 요약을 만든다.
 
 ```python
@@ -187,7 +188,7 @@ CLI와 같은 읽기 전용 조사 함수를 사용하라.
 
 ## Batch와 실행 manifest
 
-`BatchProcessor(input_dir, output_dir, config=None, recursive=False, log=None).run() -> BatchResult`로 directory를 처리하라. `config`에는 `ProcessingConfig` 또는 `ResolvedConfig`를 전달할 수 있다.
+`BatchProcessor(input_dir, output_dir, config=None, recursive=False, log=None, *, include_globs=(), exclude_globs=()).run() -> BatchResult`로 directory를 처리하라. `config`에는 `ProcessingConfig` 또는 `ResolvedConfig`를 전달할 수 있다. glob은 상대 POSIX 경로에 case-insensitive로 적용되고 output subtree는 자동 제외된다.
 
 ```python
 from pathlib import Path
@@ -240,7 +241,7 @@ print(result.status, result.processed_pages, result.cache_hit_count)
 
 `OcrOverlayConfig`의 핵심 field는 `input_pdf`, `output_pdf`, `output_dir`, `engine`, `engine_options`, `render_dpi`, `pages`, `force`, `confirm_bookmark_ocr_overwrite`, `cache_policy`, `stats_word_level`이다.
 
-디렉터리에는 `OcrOverlayBatchConfig`와 `OcrOverlayBatchRunner.run() -> OcrOverlayBatchResult`를 사용하라. batch config는 추가로 `recursive`, `dry_run`, `min_page_count`, `max_sample_pages`를 제공한다. runner는 `log_mode`, `enable_log_file`, `command`를 받을 수 있다.
+디렉터리에는 `OcrOverlayBatchConfig`와 `OcrOverlayBatchRunner.run() -> OcrOverlayBatchResult`를 사용하라. batch config는 추가로 `recursive`, `dry_run`, `min_page_count`, `max_sample_pages`, `include_globs`, `exclude_globs`를 제공한다. runner는 `log_mode`, `enable_log_file`, `command`를 받을 수 있다.
 
 ```python
 from pathlib import Path
@@ -264,7 +265,7 @@ print(result.target_count, result.dry_run_count, result.skipped_count)
 
 ## Scan 분류 API
 
-`ClassifyBatchConfig`와 `ScanBookmarkClassifier.run() -> ClassifyBatchResult`를 사용하라.
+`ClassifyBatchConfig`와 `ScanBookmarkClassifier.run() -> ClassifyBatchResult`를 사용하라. directory selection에는 `include_globs`와 `exclude_globs`를 사용할 수 있다.
 
 ```python
 from pathlib import Path
@@ -307,6 +308,7 @@ root package는 다음 model 계열을 공개한다.
 - 분석/추론: `PdfAnalysis`, `TypographyLine`, `Tier`, `TierSet`, `HeadingCandidate`, `BookmarkInferenceResult`, `ConfidenceSummary`.
 - 적용/Markdown: `ApplyResult`, `MarkdownExportResult`, `MarkdownFileStat`, `ProcessingResult`.
 - batch/run: `BatchItemResult`, `BatchResult`, `RunManifest`, `RunContext`, `InputIdentity`, `ToolIdentity`, `BatchRunManifest`, `BatchRunContext`, `BatchRunSummary`, `BatchItemRunReference`.
+- progress: `ProcessingLogEvent`, `ProcessingLogger`, `ProcessingLogMode`, `build_processing_logger`, `default_processing_log_mode`.
 - 비교/평가: `PlanDiffEntry`, `PlanDiffResult`, `MatchedPair`, `MatchMetrics`, `PlanMatchResult`.
 - CLI envelope: `CommandResultEnvelope`, `CommandErrorEnvelope`, `CommandError`.
 

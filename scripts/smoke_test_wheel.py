@@ -67,13 +67,13 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--sample-pdf",
         type=Path,
-        help="지정하면 설치 wheel로 실제 PDF inspect/process까지 실행한다.",
+        help="지정하면 생성 fixture 대신 이 PDF로 installed CLI process를 검증한다.",
     )
     return parser.parse_args()
 
 
 def main() -> None:
-    """wheel build부터 clean CLI와 선택적 실제 PDF 처리까지 검증한다."""
+    """wheel build부터 clean CLI와 실제 PDF graph 처리까지 검증한다."""
 
     args = parse_args()
     output_root = args.output_root
@@ -143,46 +143,131 @@ print(json.dumps({
     if skill_file_count != 5:
         raise RuntimeError(f"package skill 파일 수가 5가 아니다: {skill_file_count}")
 
-    sample_result: dict[str, Any] | None = None
     if args.sample_pdf is not None:
         sample_pdf = args.sample_pdf
         if not sample_pdf.is_absolute():
             sample_pdf = ROOT / sample_pdf
         sample_pdf = sample_pdf.resolve(strict=True)
-        inspect_payload = run_json(
-            [
-                str(cli_exe),
-                "inspect",
-                "page-count",
-                str(sample_pdf),
-                "--format",
-                "json",
-            ]
-        )
-        process_payload = run_json(
-            [
-                str(cli_exe),
-                "process",
-                str(sample_pdf),
-                "-o",
-                str(process_output_dir),
-                "--format",
-                "json",
-            ]
-        )
-        process_result = process_payload["result"]["result"]
-        if process_result["status"] != "processed":
-            raise RuntimeError(
-                "설치 wheel의 실제 PDF process 결과가 processed가 아니다."
-            )
-        sample_result = {
-            "path": str(sample_pdf),
-            "page_count": inspect_payload["result"]["page_count"],
-            "process_run_dir": process_payload["result"]["run_dir"],
-            "process_status": process_result["status"],
-            "bookmark_count": process_result["bookmark_count"],
-            "markdown_manifest": process_result["artifact_paths"]["markdown_manifest"],
-        }
+        sample_source = "provided"
+    else:
+        sample_pdf = run_dir / "generated-contract-book.pdf"
+        sample_source = "generated"
+        generate_code = """
+import fitz
+import sys
+
+path = sys.argv[1]
+document = fitz.open()
+for page_number in range(1, 3):
+    page = document.new_page()
+    page.insert_text((72, 72), f"Page {page_number} body text")
+document.set_toc([
+    [1, "Chapter: 1 / Intro", 1],
+    [2, "CON", 1],
+    [1, "한글 Chapter", 2],
+    [2, "Repeated Title", 2],
+])
+document.save(path)
+document.close()
+"""
+        run([str(python_exe), "-c", generate_code, str(sample_pdf)])
+
+    inspect_payload = run_json(
+        [
+            str(cli_exe),
+            "inspect",
+            "page-count",
+            str(sample_pdf),
+            "--format",
+            "json",
+        ]
+    )
+    process_payload = run_json(
+        [
+            str(cli_exe),
+            "process",
+            str(sample_pdf),
+            "-o",
+            str(process_output_dir),
+            "--log-mode",
+            "none",
+            "--format",
+            "json",
+        ]
+    )
+    process_result = process_payload["result"]["result"]
+    if process_result["status"] != "processed":
+        raise RuntimeError("설치 wheel의 실제 PDF process 결과가 processed가 아니다.")
+    manifest_path = Path(process_result["artifact_paths"]["markdown_manifest"])
+    validation_code = """
+import json
+import sys
+from pathlib import Path
+
+import yaml
+
+manifest_path = Path(sys.argv[1])
+manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+validation = manifest["validation"]
+required_zero = [
+    "yaml_parse_error_count",
+    "duplicate_node_id_count",
+    "duplicate_output_path_count",
+    "dangling_link_count",
+    "parent_child_asymmetry_count",
+    "previous_next_asymmetry_count",
+    "unreachable_node_count",
+    "toc_unlinked_node_count",
+]
+if not validation["valid"] or any(validation[key] != 0 for key in required_zero):
+    raise RuntimeError(f"Markdown graph validation 실패: {validation!r}")
+relative_paths = [node["relative_path"] for node in manifest["nodes"]]
+if len({path.casefold() for path in relative_paths}) != len(relative_paths):
+    raise RuntimeError("node 파일명이 대소문자 기준으로 충돌한다.")
+yaml_paths = [manifest_path.parent / "toc.md"] + [
+    manifest_path.parent / relative for relative in relative_paths
+]
+for path in yaml_paths:
+    text = path.read_text(encoding="utf-8")
+    if not text.startswith("---\\n"):
+        raise RuntimeError(f"YAML front matter로 시작하지 않는다: {path}")
+    _, front_matter, _ = text.split("---", 2)
+    if not isinstance(yaml.safe_load(front_matter), dict):
+        raise RuntimeError(f"YAML object가 아니다: {path}")
+print(json.dumps({
+    "node_count": manifest["node_count"],
+    "yaml_file_count": len(yaml_paths),
+    "validation": validation,
+}))
+"""
+    graph_validation = run_json(
+        [str(python_exe), "-c", validation_code, str(manifest_path)]
+    )
+    inspect_plan_payload = run_json(
+        [
+            str(cli_exe),
+            "inspect",
+            "plan",
+            process_payload["result"]["run_dir"],
+            "--summary",
+            "--format",
+            "json",
+        ]
+    )
+    if not inspect_plan_payload.get("ok"):
+        raise RuntimeError("installed CLI inspect plan 결과가 실패다.")
+    sample_result = {
+        "source": sample_source,
+        "path": str(sample_pdf),
+        "page_count": inspect_payload["result"]["page_count"],
+        "process_run_dir": process_payload["result"]["run_dir"],
+        "process_status": process_result["status"],
+        "bookmark_count": process_result["bookmark_count"],
+        "markdown_manifest": str(manifest_path),
+        "graph_node_count": graph_validation["node_count"],
+        "yaml_file_count": graph_validation["yaml_file_count"],
+        "graph_validation": graph_validation["validation"],
+    }
 
     result = {
         "status": "passed",

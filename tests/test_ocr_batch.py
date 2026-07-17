@@ -251,3 +251,32 @@ def test_ocr_overlay_batch_records_mupdf_warnings_in_reports(
     )
     assert summary["mupdf_warning_pdf_count"] == 1
     assert summary["mupdf_warning_count"] == 1
+
+
+def test_ocr_batch_discovery_filters_uppercase_and_output_subtree(
+    tmp_path: Path,
+) -> None:
+    input_dir = tmp_path / "books"
+    _write_scanned_pdf(input_dir / "KEEP.PDF")
+    _write_scanned_pdf(input_dir / "nested" / "skip.pdf")
+    output_dir = input_dir / "ocr-output"
+    _write_scanned_pdf(output_dir / "old.pdf")
+
+    result = OcrOverlayBatchRunner(
+        OcrOverlayBatchConfig(
+            input_dir=input_dir,
+            output_dir=output_dir,
+            recursive=True,
+            dry_run=True,
+            include_globs=("*.pdf",),
+            exclude_globs=("nested/*",),
+        )
+    ).run()
+
+    assert [item.relative_path for item in result.results] == ["KEEP.PDF"]
+    assert result.excluded_output_subtree == output_dir.resolve()
+    summary = json.loads(
+        (output_dir / "ocr_overlay_batch_summary.json").read_text(encoding="utf-8")
+    )
+    assert summary["include_globs"] == ["*.pdf"]
+    assert summary["exclude_globs"] == ["nested/*"]

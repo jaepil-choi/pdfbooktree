@@ -27,7 +27,9 @@ from pdfbooktree.utils.paths import build_markdown_dir_path
 MARKDOWN_MANIFEST_SCHEMA_VERSION = 1
 MarkdownContentMode = Literal["direct", "inclusive"]
 
-_WIKI_LINK_RE = re.compile(r"\[\[([^|\]]+)")
+_GENERATED_WIKI_BULLET_RE = re.compile(
+    r"^\s*-\s+(?:(?:Parent|Previous|Next):\s+)?\[\[([^|\]]+)"
+)
 _WINDOWS_RESERVED_NAMES = {
     "CON",
     "PRN",
@@ -702,7 +704,7 @@ def _validate_graph(
             yaml_errors.append(
                 {"path": str(path.relative_to(root_dir)), "reason": str(error)}
             )
-        for target in _WIKI_LINK_RE.findall(path.read_text(encoding="utf-8")):
+        for target in _generated_wiki_targets(path):
             if target not in known_targets:
                 dangling_links.append(
                     {"path": str(path.relative_to(root_dir)), "target": target}
@@ -739,9 +741,7 @@ def _validate_graph(
     empty_text_pages = [
         page for page in assigned_pages if not page_texts.get(page, "").strip()
     ]
-    toc_targets = set(
-        _WIKI_LINK_RE.findall((root_dir / "toc.md").read_text(encoding="utf-8"))
-    )
+    toc_targets = set(_generated_wiki_targets(root_dir / "toc.md"))
     same_page_boundaries = [
         {
             "left_id": left.node_id,
@@ -806,3 +806,49 @@ def _validate_graph(
             == _graph_snapshot(rerendered),
         },
     }
+
+
+def _generated_wiki_targets(path: Path) -> list[str]:
+    """생성기가 소유한 front matter/navigation link target만 읽는다.
+
+    PDF 본문이나 OCR title에는 ``[[object Object]]`` 같은 원문이 들어올 수 있다.
+    이를 Obsidian link로 해석하면 유효한 graph가 false negative가 되므로 Content
+    영역과 link label 내부의 대괄호는 validation 대상에서 제외한다.
+    """
+
+    lines = path.read_text(encoding="utf-8").splitlines()
+    end_index = lines.index("---", 1)
+    metadata = yaml.safe_load("\n".join(lines[1:end_index]))
+    targets: list[str] = []
+    if isinstance(metadata, dict):
+        for key in ("parent", "previous", "next"):
+            target = _wiki_target_from_value(metadata.get(key))
+            if target is not None:
+                targets.append(target)
+        children = metadata.get("children", [])
+        if isinstance(children, list):
+            targets.extend(
+                target
+                for value in children
+                if (target := _wiki_target_from_value(value)) is not None
+            )
+
+    body_lines = lines[end_index + 1 :]
+    if path.name != "toc.md":
+        try:
+            navigation_start = body_lines.index("## Navigation")
+            content_start = body_lines.index("## Content")
+        except ValueError:
+            return targets
+        body_lines = body_lines[navigation_start + 1 : content_start]
+    for line in body_lines:
+        match = _GENERATED_WIKI_BULLET_RE.match(line)
+        if match is not None:
+            targets.append(match.group(1))
+    return targets
+
+
+def _wiki_target_from_value(value: object) -> str | None:
+    if not isinstance(value, str) or not value.startswith("[["):
+        return None
+    return value[2:].split("|", 1)[0]

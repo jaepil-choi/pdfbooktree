@@ -21,7 +21,11 @@ def _make_pdf(path: Path) -> None:
     try:
         for page_number in range(1, 6):
             page = document.new_page()
-            page.insert_text((72, 72), f"Page {page_number} body", fontsize=12)
+            page.insert_text(
+                (72, 72),
+                f"Page {page_number} body [[object Object]]",
+                fontsize=12,
+            )
         document.save(path)
     finally:
         document.close()
@@ -46,7 +50,7 @@ def _plan() -> list[BookmarkPlanItem]:
             evidence=["top_band=true"],
         ),
         BookmarkPlanItem(
-            title="Topic | details ]",
+            title="Topic [[object Object]] | details ]",
             level=2,
             pdf_page=4,
             source="typography",

@@ -18,6 +18,7 @@
 - `level`은 1 이상의 계층 깊이로 사용하고 plan 순서를 문서 순서로 유지하라.
 - 추가 근거인 `source`, `confidence`, `evidence`를 보존하라. 수동 수정 과정에서 버리지 마라.
 - 외부 plan은 `load_bookmark_plan_json()` 또는 `apply`로 검증하라.
+- 파일 생성 전에는 `validate_plan()` 또는 `apply --dry-run`으로 PDF page 범위와 level 구조를 쓰기 없이 검증하라.
 
 ## 단일 실행 디렉터리
 
@@ -73,6 +74,7 @@ plan이 의심스러우면 review summary를 먼저 읽고 `inspect plan --atten
 구조화 `batch`는 batch 자체의 immutable directory와 manifest를 만들고 item run을 연결한다.
 
 - `batch_run_id`, selection hash, config hash, discovered PDF 목록을 확인하라.
+- manifest의 include/exclude glob과 자동 제외된 output subtree를 함께 확인하라. `.PDF` 확장자는 대소문자를 구분하지 않는다.
 - `summary.completed_count`와 processed/skipped/failed 집계를 확인하라.
 - 각 `item_runs[]`의 `run_id`, `manifest_path`, `output_paths`를 따라가라.
 
@@ -102,6 +104,7 @@ OCR batch는 output root 아래 원본 상대 경로를 보존한 `pdfs/`와 `ar
 
 - `min_page_count`는 inclusive target gate다. `page_count >= min_page_count`인 PDF만 후속 scanned/bookmark 조건을 만족할 때 target이 되고, 더 짧은 PDF의 `target_reject_reason`은 `below_min_page_count: page_count=... < min_page_count=...`다.
 - `--dry-run`에서도 page 수와 target 판정 report를 생성하되 OCR API와 PDF 생성을 실행하지 않는다.
+- OCR output은 sibling temporary PDF를 완전히 저장한 뒤 atomic replace한다. input/output 동일 경로는 거부하고 실패 시 기존 output을 보존한다.
 - PDF별 MuPDF parser·font·resource·ICC 복구 진단은 raw stderr로 반복 출력하지 않고 `mupdf_warning_count`, `mupdf_warnings`로 CSV와 detail JSONL에 보존한다. summary의 `mupdf_warning_pdf_count`, `mupdf_warning_count`로 전체 규모를 확인하라. 경고가 있어도 PDF 작업이 결과를 만들면 성공을 유지하고, 실제 예외는 `failed`로 구분한다.
 - summary의 `target_page_count`, `will_process_count`, `will_process_page_count`를 사용해 filter target 전체와 기존 output 제외 후 실제 OCR 실행 규모를 구분하라.
 - `processed_count`, `dry_run_count`, `skipped_count`, `failed_count`, cache hit/miss를 모두 확인하라.
@@ -134,7 +137,11 @@ OCR credential, 비용, cache와 overwrite policy는 별도 `ocr-overlay` workfl
 {"schema_version":1,"command":"process","ok":true,"result":{}}
 ```
 
-오류 envelope는 stderr 한 줄이고 `error.code`, `error.type`, `error.message`, 선택적 `error.details`를 가진다. `--log-mode json`의 진행 event도 stderr JSONL이므로 마지막 줄만 오류라고 가정하지 말고 `ok` 또는 event schema로 구분하라.
+오류 envelope는 stderr 한 줄이고 `error.code`, `error.type`, `error.message`, 선택적 `error.details`를 가진다. process/infer/batch/OCR/classify의 `--log-mode json` 진행 event도 stderr JSONL이므로 마지막 줄만 오류라고 가정하지 말고 `ok` 또는 event schema로 구분하라.
+
+Markdown graph validation은 생성기가 소유한 front matter와 navigation link만
+검사한다. PDF 본문이나 OCR title에 들어 있는 `[[object Object]]` 같은 원문은
+사용자 content이며 dangling wiki link로 오인하지 않는다.
 
 | Exit | 의미 | 처리 |
 | --- | --- | --- |

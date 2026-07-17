@@ -256,7 +256,7 @@ def test_process_runtime_error는_manifest를_남기고_traceback을_숨긴다(
     tmp_path: Path,
 ) -> None:
     class FailingProcessor:
-        def __init__(self, pdf, output_dir, config):
+        def __init__(self, pdf, output_dir, config, log=None):
             pass
 
         def run(self):
@@ -302,7 +302,7 @@ def test_process_debug는_manifest를_남기고_원래_예외를_노출한다(
     tmp_path: Path,
 ) -> None:
     class FailingProcessor:
-        def __init__(self, pdf, output_dir, config):
+        def __init__(self, pdf, output_dir, config, log=None):
             pass
 
         def run(self):
