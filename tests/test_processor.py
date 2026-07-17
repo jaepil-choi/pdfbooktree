@@ -140,3 +140,6 @@ def test_processor_replaces_low_quality_existing_outline_when_configured(
     assert result.bookmark_count > 2
     assert result.existing_outline_quality is not None
     assert result.existing_outline_quality.is_low_quality is True
+    assert result.artifact_paths["bookmark_review_summary"].is_file()
+    assert result.artifact_paths["bookmark_review_items"].is_file()
+    assert result.artifact_paths["existing_outline_plan"].is_file()

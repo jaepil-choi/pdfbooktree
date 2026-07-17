@@ -46,6 +46,9 @@ description: 이 저장소의 pdfbooktree Python API와 CLI를 사용해 PDF 책
 ## 계획 검토와 적용
 
 - `bookmark_plan.json`의 각 항목에서 `title`, `level`, `pdf_page`를 핵심 계약으로 다루라. `pdf_page`는 1-based다.
+- `infer` 뒤에는 `bookmark_review_summary.json`을 먼저 읽고 `inspect plan <RUN> --attention-only --limit 20`으로 검토 범위를 줄인 다음 `--item-id`, `--page-range`, `--level`, `--source`로 필요한 item만 열어라.
+- `bookmark_review_items.jsonl`의 item은 plan order 기반 `n####` ID, source/confidence/evidence, candidate geometry, 주변 typography line, 제한된 page preview와 원본 artifact 위치를 보존한다. duplicate candidate가 normalize 과정에서 축약되면 canonical 첫 후보와 alternative reference를 함께 확인하라.
+- attention signal과 `confidence`는 품질 합격/불합격 판정이나 정확도 확률이 아니다. 빈 plan, page 범위와 level jump 같은 구조 validation과 내용 eye-check를 구분하라.
 - `infer`는 bookmarked PDF와 Markdown을 만들지 않는다. 최종 산출물에는 반드시 `apply`를 이어서 사용하라.
 - `apply`는 plan을 다시 검증하며 typography 분석이나 추론을 반복하지 않는다.
 - 설정 A/B 비교에는 두 infer run의 `bookmark_plan.json`을 `inspect compare` 또는 `inspect_compare_plans()`에 전달하라.
@@ -62,7 +65,7 @@ description: 이 저장소의 pdfbooktree Python API와 CLI를 사용해 PDF 책
 
 ## 실행 결과 확인
 
-- 기본 `process`, `infer`, `apply`는 immutable run directory와 `run_manifest.json`, `config.resolved.json`을 만든다. JSON 결과가 반환한 `run_dir`과 `manifest_path`를 기준으로 후속 작업을 이어가라.
+- 기본 `process`, `infer`, `apply`는 immutable run directory와 `run_manifest.json`, `config.resolved.json`을 만든다. JSON 결과가 반환한 `run_dir`과 `manifest_path`를 기준으로 후속 작업을 이어가라. typography inference run은 manifest의 `artifact_paths.bookmark_review_summary`와 `artifact_paths.bookmark_review_items`도 연결한다.
 - tree와 length-limited split 결과는 모두 `toc.md`, `bookmark_plan.json`, `nodes/`, `markdown_manifest.json`을 만든다. split은 `export_mode=split`, `content_mode=bounded`이며 원래 plan order 기반 node ID를 유지한다. run manifest의 `artifact_paths.markdown_manifest` 또는 `inspect plan` 결과에서 manifest를 찾을 수 있다.
 - `--flat-output`은 호환 모드다. 재현 가능한 작업에는 기본 run directory를 유지하라.
 - JSON 성공 결과는 stdout의 단일 envelope이고, 오류는 stderr envelope다. batch/OCR/classify의 JSON 진행 event는 stderr JSONL이다.

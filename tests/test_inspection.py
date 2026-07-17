@@ -50,6 +50,52 @@ def write_json(path: Path, value: object) -> None:
     path.write_text(json.dumps(value), encoding="utf-8")
 
 
+def write_review_artifacts(path: Path) -> None:
+    """inspection filter 검사용 review summary와 JSONL을 쓴다."""
+
+    write_json(
+        path / "bookmark_review_summary.json",
+        {
+            "schema_version": 1,
+            "plan_item_count": 3,
+            "attention": {"item_count": 2},
+        },
+    )
+    rows = [
+        {
+            "schema_version": 1,
+            "node_id": "n0001",
+            "title": "Chapter 1",
+            "level": 1,
+            "pdf_page": 1,
+            "source": "geometry_typography",
+            "attention_signals": [],
+        },
+        {
+            "schema_version": 1,
+            "node_id": "n0002",
+            "title": "Fallback",
+            "level": 2,
+            "pdf_page": 2,
+            "source": "geometry_position_fallback",
+            "attention_signals": ["position_fallback_source"],
+        },
+        {
+            "schema_version": 1,
+            "node_id": "n0003",
+            "title": "Repeated – title",
+            "level": 2,
+            "pdf_page": 3,
+            "source": "geometry_typography",
+            "attention_signals": ["repeated_title"],
+        },
+    ]
+    (path / "bookmark_review_items.jsonl").write_text(
+        "".join(json.dumps(row) + "\n" for row in rows),
+        encoding="utf-8",
+    )
+
+
 def test_inspect_pdf_page_count_text_and_bookmarks(tmp_path: Path) -> None:
     pdf_path = tmp_path / "book.pdf"
     make_pdf(pdf_path)
@@ -216,6 +262,50 @@ def test_inspect_plan_artifact는_run_manifest의_markdown_manifest를_따른다
     assert result["markdown_manifest"]["fallback_used"] is True
 
 
+def test_inspect_plan_artifact_filters_review_items(tmp_path: Path) -> None:
+    write_json(
+        tmp_path / "bookmark_plan.json",
+        [{"title": "Chapter", "level": 1, "pdf_page": 1}],
+    )
+    write_review_artifacts(tmp_path)
+
+    result = inspect_plan_artifact(
+        tmp_path,
+        include_items=True,
+        page_range=(2, 3),
+        level=2,
+        attention_only=True,
+        limit=1,
+    )
+
+    assert result["bookmark_review_summary"]["plan_item_count"] == 3
+    assert result["review_query"] == {
+        "item_id": None,
+        "page_range": [2, 3],
+        "level": 2,
+        "source": None,
+        "attention_only": True,
+        "limit": 1,
+        "matched_item_count": 2,
+        "returned_item_count": 1,
+        "truncated": True,
+    }
+    assert result["bookmark_review_items"][0]["node_id"] == "n0002"
+
+
+def test_inspect_plan_artifact_selects_single_review_item(tmp_path: Path) -> None:
+    write_json(
+        tmp_path / "bookmark_plan.json",
+        [{"title": "Chapter", "level": 1, "pdf_page": 1}],
+    )
+    write_review_artifacts(tmp_path)
+
+    result = inspect_plan_artifact(tmp_path, item_id="n0003")
+
+    assert result["review_query"]["matched_item_count"] == 1
+    assert result["bookmark_review_items"][0]["title"] == "Repeated – title"
+
+
 def test_inspect_compare_plans_reports_added_removed_and_moved(
     tmp_path: Path,
 ) -> None:
@@ -308,6 +398,102 @@ def test_inspect_cli_format_json은_모든_command를_envelope로_출력한다(
     assert json_result(bookmarks, "inspect.bookmarks")["bookmark_count"] == 2
     assert json_result(ocr, "inspect.ocr")["artifact_dir"] == str(artifact_dir)
     assert json_result(plan, "inspect.plan")["bookmark_plan_item_count"] == 1
+
+
+def test_inspect_cli_plan_item_and_filters_use_json_contract(tmp_path: Path) -> None:
+    plan_dir = tmp_path / "plan_artifacts"
+    write_json(
+        plan_dir / "bookmark_plan.json",
+        [{"title": "Chapter 1", "level": 1, "pdf_page": 1}],
+    )
+    write_review_artifacts(plan_dir)
+
+    item_result = CliRunner().invoke(
+        app,
+        [
+            "inspect",
+            "plan",
+            str(plan_dir),
+            "--item-id",
+            "n0002",
+            "--format",
+            "json",
+        ],
+    )
+    filtered_result = CliRunner().invoke(
+        app,
+        [
+            "inspect",
+            "plan",
+            str(plan_dir),
+            "--items",
+            "--page-range",
+            "2-3",
+            "--level",
+            "2",
+            "--source",
+            "geometry_position_fallback",
+            "--attention-only",
+            "--limit",
+            "10",
+            "--format",
+            "json",
+        ],
+    )
+
+    item_payload = json_result(item_result, "inspect.plan")
+    filtered_payload = json_result(filtered_result, "inspect.plan")
+    assert item_payload["bookmark_review_items"][0]["node_id"] == "n0002"
+    assert filtered_payload["review_query"]["matched_item_count"] == 1
+    assert filtered_payload["bookmark_review_items"][0]["source"] == (
+        "geometry_position_fallback"
+    )
+
+    unicode_result = CliRunner().invoke(
+        app,
+        [
+            "inspect",
+            "plan",
+            str(plan_dir),
+            "--item-id",
+            "n0003",
+            "--format",
+            "json",
+        ],
+    )
+    assert (
+        json_result(unicode_result, "inspect.plan")["bookmark_review_items"][0]["title"]
+        == "Repeated – title"
+    )
+    assert "\\u2013" in unicode_result.stdout
+
+
+def test_inspect_cli_plan_item_without_review_artifact_is_input_error(
+    tmp_path: Path,
+) -> None:
+    write_json(
+        tmp_path / "bookmark_plan.json",
+        [{"title": "Chapter 1", "level": 1, "pdf_page": 1}],
+    )
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "inspect",
+            "plan",
+            str(tmp_path),
+            "--item-id",
+            "n0001",
+            "--format",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 2
+    envelope = json.loads(result.stderr)
+    assert envelope["command"] == "inspect.plan"
+    assert envelope["error"]["code"] == "invalid_input"
+    assert "bookmark_review_items.jsonl" in envelope["error"]["message"]
 
 
 def test_inspect_cli_compare_reports_diff_counts_as_json(tmp_path: Path) -> None:

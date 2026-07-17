@@ -65,6 +65,31 @@ def test_infer_does_not_write_pdf_or_markdown(tmp_path: Path) -> None:
     assert not list(output_dir.glob("*_markdown"))
     plan = json.loads((output_dir / "bookmark_plan.json").read_text("utf-8"))
     assert len(plan) > 2
+    assert (output_dir / "bookmark_review_summary.json").is_file()
+    assert (output_dir / "bookmark_review_items.jsonl").is_file()
+
+
+def test_infer_run_manifest_links_review_artifacts(tmp_path: Path) -> None:
+    pdf = tmp_path / "book.pdf"
+    output_root = tmp_path / "runs"
+    _make_typography_book(pdf)
+
+    result = RUNNER.invoke(
+        app,
+        ["infer", str(pdf), "--output-dir", str(output_root)]
+        + _typography_set_options(),
+    )
+
+    assert result.exit_code == 0, result.output
+    manifest_path = next(output_root.rglob("run_manifest.json"))
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    summary_path = Path(manifest["artifact_paths"]["bookmark_review_summary"])
+    items_path = Path(manifest["artifact_paths"]["bookmark_review_items"])
+    assert summary_path.is_file()
+    assert items_path.is_file()
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    assert summary["plan_item_count"] > 2
+    assert summary["candidate_mapping"]["missing_count"] == 0
 
 
 def test_infer_skips_when_existing_outline_is_good_quality(tmp_path: Path) -> None:

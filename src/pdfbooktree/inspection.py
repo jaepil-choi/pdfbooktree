@@ -158,10 +158,31 @@ def inspect_ocr_artifact(artifact_dir: Path | str) -> dict[str, Any]:
     }
 
 
-def inspect_plan_artifact(output_dir: Path | str) -> dict[str, Any]:
-    """bookmark plan, validation, report와 Markdown export 요약을 반환한다."""
+def inspect_plan_artifact(
+    output_dir: Path | str,
+    *,
+    include_items: bool = False,
+    limit: int = 20,
+    item_id: str | None = None,
+    page_range: tuple[int, int] | None = None,
+    level: int | None = None,
+    source: str | None = None,
+    attention_only: bool = False,
+) -> dict[str, Any]:
+    """bookmark plan과 review/Markdown artifact를 점진적으로 조사한다."""
 
     root = _require_directory(output_dir, "처리 output directory")
+    if limit < 1:
+        raise ValueError("limit은 1 이상이어야 한다.")
+    if level is not None and level < 1:
+        raise ValueError("level은 1 이상이어야 한다.")
+    if page_range is not None:
+        start_page, end_page = page_range
+        if start_page < 1 or end_page < start_page:
+            raise ValueError(
+                "page range는 1 이상의 오름차순 범위여야 한다: "
+                f"start={start_page}, end={end_page}"
+            )
     warnings: list[str] = []
     plan_path = _first_existing_path(
         root / "bookmark_plan.json", root / "existing_outline_plan.json"
@@ -204,7 +225,16 @@ def inspect_plan_artifact(output_dir: Path | str) -> dict[str, Any]:
         markdown_manifest,
         warnings,
     )
-    return {
+    review_summary_path, review_items_path = _find_review_artifacts(
+        root,
+        run_manifest,
+    )
+    review_summary = _read_optional_json(review_summary_path, warnings)
+    if review_summary is not None and not isinstance(review_summary, dict):
+        warnings.append("bookmark review summary 형식이 JSON object가 아니다.")
+        review_summary = None
+
+    result = {
         "status": "available" if plan_path else "missing",
         "output_dir": str(root),
         "plan_path": str(plan_path) if plan_path else None,
@@ -218,8 +248,58 @@ def inspect_plan_artifact(output_dir: Path | str) -> dict[str, Any]:
             str(markdown_manifest_path) if markdown_manifest_path else None
         ),
         "markdown_manifest": markdown_manifest_summary,
+        "bookmark_review_summary_path": (
+            str(review_summary_path) if review_summary_path else None
+        ),
+        "bookmark_review_items_path": (
+            str(review_items_path) if review_items_path else None
+        ),
+        "bookmark_review_summary": review_summary,
         "warnings": warnings,
     }
+    query_requested = any(
+        (
+            include_items,
+            item_id is not None,
+            page_range is not None,
+            level is not None,
+            source is not None,
+            attention_only,
+        )
+    )
+    if not query_requested:
+        return result
+    if review_items_path is None:
+        raise FileNotFoundError(
+            "bookmark review item artifact가 없다. typography infer를 다시 실행해 "
+            "bookmark_review_items.jsonl을 생성해야 한다."
+        )
+
+    review_items = _read_review_items(review_items_path)
+    filtered = _filter_review_items(
+        review_items,
+        item_id=item_id,
+        page_range=page_range,
+        level=level,
+        source=source,
+        attention_only=attention_only,
+    )
+    if item_id is not None and not filtered:
+        raise ValueError(f"bookmark review item ID를 찾지 못했다: {item_id}")
+    selected = filtered[:limit]
+    result["review_query"] = {
+        "item_id": item_id,
+        "page_range": list(page_range) if page_range is not None else None,
+        "level": level,
+        "source": source,
+        "attention_only": attention_only,
+        "limit": limit,
+        "matched_item_count": len(filtered),
+        "returned_item_count": len(selected),
+        "truncated": len(filtered) > len(selected),
+    }
+    result["bookmark_review_items"] = selected
+    return result
 
 
 def inspect_compare_plans(
@@ -419,6 +499,89 @@ def _first_existing_path(*paths: Path) -> Path | None:
 
 def _find_processing_report(root: Path) -> Path | None:
     return next(iter(sorted(root.glob("*_report.json"))), None)
+
+
+def _find_review_artifacts(
+    root: Path,
+    run_manifest: object,
+) -> tuple[Path | None, Path | None]:
+    """run manifest와 output root에서 review summary/items를 찾는다."""
+
+    artifact_paths = (
+        run_manifest.get("artifact_paths") if isinstance(run_manifest, dict) else None
+    )
+
+    def find(name: str, filename: str) -> Path | None:
+        candidates: list[Path] = []
+        if isinstance(artifact_paths, dict):
+            _append_artifact_path(candidates, root, artifact_paths.get(name))
+        candidates.append(root / filename)
+        return next((path for path in candidates if path.is_file()), None)
+
+    return (
+        find("bookmark_review_summary", "bookmark_review_summary.json"),
+        find("bookmark_review_items", "bookmark_review_items.jsonl"),
+    )
+
+
+def _read_review_items(path: Path) -> list[dict[str, Any]]:
+    """독립 JSON object인 review JSONL을 검증하며 읽는다."""
+
+    rows: list[dict[str, Any]] = []
+    try:
+        with path.open(encoding="utf-8") as file:
+            for line_number, line in enumerate(file, start=1):
+                if not line.strip():
+                    continue
+                try:
+                    row = json.loads(line)
+                except json.JSONDecodeError as exc:
+                    raise ValueError(
+                        "bookmark review JSONL을 읽지 못했다: "
+                        f"path={path}, line={line_number}, reason={exc}"
+                    ) from exc
+                if not isinstance(row, dict):
+                    raise ValueError(
+                        "bookmark review JSONL 행이 object가 아니다: "
+                        f"path={path}, line={line_number}"
+                    )
+                rows.append(row)
+    except OSError as exc:
+        raise ValueError(
+            f"bookmark review JSONL을 읽지 못했다: path={path}, reason={exc}"
+        ) from exc
+    return rows
+
+
+def _filter_review_items(
+    items: list[dict[str, Any]],
+    *,
+    item_id: str | None,
+    page_range: tuple[int, int] | None,
+    level: int | None,
+    source: str | None,
+    attention_only: bool,
+) -> list[dict[str, Any]]:
+    """review item에 CLI/Python API filter를 순서대로 적용한다."""
+
+    result: list[dict[str, Any]] = []
+    for item in items:
+        if item_id is not None and item.get("node_id") != item_id:
+            continue
+        pdf_page = item.get("pdf_page")
+        if page_range is not None and (
+            not isinstance(pdf_page, int)
+            or not page_range[0] <= pdf_page <= page_range[1]
+        ):
+            continue
+        if level is not None and item.get("level") != level:
+            continue
+        if source is not None and item.get("source") != source:
+            continue
+        if attention_only and not item.get("attention_signals"):
+            continue
+        result.append(item)
+    return result
 
 
 def _find_markdown_manifest(

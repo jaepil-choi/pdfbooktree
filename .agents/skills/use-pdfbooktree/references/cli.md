@@ -65,7 +65,9 @@ uv run pdfbooktree process $pdf -o .\runs --format json
 
 ```powershell
 uv run pdfbooktree infer $pdf -o .\runs --format json
-uv run pdfbooktree inspect plan "<infer-run-dir>" --format json
+uv run pdfbooktree inspect plan "<infer-run-dir>" --summary --format json
+uv run pdfbooktree inspect plan "<infer-run-dir>" --attention-only --limit 20 --format json
+uv run pdfbooktree inspect plan "<infer-run-dir>" --item-id n0042 --format json
 uv run pdfbooktree apply $pdf --plan "<infer-run-dir>\bookmark_plan.json" -o .\runs --format json
 ```
 
@@ -122,6 +124,8 @@ uv run pdfbooktree infer <PDF> -o <OUTPUT_ROOT> `
 ```
 
 기존 outline이 있고 policy가 재사용을 선택하면 typography 추론을 건너뛸 수 있다. 반환된 run의 plan과 `existing_outline_quality.json`을 확인하라.
+
+typography 추론을 실행한 run은 `bookmark_review_summary.json`과 `bookmark_review_items.jsonl`도 만든다. summary의 level/source 분포, candidate mapping과 attention signal로 먼저 볼 item을 고르고 item detail에서 source/confidence/evidence, candidate geometry, 주변 line과 page preview를 확인하라. attention signal은 품질 판정이 아니다.
 
 ### `apply`
 
@@ -219,12 +223,14 @@ output root 아래 `pdfs/`, `artifacts/`, `ocr_overlay_batch_report.csv`, `ocr_o
 | `inspect text` | 선택 page의 추출 text 확인 | `<PDF> --pages 1-3,42` |
 | `inspect bookmarks` | 기존 bookmark와 target page 확인 | `<PDF>` |
 | `inspect ocr` | OCR progress, cache, stats, 마지막 log 확인 | `<ARTIFACT_DIR>` |
-| `inspect plan` | plan validation, report, Markdown manifest validation·coverage 요약 | `<RUN_OR_OUTPUT_DIR>` |
+| `inspect plan` | plan/review summary, item evidence filter, Markdown validation·coverage | `<RUN_OR_OUTPUT_DIR> [--summary] [--items] [--limit N] [--item-id n####] [--page-range 100-120] [--level N] [--source SOURCE] [--attention-only]` |
 | `inspect compare` | 두 plan의 added/removed/moved/level/source 차이 | `<PLAN_A> <PLAN_B> [--page-tolerance 0] [--title-similarity-threshold 0.7]` |
 
 ```powershell
 uv run pdfbooktree inspect ocr .\ocr-artifacts --format json
-uv run pdfbooktree inspect plan .\runs\<run-dir> --format json
+uv run pdfbooktree inspect plan .\runs\<run-dir> --summary --format json
+uv run pdfbooktree inspect plan .\runs\<run-dir> --attention-only --limit 20 --format json
+uv run pdfbooktree inspect plan .\runs\<run-dir> --page-range 100-120 --source geometry_position_fallback --format json
 uv run pdfbooktree inspect compare .\plan-a.json .\plan-b.json `
   --page-tolerance 1 --title-similarity-threshold 0.8 --format json
 ```

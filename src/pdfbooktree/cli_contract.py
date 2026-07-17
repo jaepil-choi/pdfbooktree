@@ -95,7 +95,9 @@ def emit_command_result(
         ok=True,
         result=result,
     )
-    typer.echo(json.dumps(to_jsonable(envelope), ensure_ascii=False))
+    # JSON의 \u escape는 의미를 바꾸지 않으면서 CP949 같은 Windows terminal에서도
+    # 모든 Unicode title을 안전하게 stdout으로 전달한다.
+    typer.echo(json.dumps(to_jsonable(envelope), ensure_ascii=True))
 
 
 def render_command_event_json(
@@ -116,7 +118,7 @@ def render_command_event_json(
         message=message,
         data=data,
     )
-    return json.dumps(to_jsonable(envelope), ensure_ascii=False)
+    return json.dumps(to_jsonable(envelope), ensure_ascii=True)
 
 
 def exit_command_error(
@@ -144,7 +146,7 @@ def exit_command_error(
             error=command_error,
         )
         typer.echo(
-            json.dumps(to_jsonable(envelope), ensure_ascii=False),
+            json.dumps(to_jsonable(envelope), ensure_ascii=True),
             err=True,
         )
     else:

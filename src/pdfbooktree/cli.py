@@ -439,6 +439,30 @@ def parse_page_ranges(value: str | None) -> list[int] | None:
     return sorted(dict.fromkeys(pages))
 
 
+def parse_closed_page_range(value: str | None) -> tuple[int, int] | None:
+    """inspect plan의 단일 1-based page 또는 닫힌 범위를 해석한다."""
+
+    if value is None or not value.strip():
+        return None
+    token = value.strip()
+    if "," in token:
+        raise typer.BadParameter("--page-range는 단일 page 또는 start-end 형식이다.")
+    try:
+        if "-" in token:
+            start_text, end_text = token.split("-", 1)
+            start = int(start_text)
+            end = int(end_text)
+        else:
+            start = end = int(token)
+    except ValueError as exc:
+        raise typer.BadParameter(
+            "--page-range는 단일 page 또는 start-end 정수 형식이어야 한다."
+        ) from exc
+    if start < 1 or end < start:
+        raise typer.BadParameter("--page-range는 1 이상의 오름차순 범위여야 한다.")
+    return start, end
+
+
 def parse_engine_options(values: list[str]) -> dict[str, object]:
     """--engine-option key=value 목록을 dict로 변환한다."""
 
@@ -612,6 +636,49 @@ def inspect_ocr_cmd(
 @inspect_app.command("plan")
 def inspect_plan_cmd(
     output_dir: Path = typer.Argument(..., help="process output directory다."),
+    summary: bool = typer.Option(
+        False,
+        "--summary",
+        help="review summary와 기존 plan/Markdown 요약만 반환한다.",
+    ),
+    items: bool = typer.Option(
+        False,
+        "--items",
+        help="bookmark review item을 반환한다.",
+    ),
+    limit: int = typer.Option(
+        20,
+        "--limit",
+        min=1,
+        max=1000,
+        help="반환할 review item 최대 개수다.",
+    ),
+    item_id: str | None = typer.Option(
+        None,
+        "--item-id",
+        help="단일 plan node ID를 확인한다. 예: n0042.",
+    ),
+    page_range: str | None = typer.Option(
+        None,
+        "--page-range",
+        help="1-based PDF page 범위다. 예: 100-120.",
+    ),
+    level: int | None = typer.Option(
+        None,
+        "--level",
+        min=1,
+        help="bookmark level로 review item을 제한한다.",
+    ),
+    source: str | None = typer.Option(
+        None,
+        "--source",
+        help="bookmark source로 review item을 제한한다.",
+    ),
+    attention_only: bool = typer.Option(
+        False,
+        "--attention-only",
+        help="attention signal이 있는 review item만 반환한다.",
+    ),
     output_format: str = typer.Option(
         "human", "--format", help="출력 형식이다: human, json."
     ),
@@ -622,12 +689,36 @@ def inspect_plan_cmd(
         False, "--debug", help="예상하지 못한 오류의 traceback을 그대로 노출한다."
     ),
 ) -> None:
-    """bookmark plan validation과 Markdown export 결과를 확인한다."""
+    """bookmark plan summary에서 item 근거까지 점진적으로 확인한다."""
 
     resolved_output_format = _inspection_output_format(output_format, as_json=as_json)
     try:
-        result = inspect_plan_artifact(output_dir)
-    except (FileNotFoundError, ValueError) as error:
+        query_requested = any(
+            (
+                items,
+                item_id is not None,
+                page_range is not None,
+                level is not None,
+                source is not None,
+                attention_only,
+            )
+        )
+        if summary and query_requested:
+            raise typer.BadParameter(
+                "--summary는 item selector/filter와 함께 사용할 수 없다."
+            )
+        parsed_page_range = parse_closed_page_range(page_range)
+        result = inspect_plan_artifact(
+            output_dir,
+            include_items=query_requested,
+            limit=limit,
+            item_id=item_id,
+            page_range=parsed_page_range,
+            level=level,
+            source=source,
+            attention_only=attention_only,
+        )
+    except (FileNotFoundError, ValueError, typer.BadParameter) as error:
         _exit_stage_input_error(
             "inspect.plan",
             error,
@@ -1315,7 +1406,14 @@ def _run_infer(
         analysis = analyze_pdf(pdf, config.typography)
         inference = infer_bookmarks(analysis, config.typography)
         artifacts = (
-            write_inference_artifacts(output_dir, inference, decision.quality)
+            write_inference_artifacts(
+                output_dir,
+                inference,
+                decision.quality,
+                input_pdf=pdf,
+                total_pages=analysis.total_pages,
+                existing_outline=decision.existing_outline,
+            )
             if config.write_artifacts
             else {}
         )

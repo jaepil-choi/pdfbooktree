@@ -44,6 +44,8 @@ INFERENCE_ARTIFACT_FILES = {
     "position_fallback_candidates": "position_fallback_candidates.json",
     "bookmark_plan": "bookmark_plan.json",
     "bookmark_plan_validation": "bookmark_plan_validation.json",
+    "bookmark_review_summary": "bookmark_review_summary.json",
+    "bookmark_review_items": "bookmark_review_items.jsonl",
     "markdown_manifest": "book_markdown/markdown_manifest.json",
 }
 

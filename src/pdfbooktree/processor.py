@@ -64,7 +64,12 @@ class Processor:
         analysis = analyze_pdf(self.input_pdf, self.config.typography)
         inference = infer_bookmarks(analysis, self.config.typography)
 
-        artifacts = self._write_artifacts(inference, decision.quality)
+        artifacts = self._write_artifacts(
+            inference,
+            analysis.total_pages,
+            decision.quality,
+            decision.existing_outline,
+        )
         warnings = list(inference.validation.warnings)
         if decision.quality is not None and decision.quality.is_low_quality:
             warnings.append(
@@ -169,11 +174,20 @@ class Processor:
     def _write_artifacts(
         self,
         inference: BookmarkInferenceResult,
+        total_pages: int,
         quality: OutlineQualityAssessment | None = None,
+        existing_outline: list[ExistingOutlineItem] | None = None,
     ) -> dict[str, Path]:
         if not self.config.write_artifacts:
             return {}
-        return write_inference_artifacts(self.output_dir, inference, quality)
+        return write_inference_artifacts(
+            self.output_dir,
+            inference,
+            quality,
+            input_pdf=self.input_pdf,
+            total_pages=total_pages,
+            existing_outline=existing_outline,
+        )
 
     def _write_existing_artifacts(
         self, plan, validation, quality: OutlineQualityAssessment | None = None

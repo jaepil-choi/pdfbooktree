@@ -46,8 +46,12 @@
 | `bookmark_plan` | `bookmark_plan.json` | 적용 가능한 계층 plan |
 | `bookmark_plan_validation` | `bookmark_plan_validation.json` | valid, item count, warning |
 | `existing_outline_quality` | `existing_outline_quality.json` | 기존 outline이 있을 때의 품질 판단 |
+| `bookmark_review_summary` | `bookmark_review_summary.json` | level/source 분포, candidate mapping, text 통계와 attention 우선순위 |
+| `bookmark_review_items` | `bookmark_review_items.jsonl` | plan item별 candidate geometry, 주변 line, page preview와 evidence 위치 |
 
-plan이 의심스러우면 validation만 보지 말고 heading과 fallback 후보, tier, 원문 line을 역순으로 확인하라.
+plan이 의심스러우면 review summary를 먼저 읽고 `inspect plan --attention-only --limit N`, `--item-id`, `--page-range`, `--level`, `--source`로 필요한 item만 연 뒤 heading/fallback 후보, tier와 원문 page를 확인하라. attention signal과 confidence는 내용 품질 판정이나 정확도 확률이 아니다.
+
+같은 source/page/title candidate가 여러 개면 plan normalization이 보존한 첫 후보가 canonical `candidate_ref`가 되고 나머지는 `candidate_alternative_refs`에 남는다. `duplicate_candidates_collapsed` signal은 근거 손실 없는 eye-check 지점이다.
 
 ## 최종 PDF와 Markdown
 
@@ -61,7 +65,7 @@ plan이 의심스러우면 validation만 보지 말고 heading과 fallback 후�
 - length coverage split도 `<input-stem>_markdown_split/` 아래 `toc.md`, `bookmark_plan.json`, `markdown_manifest.json`, `nodes/`를 가진 graph다. 선택된 boundary 파일은 원래 plan의 global order를 유지한 `NNNN_L<level>_p<page>_<title>.md`이며 `export_mode=split`, `content_mode=bounded`를 사용한다.
 - split node의 `contained_plan_node_ids`로 해당 segment에 포함된 plan 범위를 확인하라. 같은 page의 연속 boundary는 마지막 export node만 본문을 소유하고 앞선 node는 navigation-only가 된다.
 - split manifest의 `chosen_level`, `constraint_satisfied`, `fallback_used`, `fallback_reason`, word-count statistics, overflow file과 graph validation을 함께 확인하라. word count는 본문과 plan heading을 포함하고 front matter, navigation, page marker는 제외한다.
-- `inspect plan <RUN_OR_OUTPUT_DIR> --format json`은 node 파일을 열지 않고 `markdown_manifest_path`와 schema/export mode, validation, coverage, manifest warning 요약을 반환한다.
+- `inspect plan <RUN_OR_OUTPUT_DIR> --summary --format json`은 review summary와 `markdown_manifest_path`, schema/export mode, validation, coverage, manifest warning을 반환한다. item selector/filter를 쓰면 `bookmark_review_items.jsonl`만 읽어 제한된 item detail을 반환하며 `whole_book_lines.jsonl` 전체 scan은 필요하지 않다.
 - 기존 outline 재사용 경로는 Markdown을 만들지만 outline을 덮어쓴 PDF는 만들지 않는다.
 
 ## Batch와 분류 report

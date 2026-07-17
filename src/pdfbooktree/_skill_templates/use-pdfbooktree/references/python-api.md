@@ -104,7 +104,7 @@ print(result.output_pdf, result.output_markdown_dir, result.bookmark_count)
 
 - `analyze_pdf(input_pdf: Path, config: TypographyConfig | None = None) -> PdfAnalysis`: PDF의 raw `TypographyLine`과 총 page 수를 추출한다.
 - `infer_bookmarks(analysis: PdfAnalysis, config: TypographyConfig | None = None) -> BookmarkInferenceResult`: margin 제거, tiering, geometry, heading, BPE, position fallback, normalize, validation을 실행한다.
-- `write_inference_artifacts(output_dir, inference, quality=None) -> dict[str, Path]`: 검토용 JSON/JSONL artifact를 저장한다.
+- `write_inference_artifacts(output_dir, inference, quality=None, *, input_pdf=None, total_pages=None, existing_outline=None) -> dict[str, Path]`: 원시 추론 근거와 `bookmark_review_summary.json`, `bookmark_review_items.jsonl`을 저장한다.
 - `apply_plan(input_pdf, output_dir, plan, total_pages, markdown_split=None, markdown_content_mode="direct") -> ApplyResult`: plan을 다시 검증한 뒤 bookmarked PDF와 Markdown을 만든다.
 - `confidence_summary_for_inference(inference) -> ConfidenceSummary`: 단계 신뢰도 요약을 만든다.
 
@@ -125,7 +125,12 @@ config = TypographyConfig(position_fallback_enabled=True)
 
 analysis = analyze_pdf(pdf, config)
 inference = infer_bookmarks(analysis, config)
-artifacts = write_inference_artifacts(output, inference)
+artifacts = write_inference_artifacts(
+    output,
+    inference,
+    input_pdf=pdf,
+    total_pages=analysis.total_pages,
+)
 
 if not inference.validation.valid:
     raise RuntimeError(inference.validation.warnings)
@@ -171,7 +176,7 @@ CLI와 같은 읽기 전용 조사 함수를 사용하라.
 - `inspect_text(pdf_path, pages: list[int]) -> dict`
 - `inspect_bookmarks(pdf_path) -> dict`
 - `inspect_ocr_artifact(artifact_dir) -> dict`
-- `inspect_plan_artifact(output_dir) -> dict`: plan/report와 함께 Markdown manifest의 schema, export mode, validation, coverage와 warning 요약을 반환한다.
+- `inspect_plan_artifact(output_dir, include_items=False, limit=20, item_id=None, page_range=None, level=None, source=None, attention_only=False) -> dict`: plan/review summary와 Markdown manifest를 반환하고 요청할 때만 제한된 review item을 filter한다.
 - `inspect_compare_plans(plan_a, plan_b, page_tolerance=None, title_similarity_threshold=None) -> dict`
 
 두 in-memory plan을 비교하려면 `compare_bookmark_plans(before, after, page_tolerance=0, title_similarity_threshold=0.7) -> PlanDiffResult`를 사용하라. gold/predicted 품질 지표가 필요하면 `match_bookmark_plans(gold, predicted, page_tolerance=1, title_similarity_threshold=0.7) -> PlanMatchResult`를 사용하라.
