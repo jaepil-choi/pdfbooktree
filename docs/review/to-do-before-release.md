@@ -30,7 +30,7 @@ artifact, agent review 흐름, 성능과 배포 경험을 기준으로 한다.
       잃지 않는다.
 - [ ] agent가 bookmark를 eye check할 수 있는 plan summary, item detail, 주변 text와
       근거 artifact 탐색 흐름을 제공한다.
-- [ ] 현재 동작하지 않는 `processing.ocr_policy=auto|always` 계약을 실제로
+- [x] 현재 동작하지 않는 `processing.ocr_policy=auto|always` 계약을 실제로
       구현하거나 설정 단계에서 명시적으로 거부한다.
 - [ ] LICENSE와 PyPI metadata를 추가하고 wheel 설치 smoke test를 자동화한다.
 - [ ] 전체 test, Ruff lint, Ruff format 검증을 통과한다.
@@ -307,26 +307,28 @@ uv run pdfbooktree inspect text $pdf --pages 120-122 --format json
 
 ### 5.1 OCR policy
 
-현재 `processing.ocr_policy`는 `never`, `auto`, `always`를 허용하지만
-`Processor`에는 연결되지 않았다.
+`processing.ocr_policy`는 실행 가능한 값과 public schema를 일치시키기 위해
+현재 `never`만 허용한다. OCR은 별도 `ocr-overlay` 또는
+`ocr-overlay-batch` 전처리로 실행한다.
 
-릴리스 전 다음 중 하나를 선택한다.
+릴리스 전 선택 결과:
 
 - [ ] `auto|always`를 실제 OCR overlay workflow에 연결한다.
-- [ ] 또는 `never` 이외의 값을 config validation에서 명시적으로 거부한다.
+- [x] 또는 `never` 이외의 값을 config validation에서 명시적으로 거부한다.
 
-경고만 남기고 성공하는 현재 상태는 허용하지 않는다. 자동 연결을 선택한다면
-credential, API 비용, cache, 기존 bookmark 보호, 원본 비파괴 정책을 함께 설계해야
-한다.
+`auto|always`는 direct Python config, TOML, `--set`과 JSON Schema에서 지원하지
+않으며 CLI는 `ConfigError`와 exit 2로 조기 종료한다. 따라서 PDF 분석, output
+생성과 외부 API 호출 전에 실패한다. 향후 자동 연결을 다시 도입한다면 credential,
+API 비용, cache, 기존 bookmark 보호와 원본 비파괴 정책을 함께 설계해야 한다.
 
 ### 5.2 output 계약 동기화
 
-- [ ] `.agents/skills/use-pdfbooktree/references/contracts.md`의 Markdown 계약을
+- [x] `.agents/skills/use-pdfbooktree/references/contracts.md`의 Markdown 계약을
       새 파일명, front matter, wiki link, manifest 기준으로 갱신한다.
-- [ ] package에 번들된 skill template도 byte-identical하게 갱신한다.
-- [ ] Python API와 CLI reference에 새 config와 결과 field를 추가한다.
-- [ ] `agents/openai.yaml`의 설명과 예시를 갱신한다.
-- [ ] README quick start에서 progressive disclosure review 흐름을 설명한다.
+- [x] package에 번들된 skill template도 byte-identical하게 갱신한다.
+- [x] Python API와 CLI reference에 새 config와 결과 field를 추가한다.
+- [x] `agents/openai.yaml`의 설명과 예시를 갱신한다.
+- [x] README quick start에서 progressive disclosure review 흐름을 설명한다.
 
 ## 6. P1: 성능과 반복 작업 편의
 
@@ -427,9 +429,9 @@ note 흐름을 따른다. 실험과 showcase는 해당 디렉터리의 기록 JS
 - [ ] source, confidence와 evidence reference가 plan에서 Markdown까지 보존된다.
 - [ ] agent가 summary에서 item detail과 원문 page까지 점진적으로 조사할 수 있다.
 - [ ] bookmark 내용 품질을 근거 없는 자동 score로 판정하지 않는다.
-- [ ] 공개 config에 동작하지 않는 값이 없다.
+- [x] 공개 config에 동작하지 않는 값이 없다.
 - [ ] run manifest가 review와 Markdown graph artifact를 연결한다.
-- [ ] skill과 package bundle의 계약이 일치한다.
+- [x] skill과 package bundle의 계약이 일치한다.
 - [ ] LICENSE와 PyPI metadata가 완성됐다.
 - [ ] wheel 설치 smoke test가 통과한다.
 - [ ] 전체 pytest, Ruff lint와 format check가 통과한다.

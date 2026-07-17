@@ -63,7 +63,7 @@ inspect -> infer -> review/evaluate -> sweep/compare -> apply
 | Phase 4 | evaluator를 production으로 승격 | 1차 증분 완료 (2026-07-16) | `src/pdfbooktree/evaluation.py`로 fuzzy matcher와 matched/missed/extra detail을 승격했다. external reference loader, 3단계 reference quality, structural quality signal은 미착수. |
 | Phase 5 | inspect/compare 개선 | 2차 증분 완료 (2026-07-17) | `inspect compare`와 review summary/items artifact를 구현했다. `inspect plan`은 item ID/page/level/source/attention/limit 필터를 제공한다. metric/structural signal delta와 compare output directory 자동 탐색은 미착수다. |
 | Phase 6 | cache-aware sweep | 미착수 | analysis cache, matrix parser, ranking이 없다. |
-| Phase 7 | process/batch/OCR 통합과 문서화 | 주요 증분 완료 (2026-07-17) | `batch` 공통 계약과 durable manifest, OCR batch 최소 page/progress, project skill installer, README의 quick start·artifact·stdout/stderr·exit-code 문서화를 완료했다. `processing.ocr_policy=auto|always` 계약 정리가 남았다. |
+| Phase 7 | process/batch/OCR 통합과 문서화 | 완료 (2026-07-17) | `batch` 공통 계약과 durable manifest, OCR batch 최소 page/progress, project skill installer, README 문서화를 완료했다. `processing.ocr_policy`는 실행 가능한 `never`만 schema에 노출하고 `auto|always`를 config 단계에서 거부한다. |
 
 ## 3. Phase 0 진행 상태
 
@@ -404,7 +404,8 @@ Phase 2 완료 조건:
 
 남은 범위:
 
-- `ocr_policy`를 실제로 연결하거나 public contract에서 unsupported 상태로 정리
+- 없음. 자동 OCR 연결은 credential·비용·cache·overwrite 정책을 포함한 별도
+  기능으로 다시 설계하기 전까지 public contract에 포함하지 않는다.
 
 ## 8. 다음 작업자 체크리스트 (완료: 2026-07-16, §13 참고)
 
@@ -796,7 +797,7 @@ OCR 통합과 문서화) 중 하나로 넘어가는 것이 다음 자연스러�
 - 저장소 전체 Ruff는 기존 experiment/reference 파일의 lint 18건과 format 91건이
   남아 있어 아직 release acceptance를 통과하지 않는다. 변경 파일 검사는 통과했다.
 
-### 16.4 다음 작업 우선순위
+### 16.4 당시 다음 작업 우선순위
 
 1. `processing.ocr_policy` 계약을 닫는다. `auto|always`를 실제 overlay workflow에
    연결하려면 credential, 비용, cache와 overwrite confirmation을 함께 설계해야
@@ -812,3 +813,55 @@ OCR 통합과 문서화) 중 하나로 넘어가는 것이 다음 자연스러�
 5. Phase 6 analysis cache는 위 0.1.0 blocker 이후 시작한다. 첫 수직 단위는
    input/extraction config hash 기반 `PdfAnalysis` cache read/write와 manifest
    hit/miss 기록으로 제한한다. sweep matrix와 자동 best-plan 선택은 후속이다.
+
+위 목록의 1번 `processing.ocr_policy` 계약은 §17에서 완료했다. 최신 우선순위는
+§17.3을 따른다.
+
+## 17. 2026-07-17 갱신: unsupported OCR policy fail-fast
+
+### 17.1 결정과 구현
+
+- 실험 커밋: `582244f` (`exp: validate supported OCR policy contract`)
+- 구현 커밋: `0d96330` (`fix: reject unsupported OCR policies`)
+- implementation note 커밋: `37f07c4` (노트 067)
+- 실제 데이터 showcase 커밋: `d46787a` (showcase 030)
+- 실험 `107_ocr_policy_supported_contract.py`가 기존 `auto|always`가 direct
+  `ProcessingConfig`, data loader와 `--set` 세 경로에서 모두 허용되지만 실제
+  OCR은 실행하지 않는 불일치를 재현했다.
+- `ProcessingConfig.ocr_policy`의 public type과 JSON Schema enum을
+  `Literal[\"never\"]`로 축소했다. `auto|always`와 그 밖의 값은 별도
+  `ocr-overlay`/`ocr-overlay-batch` workflow를 안내하는 `ConfigError`로 거부한다.
+- `config validate`, `process`, `infer`, `batch`는 공통 resolver를 사용하므로
+  unsupported 값은 PDF 분석, output directory 생성과 외부 OCR API 호출 전에
+  exit 2로 종료된다.
+- 도달할 수 없게 된 `Processor.run()`의 늦은 warning 분기를 제거했다. 기본
+  `never` 실행 결과와 config schema version 1은 유지한다. 미출시 v1에서 실제로
+  동작하지 않던 값을 제거하는 contract correction이므로 schema version은 올리지
+  않았다.
+- README, repo-local `use-pdfbooktree` skill과 package bundle의 CLI/Python/config
+  계약을 함께 갱신했다.
+
+### 17.2 실제 데이터 검증
+
+- showcase 030은 실제 Hull PDF 881쪽을 `process` CLI에 전달하면서
+  `processing.ocr_policy=always`를 지정했다.
+- config schema는 `enum=[\"never\"]`만 반환했고, TOML의 `auto`와 process
+  `--set`의 `always`는 모두 `ConfigError`, exit 2, stderr JSON envelope로
+  종료됐다.
+- process output directory는 생성되지 않았다. synthetic PDF, mock OCR이나 외부
+  API 호출 없이 실제 public config/CLI의 fail-fast 경계를 확인했다.
+- `uv run --no-sync pytest -q`는 291개가 통과했고, 이번 변경 Python 파일의
+  Ruff lint/format 검사는 통과했다. 저장소 전체 Ruff baseline의 기존 lint 18건과
+  format 91건은 별도 release blocker로 남아 있다.
+
+### 17.3 다음 작업 우선순위
+
+1. Markdown graph release acceptance를 닫는다. 실제 Obsidian vault에서 graph와
+   backlink를 확인하고 release TODO의 구현·검증 항목을 코드와 showcase 근거에
+   맞춰 audit한다.
+2. LICENSE/PyPI metadata, `uv build`, 깨끗한 wheel 설치, package skill 포함 여부,
+   CLI smoke test와 전체 Ruff lint/format으로 배포 baseline을 완성한다.
+3. review item을 수정한 plan으로 저장하고 `apply`하는 실제 end-to-end showcase를
+   추가한다.
+4. 위 0.1.0 blocker 이후 Phase 6 `PdfAnalysis` cache read/write와 manifest
+   hit/miss 기록을 첫 수직 단위로 시작한다.

@@ -99,6 +99,12 @@ pdfbooktree ocr-overlay-batch .\data\300STUDY `
   --dry-run
 ```
 
+`processing.ocr_policy`는 현재 `never`만 지원한다. `auto|always`는 config
+validation에서 exit 2로 거부한다. OCR이 필요하면 위 `ocr-overlay-batch` 또는
+단일 PDF용 `ocr-overlay`를 먼저 실행하고 생성된 OCR PDF를 `infer`/`process`에
+전달한다. 이렇게 해야 credential, API 비용, cache와 기존 bookmark overwrite를
+명시적으로 통제할 수 있다.
+
 기존 북마크가 있는 PDF는 기본적으로 새 구조 추론에서 제외한다. 기존 북마크의 품질이 낮을 때만 교체하려면 다음 설정을 사용한다.
 
 ```powershell
