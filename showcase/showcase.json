@@ -376,6 +376,18 @@
       "finding": "clean wheel install=True, version=pdfbooktree 0.1.0, License-Expression=MIT, License-File=LICENSE, 실제 PDF 2쪽 processed, bookmark=1, Markdown manifest 생성=True, package skill file=5",
       "command": "uv run --no-sync python showcase/031_wheel_install_smoke.py",
       "ran_at": "2026-07-17T14:23:49+09:00"
+    },
+    {
+      "id": "032_agent_edit_validate_apply",
+      "purpose": "실제 637-page OCR 책의 review evidence로 false positive를 제거한 뒤 plan 비교, apply dry-run과 실제 PDF/Markdown 적용 전체 흐름을 검증한다.",
+      "inputs": [
+        "showcase\\outputs\\014_ocr_overlay_math_statistics\\pdfs\\수리통계학(개정판)-김우철_upocr_merged_ocr.pdf",
+        "showcase\\outputs\\029_bookmark_review_progressive_inspection\\ocr_math_statistics\\bookmark_plan.json"
+      ],
+      "outputs": "showcase\\outputs\\032_agent_edit_validate_apply",
+      "finding": "실제 OCR plan 74개에서 page 98의 n0008 false positive 1개를 제거했다. dry-run valid=True, 실제 apply bookmark=73, Markdown graph valid=True.",
+      "command": "uv run --no-sync python showcase/032_agent_edit_validate_apply.py",
+      "ran_at": "2026-07-17T20:39:03+09:00"
     }
   ]
 }
