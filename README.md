@@ -17,18 +17,34 @@ OCR 텍스트가 있는 PDF 책의 시각적 제목 구조를 분석해 계층�
 
 두 신호를 함께 사용해 특정 책에만 맞춘 규칙이 아니라 여러 스캔·OCR PDF에 적용할 수 있는 방법을 지향한다. 모든 페이지의 텍스트 줄을 분석하고 머리말·꼬리말 같은 여백 요소를 제거한 뒤, 글자 크기 계층과 위치 관계를 바탕으로 제목 후보와 북마크 계층을 계산한다. 글자 크기만으로 놓치는 제목은 위치 패턴으로 보완한다.
 
-입력 PDF에는 추출 가능한 텍스트가 있어야 한다. Upstage Document Parse를 이용해 OCR 텍스트를 입히는 기능도 제공하지만 이는 선택적인 전처리다. 핵심 기능은 OCR된 책에서 북마크 구조를 복원하는 것이다.
+입력 PDF에는 추출 가능한 텍스트가 있어야 한다. Upstage Document Parse를 이용해
+OCR 텍스트를 입히는 기능도 제공하지만 이는 선택적인 전처리다. 핵심 기능은
+OCR된 책에서 북마크 구조를 복원하는 것이다.
 
 기존 북마크가 잘 구성된 일반 PDF는 새로 추론하지 않고 그 계층을 그대로 사용해 본문이 들어 있는 Markdown 디렉터리와 파일을 만든다.
+
+현재 지원 경계는 다음과 같다.
+
+- Python 3.12 이상과 Windows 환경에서 검증했다. Linux wheel smoke test는
+  0.1.0 배포 gate에 남아 있다.
+- password가 필요한 encrypted PDF는 현재 password 입력 인터페이스를 제공하지
+  않는다.
+- text layer가 없는 scan PDF는 먼저 `ocr-overlay` 또는 `ocr-overlay-batch`로
+  별도 OCR PDF를 만들어야 한다.
+- 복잡한 표, 수식, figure의 semantic 구조를 복원하지 않는다. Markdown 본문은
+  PDF의 추출 가능 text를 page 단위로 보존한다.
 
 ## 설치
 
 Python 3.12 이상이 필요하다.
 
 ```powershell
-python -m pip install .
+python -m pip install pdfbooktree
 pdfbooktree --help
+pdfbooktree --version
 ```
+
+source checkout에서 개발할 때만 `python -m pip install .`을 사용한다.
 
 Codex가 현재 project에서 `pdfbooktree`의 전체 CLI와 Python API 사용법을 알 수 있도록 package에 번들된 project scope skill을 설치할 수 있다.
 
@@ -76,6 +92,13 @@ pdfbooktree apply $pdf `
 
 모든 Markdown은 첫 줄부터 표준 YAML front matter를 가지며 parent, children, previous, next wiki link로 이동할 수 있다. 기본 tree의 `content_mode=direct`는 다음 bookmark 전까지의 page만 node에 넣는다. length-limited split은 `export_mode=split`, `content_mode=bounded`를 사용하고 선택된 boundary가 원래 plan의 node ID, source, confidence와 evidence reference를 유지한다.
 
+Obsidian에서 사용할 때는 `<input-stem>_markdown` 또는
+`<input-stem>_markdown_split` directory를 vault로 지정한다. `toc.md`에서 시작하면
+wiki link와 backlink 방향이 `markdown_manifest.json`의
+parent/children/previous/next 관계와 동일하다. 릴리스 acceptance는 GUI 수동 확인이
+아니라 표준 YAML parse, link target, 관계 대칭성과 TOC 도달성의 자동 validation을
+기준으로 한다.
+
 ```powershell
 pdfbooktree process "book.pdf" -o .\runs `
   --max-words 10000 --max-words-coverage 0.95 --format json
@@ -104,6 +127,19 @@ validation에서 exit 2로 거부한다. OCR이 필요하면 위 `ocr-overlay-ba
 단일 PDF용 `ocr-overlay`를 먼저 실행하고 생성된 OCR PDF를 `infer`/`process`에
 전달한다. 이렇게 해야 credential, API 비용, cache와 기존 bookmark overwrite를
 명시적으로 통제할 수 있다.
+
+내장 OCR provider는 Upstage Document Parse다. live OCR 전에 API key를 환경
+변수로 설정해야 하며 외부 API 호출 비용이 발생할 수 있다.
+
+```powershell
+$env:UPSTAGE_API_KEY = "<upstage-api-key>"
+pdfbooktree ocr-overlay "scan.pdf" -o ".\scan_ocr.pdf"
+```
+
+## 라이선스
+
+MIT License로 배포한다. 상업적 이용, 수정, 재배포를 포함해 누구나 사용할 수
+있으며 저작권 고지와 라이선스 고지를 유지해야 한다.
 
 기존 북마크가 있는 PDF는 기본적으로 새 구조 추론에서 제외한다. 기존 북마크의 품질이 낮을 때만 교체하려면 다음 설정을 사용한다.
 

@@ -865,3 +865,51 @@ OCR 통합과 문서화) 중 하나로 넘어가는 것이 다음 자연스러�
    추가한다.
 4. 위 0.1.0 blocker 이후 Phase 6 `PdfAnalysis` cache read/write와 manifest
    hit/miss 기록을 첫 수직 단위로 시작한다.
+
+## 18. 2026-07-17 갱신: release TODO codebase 동기화
+
+- `docs/review/to-do-before-release.md`의 Markdown graph와 bookmark review
+  체크리스트를 현재 production code, 전체 테스트와 showcase 028~030 근거에 맞춰
+  갱신했다.
+- tree/split graph의 표준 YAML, 고유 node path, parent/children/previous/next
+  relation, TOC 도달성, direct/bounded page 비중복, source/confidence/evidence
+  보존과 manifest 연결은 구현 및 자동 검증이 끝났다.
+- 실제 Obsidian GUI 수동 확인은 release acceptance에서 제외한다. Obsidian-compatible
+  wiki link의 target과 양방향 relation은 graph validator와 실제 PDF showcase로
+  검증한다.
+- `uv run --no-sync pytest -q`는 293개가 통과한다. 장시간 OCR overlay가 project
+  `.venv`의 실행 파일을 사용하고 있으므로 OCR 작업이 끝날 때까지 저장소 검증은
+  `--no-sync`를 사용하고 해당 프로세스를 종료하거나 environment sync를 시도하지
+  않는다.
+- 다음 우선순위는 LICENSE/PyPI metadata, CLI `--version`, build와 clean wheel
+  install smoke test, package skill 포함 검사와 전체 Ruff baseline으로 구성된 배포
+  준비다. LICENSE 종류는 저장소 소유자의 명시적 선택이 필요하다.
+
+## 19. 2026-07-17 갱신: 배포 baseline 1차 증분
+
+- 실험 108에서 기존 source의 sdist/wheel 생성과 package skill 파일 5개 포함,
+  실제 2-page MIT OCW PDF inspect 성공을 확인했다. 동시에 LICENSE expression,
+  project URLs, keywords/classifiers와 `pdfbooktree --version` 누락을 재현했다.
+- `pyproject.toml`에 GitHub project URLs, keywords와 alpha 상태 classifiers를
+  추가했다. LICENSE field는 저장소 소유자의 종류 선택 전까지 넣지 않았다.
+- CLI에 설치 metadata를 읽는 `pdfbooktree --version`을 추가하고 별도 계약 테스트를
+  만들었다.
+- README에 PyPI 설치 명령, 지원/비지원 경계, Windows 검증 상태, OCR
+  `UPSTAGE_API_KEY`와 외부 비용, generated graph를 vault로 사용하는 방법을
+  추가했다.
+- `scripts/smoke-test-wheel.ps1`은 project `.venv`와 독립된 Python 3.12 clean venv를
+  만들고 wheel 설치, `--help`/`--version`, config schema, 실제 PDF inspect/process,
+  Markdown manifest와 package skill 파일 5개를 검증한다.
+- showcase 031에서 위 smoke를 실제 16,726-byte, 2-page MIT OCW PDF로 실행했다.
+  clean wheel의 `process`가 bookmark 1개와 Markdown manifest를 만들었고 모든
+  validation이 통과했다.
+- release Ruff scope는 production/public surface와 유지 대상 도구인
+  `src/`, `tests/`, `scripts/`, `showcase/` 등을 포함하고 역사적 PoC
+  `experiments/`와 외부 비교 자료 `references/`를 제외한다. 이 scope의
+  `ruff check .`와 `ruff format --check .`은 145개 파일을 대상으로 통과했고,
+  전체 `uv run --no-sync pytest -q`는 293개가 통과했다.
+- MIT `LICENSE`를 추가하고 `pyproject.toml`에 `license = "MIT"`와
+  `license-files = ["LICENSE"]`를 선언했다. clean wheel metadata에서
+  `License-Expression=MIT`, `License-File=LICENSE`를 확인했다.
+- 다음 배포 blocker는 Linux smoke/CI다. review item 수정 → `apply` showcase는
+  그 다음 독립 작업이다.

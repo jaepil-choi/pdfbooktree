@@ -20,20 +20,45 @@ artifact, agent review 흐름, 성능과 배포 경험을 기준으로 한다.
 
 ### 2.1 `0.1.0` 전에 반드시 완료할 범위
 
-- [ ] Markdown front matter를 표준 YAML parser와 Obsidian에서 읽을 수 있게 만든다.
-- [ ] 모든 node Markdown에 고유하고 의미 있는 파일명을 부여한다.
-- [ ] 모든 node 사이에 parent, children, previous, next wiki link를 생성한다.
-- [ ] root TOC에서 모든 root node로 이동할 수 있게 한다.
-- [ ] parent 문서는 child 전체 본문을 기본으로 중복 저장하지 않고 child link를
+- [x] Markdown front matter를 표준 YAML parser로 읽을 수 있게 만든다.
+- [x] 모든 node Markdown에 고유하고 의미 있는 파일명을 부여한다.
+- [x] 모든 node 사이에 parent, children, previous, next wiki link를 생성한다.
+- [x] root TOC에서 모든 root node로 이동할 수 있게 한다.
+- [x] parent 문서는 child 전체 본문을 기본으로 중복 저장하지 않고 child link를
       통해 점진적으로 내려가게 한다.
-- [ ] bookmark plan의 source, confidence, evidence를 Markdown과 review artifact에서
+- [x] bookmark plan의 source, confidence, evidence를 Markdown과 review artifact에서
       잃지 않는다.
-- [ ] agent가 bookmark를 eye check할 수 있는 plan summary, item detail, 주변 text와
+- [x] agent가 bookmark를 eye check할 수 있는 plan summary, item detail, 주변 text와
       근거 artifact 탐색 흐름을 제공한다.
 - [x] 현재 동작하지 않는 `processing.ocr_policy=auto|always` 계약을 실제로
       구현하거나 설정 단계에서 명시적으로 거부한다.
-- [ ] LICENSE와 PyPI metadata를 추가하고 wheel 설치 smoke test를 자동화한다.
-- [ ] 전체 test, Ruff lint, Ruff format 검증을 통과한다.
+- [x] MIT LICENSE를 추가하고 `pyproject.toml`에 license와 license file을 선언한다.
+- [x] clean wheel 설치 smoke test를 자동화한다.
+- [x] 전체 test와 release Ruff lint/format 검증을 통과한다.
+
+2026-07-17 현재 codebase 동기화:
+
+- Markdown graph 구현은 `tests/test_markdown_graph_export.py`,
+  `tests/test_bpe_markdown_split.py`와 실제 Shreve PDF를 사용한 showcase 028에서
+  YAML, node identity, wiki relation, page coverage, source/confidence/evidence
+  보존을 검증했다.
+- bookmark review 구현은 `tests/test_bookmark_review.py`,
+  `tests/test_inspection.py`와 실제 native/OCR PDF를 사용한 showcase 029에서
+  summary → attention item → item detail → 원문 page 흐름을 검증했다.
+- `uv run --no-sync pytest -q`는 293개 테스트가 통과한다. 장시간 실행 중인
+  OCR overlay가 project `.venv`의 `pdfbooktree.exe`를 사용하고 있으므로 해당
+  작업이 끝날 때까지 이 저장소의 검증은 `--no-sync`를 사용한다.
+- 별도 Python 3.12 clean venv에 새 wheel을 설치하고 `--help`, `--version`,
+  config schema, 실제 2-page MIT OCW PDF inspect/process와 package skill 파일
+  5개 설치를 검증했다. project `.venv`는 사용하거나 동기화하지 않았다.
+- `experiments/`와 `references/`는 역사적 PoC와 외부 비교 자료이므로 release Ruff
+  scope에서 제외한다. 나머지 145개 파일은 `ruff check .`와
+  `ruff format --check .`을 통과한다. 변경한 실험 파일은 별도 명시 경로로 Ruff를
+  실행한다.
+- Obsidian GUI 수동 확인은 릴리스 acceptance에 포함하지 않는다. 표준 YAML parse,
+  wiki link 무결성, 관계 대칭성, TOC 도달성의 자동 validation과 실제 PDF showcase를
+  acceptance 근거로 사용한다.
+- MIT LICENSE/PyPI metadata와 Windows clean-wheel smoke test를 완료했다.
 
 ### 2.2 릴리스 후로 미뤄도 되는 범위
 
@@ -80,15 +105,15 @@ evidence_ref: "../../bookmark_plan.json#n0001"
 
 구현 체크리스트:
 
-- [ ] front matter가 파일의 첫 줄에서 시작하게 한다.
-- [ ] title과 문자열 값은 YAML escaping을 적용한다.
-- [ ] `null`, boolean, number, list가 문자열로 변형되지 않게 한다.
-- [ ] `yaml.safe_load()` 같은 표준 parser로 모든 생성 파일을 검증한다.
-- [ ] `schema_version`을 넣어 향후 metadata 변경을 구분한다.
-- [ ] 1-based PDF page convention을 유지한다.
-- [ ] `source`, `confidence`, `evidence_count`, `evidence_ref`를 보존한다.
-- [ ] 기존 outline에서 온 node도 `source=existing_outline`을 명시한다.
-- [ ] tree export와 length-limited split export가 같은 metadata 이름과 의미를
+- [x] front matter가 파일의 첫 줄에서 시작하게 한다.
+- [x] title과 문자열 값은 YAML escaping을 적용한다.
+- [x] `null`, boolean, number, list가 문자열로 변형되지 않게 한다.
+- [x] `yaml.safe_load()` 같은 표준 parser로 모든 생성 파일을 검증한다.
+- [x] `schema_version`을 넣어 향후 metadata 변경을 구분한다.
+- [x] 1-based PDF page convention을 유지한다.
+- [x] `source`, `confidence`, `evidence_count`, `evidence_ref`를 보존한다.
+- [x] 기존 outline에서 온 node도 `source=existing_outline`을 명시한다.
+- [x] tree export와 length-limited split export가 같은 metadata 이름과 의미를
       사용한다.
 
 `confidence`는 정확도 확률이 아니라 현재 pipeline이 남긴 heuristic evidence
@@ -111,14 +136,14 @@ evidence_ref: "../../bookmark_plan.json#n0001"
 
 구현 체크리스트:
 
-- [ ] 1-based global `order`를 zero padding한 prefix로 사용한다.
-- [ ] `L<level>`과 `p<pdf_page>`를 파일명에 포함한다.
-- [ ] 사람이 알아볼 수 있는 sanitize된 title slug를 포함한다.
-- [ ] 같은 title과 같은 page가 반복되어도 global order로 충돌하지 않게 한다.
-- [ ] Windows reserved name, trailing dot/space, 너무 긴 경로를 안전하게 처리한다.
-- [ ] 실제 title은 파일명이 아니라 front matter에 손실 없이 보존한다.
-- [ ] rename 규칙과 node ID가 실행 중 결정론적이어야 한다.
-- [ ] `toc.json` 또는 별도 manifest에 `node_id -> relative_path` mapping을 기록한다.
+- [x] 1-based global `order`를 zero padding한 prefix로 사용한다.
+- [x] `L<level>`과 `p<pdf_page>`를 파일명에 포함한다.
+- [x] 사람이 알아볼 수 있는 sanitize된 title slug를 포함한다.
+- [x] 같은 title과 같은 page가 반복되어도 global order로 충돌하지 않게 한다.
+- [x] Windows reserved name, trailing dot/space, 너무 긴 경로를 안전하게 처리한다.
+- [x] 실제 title은 파일명이 아니라 front matter에 손실 없이 보존한다.
+- [x] rename 규칙과 node ID가 실행 중 결정론적이어야 한다.
+- [x] `markdown_manifest.json`에 `node_id -> relative_path` mapping을 기록한다.
 
 directory hierarchy는 유지할 수 있지만 Markdown basename은 전체 vault에서
 유일해야 한다. 그래야 Obsidian의 shortest-path wiki link와 agent 검색 결과가
@@ -148,16 +173,16 @@ directory hierarchy는 유지할 수 있지만 Markdown basename은 전체 vault
 
 구현 체크리스트:
 
-- [ ] YAML metadata와 Markdown navigation block 양쪽에 동일한 관계를 기록한다.
-- [ ] 없는 관계는 `null` 또는 빈 list로 일관되게 표현한다.
-- [ ] link target은 생성된 실제 파일과 정확히 일치해야 한다.
-- [ ] link label은 원본 bookmark title을 사용한다.
-- [ ] `toc.md`의 모든 항목을 실제 node wiki link로 만든다.
-- [ ] parent/children link가 서로 대칭인지 검증한다.
-- [ ] previous/next가 전체 plan 순서에서 서로 대칭인지 검증한다.
-- [ ] dangling link, duplicate node ID, duplicate output path가 0개인지 검증한다.
-- [ ] Obsidian에서 vault로 열었을 때 graph와 backlinks가 정상 생성되는지 실제
-      output으로 showcase한다.
+- [x] YAML metadata와 Markdown navigation block 양쪽에 동일한 관계를 기록한다.
+- [x] 없는 관계는 `null` 또는 빈 list로 일관되게 표현한다.
+- [x] link target은 생성된 실제 파일과 정확히 일치해야 한다.
+- [x] link label은 원본 bookmark title을 사용한다.
+- [x] `toc.md`의 모든 항목을 실제 node wiki link로 만든다.
+- [x] parent/children link가 서로 대칭인지 검증한다.
+- [x] previous/next가 전체 plan 순서에서 서로 대칭인지 검증한다.
+- [x] dangling link, duplicate node ID, duplicate output path가 0개인지 검증한다.
+- [x] Obsidian-compatible wiki link의 target, 관계와 backlink 방향을 실제 PDF
+      output과 graph validator로 검증한다.
 
 ### 3.4 본문 중복 제거와 progressive disclosure
 
@@ -175,16 +200,16 @@ agent retrieval 결과에 같은 문장이 반복되는 원인이 된다.
 
 구현 체크리스트:
 
-- [ ] direct child가 시작하기 전까지의 text를 parent의 직접 본문으로 정의한다.
-- [ ] 같은 PDF page에 parent와 child가 함께 시작하는 경우의 소유 규칙을 문서화한다.
-- [ ] 기본 export에서 동일 page text가 여러 node에 반복되지 않게 한다.
-- [ ] 기존처럼 subtree 전체를 포함하는 결과가 필요하면 명시적
+- [x] direct child가 시작하기 전까지의 text를 parent의 직접 본문으로 정의한다.
+- [x] 같은 PDF page에 parent와 child가 함께 시작하는 경우의 소유 규칙을 문서화한다.
+- [x] 기본 export에서 동일 page text가 여러 node에 반복되지 않게 한다.
+- [x] 기존처럼 subtree 전체를 포함하는 결과가 필요하면 명시적
       `content_mode="inclusive"` 호환 option으로 제공한다.
-- [ ] 본문이 없는 parent도 children navigation만 가진 유효한 문서로 생성한다.
-- [ ] 첫 bookmark 이전 page를 front matter node로 만들지, unassigned page로
+- [x] 본문이 없는 parent도 children navigation만 가진 유효한 문서로 생성한다.
+- [x] 첫 bookmark 이전 page를 front matter node로 만들지, unassigned page로
       manifest에 남길지 정책을 정한다.
-- [ ] 누락 page, 빈-text page, 중복 page, unassigned page 수를 manifest에 기록한다.
-- [ ] `toc.md`와 node metadata만 먼저 읽어도 전체 구조를 파악할 수 있게 한다.
+- [x] 누락 page, 빈-text page, 중복 page, unassigned page 수를 manifest에 기록한다.
+- [x] `toc.md`와 node metadata만 먼저 읽어도 전체 구조를 파악할 수 있게 한다.
 
 ### 3.5 Markdown graph manifest
 
@@ -205,10 +230,10 @@ agent가 모든 Markdown을 열지 않고도 output을 조사할 수 있도록 r
 
 구현 체크리스트:
 
-- [ ] `inspect plan`이 manifest 존재 여부와 graph validation 결과를 보여준다.
-- [ ] run manifest가 `markdown_manifest.json`을 output artifact로 연결한다.
-- [ ] tree와 split output을 구분하는 export mode를 기록한다.
-- [ ] node 파일을 전부 읽지 않고도 relation과 coverage를 JSON으로 조사할 수 있다.
+- [x] `inspect plan`이 manifest 존재 여부와 graph validation 결과를 보여준다.
+- [x] run manifest가 `markdown_manifest.json`을 output artifact로 연결한다.
+- [x] tree와 split output을 구분하는 export mode를 기록한다.
+- [x] node 파일을 전부 읽지 않고도 relation과 coverage를 JSON으로 조사할 수 있다.
 
 ## 4. P0: bookmark eye-check를 위한 review evidence 강화
 
@@ -356,7 +381,7 @@ API 비용, cache, 기존 bookmark 보호와 원본 비파괴 정책을 함께 �
 
 ## 7. P1: CLI와 Python 사용성
 
-- [ ] `pdfbooktree --version`을 제공한다.
+- [x] `pdfbooktree --version`을 제공한다.
 - [ ] `pdfbooktree doctor`로 PDF library, optional OCR credential과 output 쓰기 권한을
       확인한다.
 - [ ] terminal 폭이 좁아도 option 이름이 잘리지 않는 plain help를 제공한다.
@@ -370,32 +395,33 @@ API 비용, cache, 기존 bookmark 보호와 원본 비파괴 정책을 함께 �
 
 ### 8.1 package metadata
 
-- [ ] 오픈소스 LICENSE를 선택하고 `LICENSE` 파일을 추가한다.
-- [ ] `pyproject.toml`에 license를 선언한다.
-- [ ] project URLs(repository, documentation, issue tracker)를 추가한다.
-- [ ] classifiers와 keywords를 추가한다.
-- [ ] README 설치 예시를 `pip install pdfbooktree` 기준으로 바꾼다.
-- [ ] 지원 Python과 운영체제를 명시한다.
-- [ ] OCR 기능에는 Upstage credential과 외부 비용이 필요하다는 점을 명시한다.
+- [x] MIT `LICENSE` 파일을 추가한다.
+- [x] `pyproject.toml`에 `license = "MIT"`와 `license-files = ["LICENSE"]`를 선언한다.
+- [x] project URLs(repository, documentation, issue tracker)를 추가한다.
+- [x] classifiers와 keywords를 추가한다.
+- [x] README 설치 예시를 `pip install pdfbooktree` 기준으로 바꾼다.
+- [x] 지원 Python과 운영체제를 명시한다.
+- [x] OCR 기능에는 Upstage credential과 외부 비용이 필요하다는 점을 명시한다.
 
 ### 8.2 배포 검증
 
-- [ ] `uv build`로 sdist와 wheel을 생성한다.
-- [ ] 깨끗한 virtual environment에 wheel을 설치한다.
-- [ ] `pdfbooktree --help`, `--version`, config와 inspect smoke test를 실행한다.
-- [ ] package에 skill template 전체가 포함됐는지 검사한다.
-- [ ] source checkout이 아닌 설치 wheel에서 작은 실제 PDF를 처리한다.
+- [x] `uv build`로 sdist와 wheel을 생성한다.
+- [x] 깨끗한 virtual environment에 wheel을 설치한다.
+- [x] `pdfbooktree --help`, `--version`, config와 inspect smoke test를 실행한다.
+- [x] package에 skill template 전체가 포함됐는지 검사한다.
+- [x] source checkout이 아닌 설치 wheel에서 작은 실제 PDF를 처리한다.
 - [ ] Windows와 Linux에서 파일명, YAML, wiki link를 검증한다.
-- [ ] `uv run pytest`, `uv run ruff check`, `uv run ruff format --check`를 통과한다.
+- [x] `uv run --no-sync pytest`, `uv run --no-sync ruff check`,
+      `uv run --no-sync ruff format --check`를 통과한다.
 
 ### 8.3 공개 문서
 
 - [ ] 한국어 README와 영어 README 또는 영어 section을 제공한다.
-- [ ] 입력 PDF 요구사항과 지원하지 않는 문서 유형을 설명한다.
-- [ ] OCR 전처리와 bookmark 추론이 별도 단계임을 설명한다.
-- [ ] `infer -> review -> apply`를 기본 quick start로 유지한다.
-- [ ] Markdown graph를 Obsidian vault로 여는 예시를 추가한다.
-- [ ] generated file tree와 각 artifact의 역할을 예시로 보여준다.
+- [x] 입력 PDF 요구사항과 지원하지 않는 문서 유형을 설명한다.
+- [x] OCR 전처리와 bookmark 추론이 별도 단계임을 설명한다.
+- [x] `infer -> review -> apply`를 기본 quick start로 유지한다.
+- [x] Markdown graph를 Obsidian vault로 여는 예시를 추가한다.
+- [x] generated file tree와 각 artifact의 역할을 예시로 보여준다.
 - [ ] CHANGELOG, CONTRIBUTING, SECURITY 문서를 추가한다.
 
 ## 9. 구현 순서
@@ -407,7 +433,7 @@ API 비용, cache, 기존 bookmark 보호와 원본 비파괴 정책을 함께 �
 2. 같은 책으로 현재 `index.md` 방식과 새 graph 방식의 파일 수, 중복 text 양,
    dangling link와 agent 탐색 단계를 비교한다.
 3. public Markdown export에 node ID, 고유 파일명, 관계 link와 manifest를 추가한다.
-4. 실제 책으로 Obsidian graph와 progressive disclosure showcase를 만든다.
+4. 실제 책으로 Markdown graph와 progressive disclosure showcase를 만든다.
 5. review summary/item JSONL과 inspection CLI를 실제 plan에 연결한다.
 6. skill, README와 artifact 계약을 동기화한다.
 7. OCR policy 계약을 정리한다.
@@ -420,19 +446,20 @@ note 흐름을 따른다. 실험과 showcase는 해당 디렉터리의 기록 JS
 
 ## 10. 최종 release checklist
 
-- [ ] 모든 Markdown front matter가 표준 YAML로 parse된다.
-- [ ] 모든 Markdown 파일명이 전체 output에서 유일하다.
-- [ ] dangling wiki link가 없다.
-- [ ] parent/children 및 previous/next 관계가 대칭이다.
-- [ ] root TOC에서 모든 node에 도달할 수 있다.
-- [ ] 기본 export에 descendant 본문 중복이 없다.
-- [ ] source, confidence와 evidence reference가 plan에서 Markdown까지 보존된다.
-- [ ] agent가 summary에서 item detail과 원문 page까지 점진적으로 조사할 수 있다.
-- [ ] bookmark 내용 품질을 근거 없는 자동 score로 판정하지 않는다.
+- [x] 모든 Markdown front matter가 표준 YAML로 parse된다.
+- [x] 모든 Markdown 파일명이 전체 output에서 유일하다.
+- [x] dangling wiki link가 없다.
+- [x] parent/children 및 previous/next 관계가 대칭이다.
+- [x] root TOC에서 모든 node에 도달할 수 있다.
+- [x] 기본 export에 descendant 본문 중복이 없다.
+- [x] source, confidence와 evidence reference가 plan에서 Markdown까지 보존된다.
+- [x] agent가 summary에서 item detail과 원문 page까지 점진적으로 조사할 수 있다.
+- [x] bookmark 내용 품질을 근거 없는 자동 score로 판정하지 않는다.
 - [x] 공개 config에 동작하지 않는 값이 없다.
-- [ ] run manifest가 review와 Markdown graph artifact를 연결한다.
+- [x] run manifest가 review와 Markdown graph artifact를 연결한다.
 - [x] skill과 package bundle의 계약이 일치한다.
-- [ ] LICENSE와 PyPI metadata가 완성됐다.
-- [ ] wheel 설치 smoke test가 통과한다.
-- [ ] 전체 pytest, Ruff lint와 format check가 통과한다.
-- [ ] 실제 PDF showcase 결과가 기록됐다.
+- [x] MIT LICENSE와 PyPI metadata가 완성됐다.
+- [x] Windows clean venv wheel 설치 smoke test가 통과한다.
+- [x] `uv run --no-sync pytest -q`가 통과한다.
+- [x] release Ruff scope의 lint와 format check가 통과한다.
+- [x] 실제 PDF showcase 결과가 기록됐다.
