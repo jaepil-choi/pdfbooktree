@@ -913,3 +913,20 @@ OCR 통합과 문서화) 중 하나로 넘어가는 것이 다음 자연스러�
   `License-Expression=MIT`, `License-File=LICENSE`를 확인했다.
 - 다음 배포 blocker는 Linux smoke/CI다. review item 수정 → `apply` showcase는
   그 다음 독립 작업이다.
+
+## 20. 2026-07-17 갱신: cross-platform CI 준비
+
+- `.github/workflows/ci.yml`에 `windows-latest`와 `ubuntu-latest` matrix를
+  추가했다. 두 OS 모두 Python 3.12 locked sync, 전체 pytest, release Ruff
+  lint/format과 clean-wheel smoke를 실행한다.
+- uv 공식 GitHub Actions 가이드에 따라 `actions/checkout@v7`과 commit SHA로
+  고정한 `astral-sh/setup-uv` v8.1.0을 사용하고 uv version은 `0.11.28`로
+  고정했다.
+- `scripts/smoke_test_wheel.py`는 OS별 venv executable 경로를 해석하고 wheel
+  metadata, CLI help/version/config, package skill 설치를 공통 검증한다. 실제
+  PDF 경로를 주면 inspect/process와 Markdown manifest까지 추가 검증한다.
+- Windows local 실행은 실제 16,726-byte MIT OCW PDF 2쪽을 processed 상태로
+  만들고 bookmark 1개, MIT license file과 package skill 5개를 확인했다.
+- 전체 `uv run --no-sync pytest -q` 293개, release Ruff 146개 파일과 CI YAML
+  matrix parse가 통과했다. Linux 완료 표시는 workflow를 GitHub remote에서 실제
+  실행한 뒤에만 갱신한다.

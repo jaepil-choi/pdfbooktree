@@ -414,6 +414,11 @@ API 비용, cache, 기존 bookmark 보호와 원본 비파괴 정책을 함께 �
 - [x] `uv run --no-sync pytest`, `uv run --no-sync ruff check`,
       `uv run --no-sync ruff format --check`를 통과한다.
 
+`.github/workflows/ci.yml`은 `windows-latest`와 `ubuntu-latest` matrix에서 locked
+dependency 설치, 전체 pytest/Ruff와 cross-platform clean-wheel smoke를 실행한다.
+Windows에서는 같은 Python smoke script로 실제 PDF process까지 통과했다. Linux
+항목은 workflow를 remote에서 실제 실행해 성공한 뒤 완료 처리한다.
+
 ### 8.3 공개 문서
 
 - [ ] 한국어 README와 영어 README 또는 영어 section을 제공한다.
@@ -460,6 +465,7 @@ note 흐름을 따른다. 실험과 showcase는 해당 디렉터리의 기록 JS
 - [x] skill과 package bundle의 계약이 일치한다.
 - [x] MIT LICENSE와 PyPI metadata가 완성됐다.
 - [x] Windows clean venv wheel 설치 smoke test가 통과한다.
+- [ ] GitHub Actions의 Windows/Linux matrix가 실제로 통과한다.
 - [x] `uv run --no-sync pytest -q`가 통과한다.
 - [x] release Ruff scope의 lint와 format check가 통과한다.
 - [x] 실제 PDF showcase 결과가 기록됐다.
