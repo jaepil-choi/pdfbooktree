@@ -339,6 +339,19 @@
       "finding": "tree nodes=238, tree valid=True, split nodes=36, split valid=True, split evidence nodes=36, dangling=0",
       "command": "uv run python showcase/028_markdown_graph_progressive_review.py",
       "ran_at": "2026-07-17T09:40:21+09:00"
+    },
+    {
+      "id": "029_bookmark_review_progressive_inspection",
+      "purpose": "실제 native/OCR PDF에서 review summary, attention filter, item detail과 원문 page로 이어지는 progressive inspection 흐름을 검증한다.",
+      "inputs": [
+        "data\\native-pdf-indexed\\John Hull - Options, Futures, and Other Derivatives, Global Edition-Pearson (2021).pdf",
+        "data\\scanned-pdf-indexed\\(Springer Finance) Steven E. Shreve - Stochastic Calculus for Finance I The Binomial Asset Pricing Model-Springer (2005)-indexed.pdf",
+        "showcase\\outputs\\014_ocr_overlay_math_statistics\\pdfs\\수리통계학(개정판)-김우철_upocr_merged_ocr.pdf"
+      ],
+      "outputs": "showcase\\outputs\\029_bookmark_review_progressive_inspection",
+      "finding": "native_hull: plan=1098, attention=836, valid=True; scanned_indexed_shreve: plan=357, attention=270, valid=True; ocr_math_statistics: plan=74, attention=40, valid=True",
+      "command": "uv run python showcase/029_bookmark_review_progressive_inspection.py",
+      "ran_at": "2026-07-17T11:21:29+09:00"
     }
   ]
 }
