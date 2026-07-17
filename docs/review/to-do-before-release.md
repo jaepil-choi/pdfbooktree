@@ -45,14 +45,15 @@ artifact, agent review 흐름, 성능과 배포 경험을 기준으로 한다.
 - bookmark review 구현은 `tests/test_bookmark_review.py`,
   `tests/test_inspection.py`와 실제 native/OCR PDF를 사용한 showcase 029에서
   summary → attention item → item detail → 원문 page 흐름을 검증했다.
-- `uv run --no-sync pytest -q`는 293개 테스트가 통과한다. 장시간 실행 중인
+- `uv run --no-sync pytest -q`는 323개 테스트가 통과한다. 장시간 실행 중인
   OCR overlay가 project `.venv`의 `pdfbooktree.exe`를 사용하고 있으므로 해당
   작업이 끝날 때까지 이 저장소의 검증은 `--no-sync`를 사용한다.
 - 별도 Python 3.12 clean venv에 새 wheel을 설치하고 `--help`, `--version`,
-  config schema, 실제 2-page MIT OCW PDF inspect/process와 package skill 파일
-  5개 설치를 검증했다. project `.venv`는 사용하거나 동기화하지 않았다.
+  config schema, Unicode·Windows 예약 이름·특수문자 outline을 가진 생성 2-page
+  PDF의 inspect/process, YAML/wiki graph validation과 package skill 파일 5개
+  설치를 검증했다. project `.venv`는 사용하거나 동기화하지 않았다.
 - `experiments/`와 `references/`는 역사적 PoC와 외부 비교 자료이므로 release Ruff
-  scope에서 제외한다. 나머지 145개 파일은 `ruff check .`와
+  scope에서 제외한다. 나머지 151개 파일은 `ruff check .`와
   `ruff format --check .`을 통과한다. 변경한 실험 파일은 별도 명시 경로로 Ruff를
   실행한다.
 - Obsidian GUI 수동 확인은 릴리스 acceptance에 포함하지 않는다. 표준 YAML parse,
@@ -325,7 +326,7 @@ uv run pdfbooktree inspect text $pdf --pages 120-122 --format json
 - [x] bookmark 수가 적은 책, 많은 책, OCR 책, native 책을 각각 사용한다.
 - [x] summary만 읽고 review할 item을 선택할 수 있음을 보여준다.
 - [x] item detail에서 원문 page와 후보 근거까지 추적할 수 있음을 보여준다.
-- [ ] agent가 plan을 수정한 뒤 `apply`할 수 있는 전체 흐름을 보여준다.
+- [x] agent가 plan을 수정한 뒤 `apply`할 수 있는 전체 흐름을 보여준다.
 - [x] 자동 품질 판정이나 synthetic data로 성공을 주장하지 않는다.
 
 ## 5. P0: 공개 설정과 실제 동작 일치
@@ -354,6 +355,24 @@ API 비용, cache, 기존 bookmark 보호와 원본 비파괴 정책을 함께 �
 - [x] Python API와 CLI reference에 새 config와 결과 field를 추가한다.
 - [x] `agents/openai.yaml`의 설명과 예시를 갱신한다.
 - [x] README quick start에서 progressive disclosure review 흐름을 설명한다.
+
+### 5.3 릴리스 안전성과 장시간 작업
+
+- [x] OCR input/output 동일 경로를 `--force`와 무관하게 거부한다.
+- [x] OCR PDF를 sibling temporary file에 완전히 저장한 뒤 atomic replace하고,
+      실패 시 원본과 기존 output을 보존한다.
+- [x] Python OCR config가 engine, DPI, page, cache policy와 boolean 타입을
+      CLI와 같은 기준으로 검증한다.
+- [x] directory command가 `.PDF`를 대소문자와 무관하게 찾고 input 하위의 output
+      subtree를 자동 제외한다.
+- [x] 실패한 `ProcessingResult`가 존재하지 않는 예정 output 경로를 반환하지
+      않는다.
+- [x] `validate_plan()`과 `apply --dry-run`으로 plan을 파일 생성 없이 검증한다.
+- [x] process/infer가 page 추출과 단계별 progress를 rich/plain/JSONL로 제공하고
+      비TTY auto mode는 기존 무출력 계약을 유지한다.
+- [x] PDF 본문의 `[[...]]` 원문을 생성된 wiki navigation link로 오인하지 않는다.
+- [x] 실제 637-page OCR plan에서 false positive를 제거하고 dry-run과 실제 apply,
+      Markdown graph validation까지 showcase 032로 검증한다.
 
 ## 6. P1: 성능과 반복 작업 편의
 
@@ -386,7 +405,7 @@ API 비용, cache, 기존 bookmark 보호와 원본 비파괴 정책을 함께 �
       확인한다.
 - [ ] terminal 폭이 좁아도 option 이름이 잘리지 않는 plain help를 제공한다.
 - [ ] encrypted PDF를 위한 password 입력 방식을 검토한다.
-- [ ] batch include/exclude glob을 제공한다.
+- [x] batch include/exclude glob을 제공한다.
 - [ ] Python result에서 review summary, Markdown manifest와 node mapping에 바로
       접근할 수 있게 한다.
 - [ ] 예외 메시지에 다음 확인 명령과 관련 artifact 경로를 포함한다.
@@ -421,13 +440,13 @@ Windows에서는 같은 Python smoke script로 실제 PDF process까지 통과�
 
 ### 8.3 공개 문서
 
-- [ ] 한국어 README와 영어 README 또는 영어 section을 제공한다.
+- [x] 한국어 README와 영어 README 또는 영어 section을 제공한다.
 - [x] 입력 PDF 요구사항과 지원하지 않는 문서 유형을 설명한다.
 - [x] OCR 전처리와 bookmark 추론이 별도 단계임을 설명한다.
 - [x] `infer -> review -> apply`를 기본 quick start로 유지한다.
 - [x] Markdown graph를 Obsidian vault로 여는 예시를 추가한다.
 - [x] generated file tree와 각 artifact의 역할을 예시로 보여준다.
-- [ ] CHANGELOG, CONTRIBUTING, SECURITY 문서를 추가한다.
+- [x] CHANGELOG, CONTRIBUTING, SECURITY 문서를 추가한다.
 
 ## 9. 구현 순서
 
@@ -465,6 +484,9 @@ note 흐름을 따른다. 실험과 showcase는 해당 디렉터리의 기록 JS
 - [x] skill과 package bundle의 계약이 일치한다.
 - [x] MIT LICENSE와 PyPI metadata가 완성됐다.
 - [x] Windows clean venv wheel 설치 smoke test가 통과한다.
+- [x] OCR output 원본 보존, plan dry-run과 batch output subtree 제외가 검증됐다.
+- [x] process/infer progress JSONL과 stdout 결과가 분리된다.
+- [x] 실제 수정 plan의 dry-run과 apply showcase가 통과한다.
 - [ ] GitHub Actions의 Windows/Linux matrix가 실제로 통과한다.
 - [x] `uv run --no-sync pytest -q`가 통과한다.
 - [x] release Ruff scope의 lint와 format check가 통과한다.

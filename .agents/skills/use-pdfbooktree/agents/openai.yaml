@@ -1,4 +1,4 @@
 interface:
   display_name: "pdfbooktree 사용"
-  short_description: "PDF 책 구조화, evidence review와 Markdown graph 안내"
-  default_prompt: "$use-pdfbooktree를 사용해 설치 version과 PDF를 조사하고 필요하면 별도 OCR overlay를 실행한 뒤 북마크 review summary에서 item evidence와 원문 page를 점진적으로 검토하고 tree/split Markdown graph 작업을 수행하세요."
+  short_description: "PDF 구조화, plan dry-run과 Markdown graph 안내"
+  default_prompt: "$use-pdfbooktree를 사용해 설치 version과 PDF를 조사하고 필요하면 비파괴 OCR overlay를 실행한 뒤 review evidence로 plan을 검토·수정하고 apply --dry-run을 거쳐 PDF와 tree/split Markdown graph를 생성하세요."

@@ -54,6 +54,32 @@ pdfbooktree skill install
 
 현재 directory의 `.agents/skills/use-pdfbooktree`에 설치한다. 기존 skill은 기본적으로 보호하며, package의 최신 번들로 전체 교체할 때만 `--force`를 사용한다.
 
+## English quick start
+
+`pdfbooktree` turns a text-searchable PDF into a reviewed bookmark plan, a
+bookmarked PDF, and an Obsidian-friendly Markdown graph. Python 3.12 or newer is
+required.
+
+```powershell
+python -m pip install pdfbooktree
+$pdf = "book.pdf"
+pdfbooktree infer $pdf -o .\runs --format json
+pdfbooktree inspect plan "<infer run_dir>" --attention-only --limit 20 --format json
+pdfbooktree apply $pdf --plan "<infer run_dir>\bookmark_plan.json" `
+  -o .\runs --dry-run --format json
+pdfbooktree apply $pdf --plan "<infer run_dir>\bookmark_plan.json" `
+  -o .\runs --format json
+```
+
+The input must have an extractable text layer. For scanned PDFs, run
+`ocr-overlay` first. The built-in Upstage provider requires
+`UPSTAGE_API_KEY` and may incur external API charges. `--format json` writes
+one final envelope to stdout; `--log-mode json` writes progress events as
+JSONL to stderr. Exit codes are `0` for success, `1` for runtime errors, `2`
+for invalid input/config/plan, and `3` for a structurally invalid processing
+result. Password-protected PDFs and semantic reconstruction of complex tables,
+figures, or equations are not currently supported.
+
 ## 사용
 
 북마크 계획을 먼저 만들고 검토한 뒤 PDF와 Markdown에 적용하는 흐름을 권장한다.
@@ -67,6 +93,9 @@ pdfbooktree inspect plan "<infer 결과의 run_dir>" `
   --attention-only --limit 20 --format json
 pdfbooktree inspect plan "<infer 결과의 run_dir>" `
   --item-id n0042 --format json
+pdfbooktree apply $pdf `
+  --plan "<infer 결과의 run_dir>\bookmark_plan.json" `
+  -o .\runs --dry-run --format json
 pdfbooktree apply $pdf `
   --plan "<infer 결과의 run_dir>\bookmark_plan.json" `
   -o .\runs --format json
@@ -109,7 +138,9 @@ pdfbooktree inspect plan "<process 결과의 run_dir>" --format json
 
 ```powershell
 pdfbooktree process "book.pdf" -o .\runs --format json
-pdfbooktree batch .\books -o .\runs --recursive --log-mode json --format json
+pdfbooktree batch .\books -o .\runs --recursive `
+  --include-glob "*.pdf" --exclude-glob "archive/*" `
+  --log-mode json --format json
 ```
 
 OCR overlay batch는 최소 PDF page 수를 inclusive 기준으로 제한할 수 있다. 예를 들어 100쪽을 초과하는 PDF만 먼저 확인하려면 최소값을 101로 지정한다.
@@ -135,6 +166,10 @@ validation에서 exit 2로 거부한다. OCR이 필요하면 위 `ocr-overlay-ba
 $env:UPSTAGE_API_KEY = "<upstage-api-key>"
 pdfbooktree ocr-overlay "scan.pdf" -o ".\scan_ocr.pdf"
 ```
+
+`--output-dir`을 생략하면 OCR cache와 stats는 출력 PDF 옆의
+`scan_ocr_artifacts` 디렉터리에 저장된다. 입력 PDF와 출력 PDF는 같은 경로일 수
+없으며 `--force`도 이 보호를 우회하지 않는다.
 
 ## 라이선스
 
@@ -173,12 +208,20 @@ pdfbooktree infer "book.pdf" --set typography.position_fallback_enabled=false
 
 ```python
 from pathlib import Path
-from pdfbooktree import TypographyConfig, analyze_pdf, apply_plan, infer_bookmarks
+from pdfbooktree import (
+    TypographyConfig,
+    analyze_pdf,
+    apply_plan,
+    infer_bookmarks,
+    validate_plan,
+)
 
 pdf = Path("book.pdf")
 config = TypographyConfig()
 analysis = analyze_pdf(pdf, config)
 inference = infer_bookmarks(analysis, config)
+validation = validate_plan(pdf, inference.plan)
+assert validation.valid
 result = apply_plan(pdf, Path("output"), inference.plan, analysis.total_pages)
 ```
 
