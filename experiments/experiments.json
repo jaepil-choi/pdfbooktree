@@ -18972,6 +18972,31 @@
       },
       "finding": "현재 auto/always는 direct config, data loader, --set 세 경로에서 모두 허용되지만 실행되지 않는다. 후보 계약은 never만 schema에 노출하고 나머지는 별도 ocr-overlay workflow를 안내하며 ConfigError로 조기 거부한다.",
       "ran_at": "2026-07-17T12:24:34+09:00"
+    },
+    {
+      "id": "108_release_wheel_contract",
+      "purpose": "0.1.0 배포 전에 wheel 생성, package skill 포함, 실제 PDF inspect와 PyPI metadata/CLI version 누락을 한 번에 확인하는 baseline 계약을 검증한다.",
+      "inputs": [
+        "pyproject.toml",
+        "src/pdfbooktree",
+        "data\\300STUDY\\b_nonbooks\\b_lecture\\MIT OCW 18.06 Linear Algebra\\18-06sc-fall-2011\\18-06sc-fall-2011\\contents\\resource-index\\problem-solving-eigenvalues-and-eigenvectors\\mVeuZzJdd1w.pdf"
+      ],
+      "outputs": "experiments\\outputs\\108_release_wheel_contract\\result.json",
+      "method": "`uv run --no-sync` 환경에서 source CLI version/실제 PDF inspect를 호출하고, `uv build --no-index` wheel의 METADATA와 번들 skill 파일을 조사했다.",
+      "summary": {
+        "build_exit_code": 0,
+        "wheel_count": 1,
+        "package_skill_file_count": 5,
+        "sample_pdf_page_count": 2,
+        "version_exit_code": 2,
+        "license_missing": true,
+        "project_urls_missing": true,
+        "keywords_missing": true,
+        "classifiers_missing": true,
+        "baseline_reproduced": true
+      },
+      "finding": "sdist/wheel 생성과 실제 2-page MIT OCW PDF inspect는 성공했고 package skill 파일 5개가 모두 포함됐다. 반면 LICENSE expression, project URLs, keywords, classifiers와 `pdfbooktree --version`이 없어 배포 baseline의 실제 누락을 재현했다.",
+      "ran_at": "2026-07-17T13:10:05+09:00"
     }
   ]
 }
