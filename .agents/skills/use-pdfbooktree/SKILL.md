@@ -19,7 +19,7 @@ description: 이 저장소의 pdfbooktree Python API와 CLI를 사용해 PDF 책
 1. 입력을 빠르게 파악하려면 읽기 전용 `inspect page-count`, `inspect text`, `inspect bookmarks`를 사용하라.
 2. 디렉터리의 PDF를 선별하려면 `classify-scan`을 사용하라. 스캔 PDF이면서 의미 있는 bookmark가 없는 항목이 OCR batch target이다.
 3. OCR batch에서 일정 길이 이상의 책만 대상으로 삼으려면 `--min-page-count N`을 사용하라. `page_count >= N`인 문서만 target이 되며, 실제 호출 전 확인에는 `--dry-run`을 함께 사용하라.
-4. 추출 가능한 text가 없거나 부족하면 북마크 추론 전에 `ocr-overlay` 또는 `ocr-overlay-batch`를 별도 전처리로 실행하라. `ProcessingConfig.ocr_policy`만 설정해서 OCR이 자동 실행된다고 가정하지 마라.
+4. 추출 가능한 text가 없거나 부족하면 북마크 추론 전에 `ocr-overlay` 또는 `ocr-overlay-batch`를 별도 전처리로 실행하라. `ProcessingConfig.ocr_policy`는 현재 `never`만 지원하며 `auto|always`는 config validation에서 거부된다.
 5. 빠른 최종 결과가 필요하면 `process` 또는 `Processor.run()`을 사용하라.
 6. 계획을 검토·수정·비교해야 하면 `infer` → `inspect plan`/`inspect compare` → `apply` 흐름을 사용하라.
 7. 여러 PDF를 구조화하려면 `batch` 또는 `BatchProcessor.run()`을 사용하라.

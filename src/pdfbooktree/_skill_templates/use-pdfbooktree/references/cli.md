@@ -252,6 +252,11 @@ uv run pdfbooktree config validate .\pdfbooktree.toml `
   --set outline_quality.replace_when_low_quality=true --format json
 ```
 
+`processing.ocr_policy`는 현재 `never`만 지원한다. `auto|always`는
+`config validate`, `process`, `infer`, `batch`의 config 해석 단계에서
+`ConfigError`와 exit 2로 거부된다. OCR이 필요하면 `ocr-overlay` 또는
+`ocr-overlay-batch`를 먼저 실행하라.
+
 ## 자동화 계약
 
 - `--format json` 성공: stdout의 단일 `{"schema_version":1,"command":"...","ok":true,"result":...}` envelope를 parse하라.

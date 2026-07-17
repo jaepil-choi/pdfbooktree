@@ -119,6 +119,11 @@ versioned TOML의 top-level은 `schema_version`, `[processing]`, `[typography]`,
 
 `--set` 값은 TOML scalar 문법으로 먼저 해석한다. boolean은 `true`/`false`, string은 필요할 때 따옴표로 표현하라. 지원 field를 기억에 의존하지 말고 `config explain`으로 확인하라.
 
+`processing.ocr_policy`의 지원 enum은 현재 `never` 하나다. `auto|always`는
+실행되지 않는 warning 계약으로 남기지 않고 config 입력 오류로 조기 거부한다.
+OCR credential, 비용, cache와 overwrite policy는 별도 `ocr-overlay` workflow에서
+명시적으로 선택한다.
+
 `config_hash`는 최종 resolved config에서 계산된다. 결과 비교 시 입력 PDF hash와 config hash를 함께 기록하라.
 
 ## CLI stream과 종료 코드

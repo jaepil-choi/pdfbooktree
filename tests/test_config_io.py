@@ -141,7 +141,8 @@ def test_schema와_specs는_전체_public_field를_설명한다() -> None:
     assert schema["properties"]["schema_version"]["const"] == CONFIG_SCHEMA_VERSION
     assert "typography.position_fallback_tolerance" in specs
     assert specs["typography.position_fallback_tolerance"]["type"] == "number"
-    assert specs["processing.ocr_policy"]["enum"] == ["never", "auto", "always"]
+    assert specs["processing.ocr_policy"]["enum"] == ["never"]
+    assert "ocr-overlay" in specs["processing.ocr_policy"]["description"]
     assert specs["processing.markdown_content_mode"]["enum"] == [
         "direct",
         "inclusive",
@@ -169,3 +170,11 @@ def test_rendered_toml과_json_data는_agent가_parse할_수_있다() -> None:
     assert f"schema_version = {CONFIG_SCHEMA_VERSION}" in rendered
     assert "[typography]" in rendered
     assert json.loads(json.dumps(resolved.data))["processing"]["ocr_policy"] == "never"
+
+
+@pytest.mark.parametrize("ocr_policy", ["auto", "always"])
+def test_resolve_processing_config는_지원하지_않는_ocr_policy를_거절한다(
+    ocr_policy: str,
+) -> None:
+    with pytest.raises(ConfigError, match="ocr-overlay"):
+        resolve_processing_config(set_overrides=[f"processing.ocr_policy={ocr_policy}"])

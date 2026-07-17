@@ -96,7 +96,9 @@ print(result.output_pdf, result.output_markdown_dir, result.bookmark_count)
 
 `MarkdownSplitConfig`를 사용한 결과도 같은 `toc.md`, `bookmark_plan.json`, `nodes/`, `markdown_manifest.json` graph 계약을 쓴다. 이때 `markdown_export.export_mode="split"`, manifest의 `content_mode="bounded"`이며 선택된 boundary는 원래 plan order 기반 node ID를 유지한다. `inspect_plan_artifact()` 결과의 `markdown_manifest_path`와 `markdown_manifest`에서 validation, coverage, 선택 level과 fallback 여부를 node 파일 없이 확인할 수 있다.
 
-`ProcessingConfig.ocr_policy`는 현재 `Processor`에 OCR 전처리를 연결하지 않는다. OCR overlay를 먼저 별도 실행하라.
+`ProcessingConfig.ocr_policy`는 현재 `never`만 지원한다. `auto|always`는
+`ConfigError`로 조기 거부된다. OCR overlay를 먼저 별도 실행하고 생성된 PDF를
+`Processor` 또는 단계형 API에 전달하라.
 
 ## 분석·추론·적용 단계
 
@@ -144,7 +146,7 @@ print(artifacts["bookmark_plan"], applied.output_pdf)
 
 공개 config dataclass를 조합하라.
 
-- `ProcessingConfig`: 기존 bookmark, artifact, OCR policy, typography, Markdown content mode/split, outline 품질 설정을 묶는다. `markdown_content_mode` 기본값은 `direct`이며 기존 subtree 본문 포함은 `inclusive`다.
+- `ProcessingConfig`: 기존 bookmark, artifact, typography, Markdown content mode/split, outline 품질 설정을 묶는다. `ocr_policy`는 현재 `never`만 지원하고 OCR은 별도 전처리한다. `markdown_content_mode` 기본값은 `direct`이며 기존 subtree 본문 포함은 `inclusive`다.
 - `TypographyConfig`: heading 후보, body font coverage, tier/BPE, margin, position fallback 값을 제어한다.
 - `MarkdownSplitConfig(max_words=10000, max_words_coverage=0.95, prefer="coarsest")`: 길이 coverage 기반 Markdown split을 활성화한다.
 - `OutlineQualityConfig(min_item_count=4, max_item_to_page_ratio=0.9, flag_numeric_only_titles=True, replace_when_low_quality=False)`: 기존 outline 품질과 교체 policy를 정한다.

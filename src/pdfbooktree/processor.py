@@ -76,11 +76,6 @@ class Processor:
                 "기존 outline이 low quality로 판정돼 typography 추론 결과로 "
                 f"교체했다: reasons={decision.quality.reasons}"
             )
-        if self.config.ocr_policy != "never":
-            warnings.append(
-                "ocr_policy는 아직 Processor에 연결되지 않았고 OCR overlay CLI/API로 별도 실행한다."
-            )
-
         apply_result = None
         status = "failed"
         if inference.validation.valid:
