@@ -18849,6 +18849,29 @@
       },
       "finding": "skill file 5개를 project scope에 byte-identical하게 설치했고, 기존 target은 기본 거절, force에서는 전체 교체 후 동일성을 복원했다.",
       "ran_at": "2026-07-17T07:36:52+09:00"
+    },
+    {
+      "id": "104_markdown_graph_contract",
+      "purpose": "현재 inclusive Markdown tree와 direct-content graph 후보를 실제 PDF에서 비교하고 YAML, wiki link, page coverage와 node mapping 계약을 검증한다.",
+      "inputs": [
+        "data\\scanned-pdf-indexed\\(Springer Finance) Steven E. Shreve - Stochastic Calculus for Finance I The Binomial Asset Pricing Model-Springer (2005)-indexed.pdf"
+      ],
+      "outputs": "experiments\\outputs\\104_markdown_graph_contract",
+      "method": "같은 existing outline plan으로 현재 public exporter와 flat nodes graph를 생성하고 표준 YAML parser, link 대칭성, page assignment와 mapping hash를 기계적으로 검증했다.",
+      "summary": {
+        "page_count": 349,
+        "node_count": 238,
+        "root_count": 34,
+        "current_payload_char_count": 846863,
+        "candidate_payload_char_count": 399688,
+        "payload_duplication_ratio": 2.1188,
+        "same_page_boundary_count": 58,
+        "unassigned_page_count": 12,
+        "mapping_sha256": "f51641fe73a77ec1b635000a14d16b6e4e3ac31ec7fe90bf787206cea09cb95e",
+        "validation_passed": true
+      },
+      "finding": "(Springer Finance) Steven E. Shreve - Stochastic Calculus for Finance I The Binomial Asset Pricing Model-Springer (2005)-indexed.pdf: node 238개를 current/candidate로 생성했다. current inclusive payload는 846,863자, candidate direct payload는 399,688자로 중복 비율은 2.1188배였다. candidate YAML/link/관계/page validation=True, same-page boundary=58건, unassigned page=12개다.",
+      "ran_at": "2026-07-17T08:46:03+09:00"
     }
   ]
 }
