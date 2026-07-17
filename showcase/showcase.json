@@ -328,6 +328,17 @@
       "finding": "wheel 설치 CLI가 skill file 5개를 실행 project에 byte-identical하게 생성했고, 기존 target은 exit 2로 보호하며 --force에서 전체 교체했다.",
       "command": "uv run python showcase/027_install_project_skill_cli.py",
       "ran_at": "2026-07-17T07:49:48+09:00"
+    },
+    {
+      "id": "028_markdown_graph_progressive_review",
+      "purpose": "실제 Shreve PDF에서 기존 outline tree graph와 typography inference length-limited split graph를 만들고 inspect plan, YAML, wiki relation, coverage와 source/confidence/evidence 보존을 검증한다.",
+      "inputs": [
+        "data\\scanned-pdf-indexed\\(Springer Finance) Steven E. Shreve - Stochastic Calculus for Finance I The Binomial Asset Pricing Model-Springer (2005)-indexed.pdf"
+      ],
+      "outputs": "showcase\\outputs\\028_markdown_graph_review",
+      "finding": "tree nodes=238, tree valid=True, split nodes=36, split valid=True, split evidence nodes=36, dangling=0",
+      "command": "uv run python showcase/028_markdown_graph_progressive_review.py",
+      "ran_at": "2026-07-17T09:40:21+09:00"
     }
   ]
 }
