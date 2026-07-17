@@ -18997,6 +18997,28 @@
       },
       "finding": "sdist/wheel 생성과 실제 2-page MIT OCW PDF inspect는 성공했고 package skill 파일 5개가 모두 포함됐다. 반면 LICENSE expression, project URLs, keywords, classifiers와 `pdfbooktree --version`이 없어 배포 baseline의 실제 누락을 재현했다.",
       "ran_at": "2026-07-17T13:10:05+09:00"
+    },
+    {
+      "id": "109_release_safety_contract",
+      "purpose": "0.1.0 릴리스 전에 OCR input/output 경로 충돌, atomic 교체, 대소문자 PDF 탐색, output subtree 제외와 plan dry-run 무쓰기 계약을 검증한다.",
+      "inputs": [
+        "임시로 생성한 1-page PDF",
+        "현재 OCR unlink-first 흐름과 후보 atomic replacement",
+        "후보 공통 PDF discovery와 plan dry-run 계약"
+      ],
+      "outputs": "experiments\\outputs\\109_release_safety_contract\\result.json",
+      "method": "사용자 파일과 분리된 임시 디렉터리에서 동일 input/output 삭제 위험을 재현하고, sibling temporary file의 os.replace, case-insensitive glob filtering과 dry-run 전후 filesystem snapshot을 검증했다.",
+      "summary": {
+        "same_input_output_deletion_risk_reproduced": true,
+        "atomic_replace_success": true,
+        "uppercase_pdf_found": true,
+        "output_subtree_excluded": true,
+        "exclude_wins": true,
+        "dry_run_filesystem_unchanged": true,
+        "validation_passed": true
+      },
+      "finding": "기존 unlink-first 흐름은 input과 output이 같으면 원본을 먼저 삭제한다. 동일 경로를 조기 거부하고 sibling temporary PDF를 완전히 저장한 뒤 os.replace해야 기존 output도 실패 시 보존된다.",
+      "ran_at": "2026-07-17T15:10:00+09:00"
     }
   ]
 }
