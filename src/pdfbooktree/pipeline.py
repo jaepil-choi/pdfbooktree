@@ -15,6 +15,7 @@ import fitz
 
 from pdfbooktree.config import MarkdownSplitConfig, ProcessingConfig, TypographyConfig
 from pdfbooktree.export.markdown import export_markdown_split, export_markdown_tree
+from pdfbooktree.export.markdown_graph import MarkdownContentMode
 from pdfbooktree.export.pdf import export_bookmarked_pdf
 from pdfbooktree.models import (
     ApplyResult,
@@ -142,6 +143,7 @@ def apply_plan(
     plan: list[BookmarkPlanItem],
     total_pages: int,
     markdown_split: MarkdownSplitConfig | None = None,
+    markdown_content_mode: MarkdownContentMode = "direct",
 ) -> ApplyResult:
     """plan을 재검증한 뒤에만 bookmarked PDF와 Markdown을 만든다.
 
@@ -159,10 +161,14 @@ def apply_plan(
         )
         output_markdown_dir = markdown_export.output_dir
     else:
-        markdown_export = None
-        output_markdown_dir = export_markdown_tree(
-            input_pdf, output_dir, plan, total_pages
+        markdown_export = export_markdown_tree(
+            input_pdf,
+            output_dir,
+            plan,
+            total_pages,
+            markdown_content_mode,
         )
+        output_markdown_dir = markdown_export.output_dir
     return ApplyResult(
         validation=validation,
         output_pdf=output_pdf,

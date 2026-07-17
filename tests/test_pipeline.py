@@ -183,6 +183,10 @@ def test_apply_plan_writes_pdf_and_markdown_for_valid_plan(tmp_path: Path) -> No
         result.output_markdown_dir is not None
         and (result.output_markdown_dir / "toc.md").exists()
     )
+    assert result.markdown_export is not None
+    assert result.markdown_export.export_mode == "tree_graph"
+    assert result.markdown_export.manifest_path is not None
+    assert result.markdown_export.manifest_path.is_file()
 
 
 def test_apply_plan_skips_writing_for_invalid_plan(tmp_path: Path) -> None:

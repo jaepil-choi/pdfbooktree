@@ -52,8 +52,12 @@ plan이 의심스러우면 validation만 보지 말고 heading과 fallback 후�
 ## 최종 PDF와 Markdown
 
 - typography plan을 적용한 PDF는 `<input-stem>_bookmarked.pdf`다.
-- 기본 Markdown tree는 `<input-stem>_markdown/`이며 root에 `toc.json`, `toc.md`를 둔다.
-- 각 tree node는 `NN_<title>/index.md`로 생성되며 title, level, 시작/끝 PDF page metadata와 page marker를 포함한다.
+- 기본 Markdown tree는 `<input-stem>_markdown/` progressive graph이며 root에 `toc.md`, `bookmark_plan.json`, `markdown_manifest.json`, `nodes/`를 둔다.
+- 각 node는 `NNNN_L<level>_p<page>_<title>.md` 고유 파일이며 표준 YAML front matter와 parent/children/previous/next wiki link를 포함한다.
+- 기본 `processing.markdown_content_mode=direct`에서는 다음 bookmark 전까지의 page만 node 본문에 둔다. 같은 page의 여러 bookmark는 plan상 마지막 item이 page를 소유하고 앞선 item은 navigation-only node가 된다.
+- 기존 subtree 본문 중복이 필요할 때만 `processing.markdown_content_mode=inclusive`를 명시한다.
+- `markdown_manifest.json`에서 node mapping, source/confidence/evidence reference, assigned/unassigned/empty/duplicated page와 graph validation을 확인하라.
+- `MarkdownExportResult.export_mode=tree_graph`이며 `manifest_path`가 graph manifest를 가리킨다. run manifest도 이를 `artifact_paths.markdown_manifest`로 연결한다.
 - length coverage split은 `<input-stem>_markdown_split/`에 `NNN_L<level>_p<page>_<title>.md` 파일과 `manifest.json`을 만든다.
 - split manifest의 `chosen_level`, `constraint_satisfied`, `fallback_used`, `fallback_reason`, word-count statistics, overflow file을 확인하라.
 - 기존 outline 재사용 경로는 Markdown을 만들지만 outline을 덮어쓴 PDF는 만들지 않는다.

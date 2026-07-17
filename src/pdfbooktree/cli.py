@@ -1452,12 +1452,24 @@ def _run_apply(
     output_dir.mkdir(parents=True, exist_ok=True)
     with fitz.open(pdf) as document:
         total_pages = document.page_count
-    apply_result = apply_plan(pdf, output_dir, plan, total_pages, config.markdown_split)
+    apply_result = apply_plan(
+        pdf,
+        output_dir,
+        plan,
+        total_pages,
+        config.markdown_split,
+        config.markdown_content_mode,
+    )
     artifacts: dict[str, Path] = {}
     if config.write_artifacts:
         artifacts["bookmark_plan_validation"] = write_artifact(
             output_dir, "bookmark_plan_validation", apply_result.validation
         )
+    if (
+        apply_result.markdown_export is not None
+        and apply_result.markdown_export.manifest_path is not None
+    ):
+        artifacts["markdown_manifest"] = apply_result.markdown_export.manifest_path
     result = ProcessingResult(
         status="processed" if apply_result.validation.valid else "failed",
         input_pdf=pdf,

@@ -36,6 +36,12 @@ def test_processor_exports_markdown_for_existing_outline(tmp_path: Path) -> None
     assert result.output_pdf is None
     assert result.output_markdown_dir is not None
     assert (result.output_markdown_dir / "toc.md").exists()
+    assert result.markdown_export is not None
+    assert result.markdown_export.export_mode == "tree_graph"
+    assert result.markdown_export.manifest_path is not None
+    assert result.artifact_paths["markdown_manifest"] == (
+        result.markdown_export.manifest_path
+    )
     assert result.bookmark_count == 2
     assert result.existing_outline_quality is not None
     assert result.existing_outline_quality.is_low_quality is True

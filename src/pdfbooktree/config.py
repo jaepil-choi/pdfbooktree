@@ -364,6 +364,13 @@ class ProcessingConfig:
         "never",
         description="OCR 전처리 정책이다. 현재 Processor에는 아직 연결되지 않았다.",
     )
+    markdown_content_mode: Literal["direct", "inclusive"] = _setting(
+        "direct",
+        description=(
+            "기본 Markdown tree에서 node가 직접 본문만 소유할지(direct), "
+            "descendant 본문까지 포함할지(inclusive) 정한다."
+        ),
+    )
     typography: TypographyConfig = field(
         default_factory=TypographyConfig,
         metadata={"description": "typography 기반 bookmark 추론 설정이다."},
@@ -385,6 +392,10 @@ class ProcessingConfig:
         if self.ocr_policy not in {"never", "auto", "always"}:
             raise ConfigError(
                 "processing.ocr_policy는 never, auto, always 중 하나여야 한다."
+            )
+        if self.markdown_content_mode not in {"direct", "inclusive"}:
+            raise ConfigError(
+                "processing.markdown_content_mode는 direct, inclusive 중 하나여야 한다."
             )
         if not isinstance(self.typography, TypographyConfig):
             raise ConfigError("processing.typography는 TypographyConfig여야 한다.")

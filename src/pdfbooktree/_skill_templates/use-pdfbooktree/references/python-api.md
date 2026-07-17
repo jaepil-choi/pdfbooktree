@@ -92,6 +92,8 @@ print(result.output_pdf, result.output_markdown_dir, result.bookmark_count)
 
 `ProcessingResult`에서 `status`, `input_pdf`, `output_pdf`, `output_markdown_dir`, `markdown_export`, `bookmark_count`, `confidence_summary`, `warnings`, `artifact_paths`, `report_path`, `existing_outline_quality`를 검사하라. 기존 outline 재사용 경로에서는 `output_pdf`가 `None`일 수 있다.
 
+기본 tree에서도 `markdown_export`는 `None`이 아니며 `export_mode="tree_graph"`, `output_dir`, `file_count`, `manifest_path`를 제공한다. graph manifest는 `artifact_paths["markdown_manifest"]`에도 연결된다.
+
 `ProcessingConfig.ocr_policy`는 현재 `Processor`에 OCR 전처리를 연결하지 않는다. OCR overlay를 먼저 별도 실행하라.
 
 ## 분석·추론·적용 단계
@@ -101,7 +103,7 @@ print(result.output_pdf, result.output_markdown_dir, result.bookmark_count)
 - `analyze_pdf(input_pdf: Path, config: TypographyConfig | None = None) -> PdfAnalysis`: PDF의 raw `TypographyLine`과 총 page 수를 추출한다.
 - `infer_bookmarks(analysis: PdfAnalysis, config: TypographyConfig | None = None) -> BookmarkInferenceResult`: margin 제거, tiering, geometry, heading, BPE, position fallback, normalize, validation을 실행한다.
 - `write_inference_artifacts(output_dir, inference, quality=None) -> dict[str, Path]`: 검토용 JSON/JSONL artifact를 저장한다.
-- `apply_plan(input_pdf, output_dir, plan, total_pages, markdown_split=None) -> ApplyResult`: plan을 다시 검증한 뒤 bookmarked PDF와 Markdown을 만든다.
+- `apply_plan(input_pdf, output_dir, plan, total_pages, markdown_split=None, markdown_content_mode="direct") -> ApplyResult`: plan을 다시 검증한 뒤 bookmarked PDF와 Markdown을 만든다.
 - `confidence_summary_for_inference(inference) -> ConfidenceSummary`: 단계 신뢰도 요약을 만든다.
 
 ```python
@@ -135,7 +137,7 @@ print(artifacts["bookmark_plan"], applied.output_pdf)
 
 공개 config dataclass를 조합하라.
 
-- `ProcessingConfig`: 기존 bookmark, artifact, OCR policy, typography, Markdown split, outline 품질 설정을 묶는다.
+- `ProcessingConfig`: 기존 bookmark, artifact, OCR policy, typography, Markdown content mode/split, outline 품질 설정을 묶는다. `markdown_content_mode` 기본값은 `direct`이며 기존 subtree 본문 포함은 `inclusive`다.
 - `TypographyConfig`: heading 후보, body font coverage, tier/BPE, margin, position fallback 값을 제어한다.
 - `MarkdownSplitConfig(max_words=10000, max_words_coverage=0.95, prefer="coarsest")`: 길이 coverage 기반 Markdown split을 활성화한다.
 - `OutlineQualityConfig(min_item_count=4, max_item_to_page_ratio=0.9, flag_numeric_only_titles=True, replace_when_low_quality=False)`: 기존 outline 품질과 교체 policy를 정한다.

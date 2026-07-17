@@ -28,7 +28,12 @@ _TOP_LEVEL_KEYS = {
     "outline_quality",
     "markdown",
 }
-_PROCESSING_FIELDS = ("skip_existing_bookmarks", "write_artifacts", "ocr_policy")
+_PROCESSING_FIELDS = (
+    "skip_existing_bookmarks",
+    "write_artifacts",
+    "ocr_policy",
+    "markdown_content_mode",
+)
 _ALWAYS_PRESENT_SECTIONS = ("processing", "typography", "outline_quality")
 _SECTION_CLASSES = {
     "processing": ProcessingConfig,

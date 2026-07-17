@@ -44,12 +44,14 @@ INFERENCE_ARTIFACT_FILES = {
     "position_fallback_candidates": "position_fallback_candidates.json",
     "bookmark_plan": "bookmark_plan.json",
     "bookmark_plan_validation": "bookmark_plan_validation.json",
+    "markdown_manifest": "book_markdown/markdown_manifest.json",
 }
 
 EXISTING_OUTLINE_ARTIFACT_FILES = {
     "existing_outline_plan": "existing_outline_plan.json",
     "bookmark_plan_validation": "bookmark_plan_validation.json",
     "existing_outline_quality": "existing_outline_quality.json",
+    "markdown_manifest": "bookmarked_markdown/markdown_manifest.json",
 }
 
 
@@ -117,7 +119,11 @@ def test_processor_inference_result와_artifact_shape_golden(tmp_path: Path) -> 
     assert payload["input_pdf"] == str(pdf)
     assert payload["output_pdf"] == str(output_dir / "book_bookmarked.pdf")
     assert payload["output_markdown_dir"] == str(output_dir / "book_markdown")
-    assert payload["markdown_export"] is None
+    assert payload["markdown_export"]["export_mode"] == "tree_graph"
+    assert payload["markdown_export"]["file_count"] == payload["bookmark_count"]
+    assert payload["markdown_export"]["manifest_path"] == str(
+        output_dir / "book_markdown" / "markdown_manifest.json"
+    )
     assert payload["ocr_pdf"] is None
     assert payload["bookmark_count"] == 15
     assert payload["existing_outline_quality"] is None

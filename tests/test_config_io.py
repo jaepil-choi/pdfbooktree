@@ -83,6 +83,15 @@ def test_markdown_override는_optional_section을_활성화한다() -> None:
     assert resolved.data["markdown"]["max_words_coverage"] == 0.9
 
 
+def test_markdown_content_mode는_processing_override로_설정한다() -> None:
+    resolved = resolve_processing_config(
+        set_overrides=["processing.markdown_content_mode=inclusive"]
+    )
+
+    assert resolved.config.markdown_content_mode == "inclusive"
+    assert resolved.data["processing"]["markdown_content_mode"] == "inclusive"
+
+
 def test_unknown_key와_schema_version을_거절한다(tmp_path: Path) -> None:
     unknown = tmp_path / "unknown.toml"
     unknown.write_text(
@@ -133,6 +142,10 @@ def test_schema와_specs는_전체_public_field를_설명한다() -> None:
     assert "typography.position_fallback_tolerance" in specs
     assert specs["typography.position_fallback_tolerance"]["type"] == "number"
     assert specs["processing.ocr_policy"]["enum"] == ["never", "auto", "always"]
+    assert specs["processing.markdown_content_mode"]["enum"] == [
+        "direct",
+        "inclusive",
+    ]
 
 
 def test_config_template은_기존_파일을_보호하고_다시_읽을_수_있다(

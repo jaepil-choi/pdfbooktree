@@ -105,9 +105,11 @@ uv run pdfbooktree process <PDF> [-o <OUTPUT_ROOT>] `
 - position fallback: `--position-fallback`, `--position-fallback-tolerance`, `--position-fallback-min-isolation-ratio`.
 - tier/BPE: `--min-tier-count`, `--max-heading-tier`, `--bpe-max-node-words`, `--bpe-level-pollution-ratio`.
 - margin: `--margin-band-ratio`, `--margin-min-consecutive-pages`.
+- Markdown tree: 기본은 `--set processing.markdown_content_mode=direct`이고 기존 subtree 본문 포함은 `inclusive`로 명시한다.
 - Markdown split: `--max-words`, `--max-words-coverage`.
 
 더 많은 설정은 `--set`으로 전달하고 `config explain`에서 key를 확인하라.
+기본 tree 결과의 `markdown_manifest.json`과 run manifest의 `artifact_paths.markdown_manifest`를 먼저 읽으면 node 파일을 모두 열지 않고도 graph와 page coverage를 조사할 수 있다.
 
 ### `infer`
 
@@ -131,7 +133,7 @@ uv run pdfbooktree apply <PDF> --plan <BOOKMARK_PLAN.json> `
   [--flat-output] [--format human|json]
 ```
 
-run manifest는 plan 경로와 SHA-256을 `plan_source`로 기록한다.
+run manifest는 plan 경로와 SHA-256을 `plan_source`로 기록하고 생성된 graph manifest를 `artifact_paths.markdown_manifest`로 연결한다.
 
 ### `batch`
 

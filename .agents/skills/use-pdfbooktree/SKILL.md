@@ -57,11 +57,13 @@ description: 이 저장소의 pdfbooktree Python API와 CLI를 사용해 PDF 책
 - 단일 실험에는 `--set dotted.key=value`를 여러 번 사용하라.
 - 설정 병합 우선순위를 `defaults < TOML < 명시적 CLI option < --set`으로 이해하라.
 - 지원 key, 타입, 기본값, 범위는 `config explain [KEY]`에서 읽으라. 문서에 config 전체를 복제하지 마라.
+- 기본 Markdown tree는 `processing.markdown_content_mode=direct`인 progressive graph다. 기존처럼 parent에 descendant 본문까지 포함하려면 `inclusive`를 명시하라.
 - Markdown 길이 제한 export는 `[markdown]` 설정 또는 `--max-words`로 활성화하라. 제약을 만족하지 못하면 가장 깊은 사용 가능 level로 fallback할 수 있으므로 manifest의 `constraint_satisfied`, `fallback_used`, overflow 통계를 확인하라.
 
 ## 실행 결과 확인
 
 - 기본 `process`, `infer`, `apply`는 immutable run directory와 `run_manifest.json`, `config.resolved.json`을 만든다. JSON 결과가 반환한 `run_dir`과 `manifest_path`를 기준으로 후속 작업을 이어가라.
+- tree graph 결과는 `toc.md`, `bookmark_plan.json`, `nodes/`, `markdown_manifest.json`을 만들며 run manifest의 `artifact_paths.markdown_manifest`에서 manifest를 찾을 수 있다.
 - `--flat-output`은 호환 모드다. 재현 가능한 작업에는 기본 run directory를 유지하라.
 - JSON 성공 결과는 stdout의 단일 envelope이고, 오류는 stderr envelope다. batch/OCR/classify의 JSON 진행 event는 stderr JSONL이다.
 - 성공 `0`, runtime 오류 `1`, 입력·config·plan 오류 `2`, 유효한 결과를 만들지 못한 처리 `3`을 구분하라.

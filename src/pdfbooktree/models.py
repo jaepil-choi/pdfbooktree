@@ -181,7 +181,7 @@ class MarkdownFileStat:
 
 @dataclass(frozen=True)
 class MarkdownExportResult:
-    """길이 coverage 정책으로 export한 Markdown 묶음의 결과다."""
+    """graph 또는 길이 제약 방식으로 export한 Markdown 묶음의 결과다."""
 
     output_dir: Path
     chosen_level: int | None
@@ -193,6 +193,7 @@ class MarkdownExportResult:
     word_count_stats: dict[str, int | float | None] = field(default_factory=dict)
     overflow_files: list[MarkdownFileStat] = field(default_factory=list)
     manifest_path: Path | None = None
+    export_mode: Literal["tree_graph", "split"] = "split"
 
 
 @dataclass(frozen=True)

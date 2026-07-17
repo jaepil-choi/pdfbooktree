@@ -242,3 +242,4 @@ def test_apply_records_plan_source_sha256_in_run_manifest(tmp_path: Path) -> Non
     manifest = json.loads(manifests[0].read_text("utf-8"))
     assert manifest["plan_source"]["path"] == str(plan_path)
     assert manifest["plan_source"]["sha256"] == file_sha256(plan_path)
+    assert Path(manifest["artifact_paths"]["markdown_manifest"]).is_file()

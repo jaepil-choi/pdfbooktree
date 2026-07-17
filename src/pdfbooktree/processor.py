@@ -85,8 +85,16 @@ class Processor:
                 inference.plan,
                 analysis.total_pages,
                 self.config.markdown_split,
+                self.config.markdown_content_mode,
             )
             status = "processed"
+            if (
+                apply_result.markdown_export is not None
+                and apply_result.markdown_export.manifest_path is not None
+            ):
+                artifacts["markdown_manifest"] = (
+                    apply_result.markdown_export.manifest_path
+                )
 
         result = ProcessingResult(
             status=status,
@@ -115,7 +123,6 @@ class Processor:
         plan = outline_to_plan(existing_outline)
         validation = validate_bookmark_plan(plan, total_pages)
         artifacts = self._write_existing_artifacts(plan, validation, quality)
-        markdown_export = None
         if self.config.markdown_split is not None:
             markdown_export = export_markdown_split(
                 self.input_pdf,
@@ -126,9 +133,16 @@ class Processor:
             )
             markdown_dir = markdown_export.output_dir
         else:
-            markdown_dir = export_markdown_tree(
-                self.input_pdf, self.output_dir, plan, total_pages
+            markdown_export = export_markdown_tree(
+                self.input_pdf,
+                self.output_dir,
+                plan,
+                total_pages,
+                self.config.markdown_content_mode,
             )
+            markdown_dir = markdown_export.output_dir
+        if markdown_export.manifest_path is not None:
+            artifacts["markdown_manifest"] = markdown_export.manifest_path
         warnings = [
             f"기존 outline {len(plan)}개로 markdown을 export했고, PDF outline overwrite는 건너뛰었다."
         ] + validation.warnings
