@@ -18899,6 +18899,47 @@
       },
       "finding": "chosen_level=1, node=34, current YAML=0, candidate YAML=35, dangling=0, duplicated_page=0, validation=True",
       "ran_at": "2026-07-17T09:44:33+09:00"
+    },
+    {
+      "id": "106_bookmark_review_evidence_contract",
+      "purpose": "실제 inference artifact에서 plan summary와 item detail을 만들고 candidate mapping, 주변 text, attention signal과 독립 JSONL 계약을 검증한다.",
+      "inputs": [
+        "data\\scanned-pdf-indexed\\(Springer Finance) Steven E. Shreve - Stochastic Calculus for Finance I The Binomial Asset Pricing Model-Springer (2005)-indexed.pdf"
+      ],
+      "outputs": "experiments\\outputs\\106_bookmark_review_evidence_contract",
+      "method": "Shreve typography plan, heading/fallback candidate와 whole-book line을 node ID 기준 review summary/item으로 결합하고 mapping과 parsing 불변식을 기계적으로 검증했다.",
+      "summary": {
+        "plan_item_count": 357,
+        "candidate_mapping": {
+          "matched_count": 357,
+          "missing_count": 0,
+          "ambiguous_count": 0,
+          "duplicate_candidates_collapsed_item_count": 0
+        },
+        "attention_item_count": 270,
+        "attention_signal_counts": {
+          "position_fallback_source": 54,
+          "repeated_title": 17,
+          "same_page_bookmarks": 244
+        },
+        "whole_book_line_count": 9941,
+        "jsonl_independent_parse_count": 357,
+        "single_item_requires_whole_book_scan": false,
+        "validation": {
+          "item_count_matches_plan": true,
+          "node_ids_unique": true,
+          "candidate_mapping_complete": true,
+          "source_preserved": true,
+          "confidence_preserved": true,
+          "evidence_preserved": true,
+          "jsonl_independent_parse": true,
+          "preview_bounded": true,
+          "no_quality_verdict": true
+        },
+        "validation_passed": true
+      },
+      "finding": "plan=357, candidate matched=357, missing=0, ambiguous=0, JSONL=357, validation=True",
+      "ran_at": "2026-07-17T10:52:00+09:00"
     }
   ]
 }
