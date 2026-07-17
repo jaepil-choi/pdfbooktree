@@ -76,6 +76,52 @@ def test_processor_exports_coverage_split_for_existing_outline(tmp_path: Path) -
     assert result.markdown_export.manifest_path is not None
 
 
+def test_existing_outline_split은_same_page의_하위_heading을_보존한다(
+    tmp_path: Path,
+) -> None:
+    pdf = tmp_path / "same-page-bookmarked.pdf"
+    document = fitz.open()
+    try:
+        for index in range(3):
+            page = document.new_page()
+            page.insert_text(
+                (72, 72),
+                f"Page {index + 1} body text",
+                fontsize=12,
+            )
+        document.set_toc(
+            [
+                [1, "Chapter 1", 1],
+                [2, "Section Before Next Chapter", 2],
+                [1, "Chapter 2", 2],
+                [2, "Section 2", 3],
+            ]
+        )
+        document.save(pdf)
+    finally:
+        document.close()
+
+    result = Processor(
+        pdf,
+        tmp_path / "out",
+        ProcessingConfig(
+            markdown_split=MarkdownSplitConfig(
+                max_words=1_000,
+                max_words_coverage=1.0,
+            )
+        ),
+    ).run()
+
+    assert result.markdown_export is not None
+    assert result.markdown_export.chosen_level == 1
+    node_text = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in sorted((result.output_markdown_dir / "nodes").glob("*.md"))
+    )
+    assert node_text.count("## Section Before Next Chapter") == 1
+    assert node_text.count("<!-- pdf_page 2 -->") == 1
+
+
 def _make_typography_book_with_tiny_toc(path: Path) -> None:
     """low quality(2-item) embedded TOC와 실제 typography 골격을 함께 담은 책이다."""
 

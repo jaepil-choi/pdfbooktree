@@ -209,13 +209,13 @@ def _render_split_documents(
         lines: list[str] = []
         emitted: set[int] = set()
         word_count = 0
+        for ancestor_index in _ancestor_indices(plan, start_index):
+            ancestor = plan[ancestor_index]
+            heading = _heading(ancestor)
+            lines.extend([heading, ""])
+            word_count += len(heading.split())
+            emitted.add(ancestor_index)
         if content_start_page is not None and content_end_page is not None:
-            for ancestor_index in _ancestor_indices(plan, start_index):
-                ancestor = plan[ancestor_index]
-                heading = _heading(ancestor)
-                lines.extend([heading, ""])
-                word_count += len(heading.split())
-                emitted.add(ancestor_index)
             for page in range(content_start_page, content_end_page + 1):
                 for index, item in enumerate(
                     plan[start_index:end_index], start=start_index
@@ -228,6 +228,14 @@ def _render_split_documents(
                 if text := page_texts.get(page, ""):
                     lines.extend([f"<!-- pdf_page {page} -->", "", text, ""])
                     word_count += len(text.split())
+        # 다음 boundary와 같은 page에 있는 하위 heading은 현재 segment에 속하지만
+        # page 본문은 다음 segment가 소유한다. 본문을 복제하지 않고 heading만 보존한다.
+        for index, item in enumerate(plan[start_index:end_index], start=start_index):
+            if index not in emitted:
+                heading = _heading(item)
+                lines.extend([heading, ""])
+                word_count += len(heading.split())
+                emitted.add(index)
         rendered.append(
             _RenderedMarkdown(
                 boundary=boundary,
