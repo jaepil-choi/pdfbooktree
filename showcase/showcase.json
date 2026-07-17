@@ -364,6 +364,18 @@
       "finding": "actual_pdf_pages=881, schema=['never'], config_auto_exit=2, process_always_exit=2, output_created=False",
       "command": "uv run python showcase/030_ocr_policy_fail_fast.py",
       "ran_at": "2026-07-17T12:29:57+09:00"
+    },
+    {
+      "id": "031_wheel_install_smoke",
+      "purpose": "현재 source에서 만든 wheel을 별도 Python 3.12 clean venv에 설치한 뒤 CLI version/config/inspect, 실제 PDF process와 package skill 설치가 source checkout 없이 작동하는지 검증한다.",
+      "inputs": [
+        "data\\300STUDY\\b_nonbooks\\b_lecture\\MIT OCW 18.06 Linear Algebra\\18-06sc-fall-2011\\18-06sc-fall-2011\\contents\\resource-index\\problem-solving-eigenvalues-and-eigenvectors\\mVeuZzJdd1w.pdf",
+        "현재 source에서 빌드한 pdfbooktree wheel"
+      ],
+      "outputs": "showcase\\outputs\\031_wheel_install_smoke\\result.json",
+      "finding": "clean wheel install=True, version=pdfbooktree 0.1.0, License-Expression=MIT, License-File=LICENSE, 실제 PDF 2쪽 processed, bookmark=1, Markdown manifest 생성=True, package skill file=5",
+      "command": "uv run --no-sync python showcase/031_wheel_install_smoke.py",
+      "ran_at": "2026-07-17T14:23:49+09:00"
     }
   ]
 }
