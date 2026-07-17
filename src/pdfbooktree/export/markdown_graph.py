@@ -14,7 +14,11 @@ from typing import Any, Literal
 
 import yaml
 
-from pdfbooktree.models import BookmarkPlanItem, MarkdownExportResult
+from pdfbooktree.models import (
+    BookmarkPlanItem,
+    MarkdownExportResult,
+    MarkdownFileStat,
+)
 from pdfbooktree.pdf.text import extract_page_texts
 from pdfbooktree.utils.hashing import file_sha256
 from pdfbooktree.utils.jsonio import write_json
@@ -46,6 +50,9 @@ class MarkdownGraphNode:
     pdf_end_page: int
     content_start_page: int | None
     content_end_page: int | None
+    contained_plan_node_ids: list[str] = field(default_factory=list)
+    content_markdown: str | None = None
+    word_count: int | None = None
     parent_id: str | None = None
     children_ids: list[str] = field(default_factory=list)
     previous_id: str | None = None
@@ -68,6 +75,19 @@ class MarkdownGraphNode:
         if self.content_start_page is None or self.content_end_page is None:
             return []
         return list(range(self.content_start_page, self.content_end_page + 1))
+
+
+@dataclass(frozen=True)
+class MarkdownSplitGraphDocument:
+    """길이 제한 split에서 선택한 단일 boundary 문서다."""
+
+    item: BookmarkPlanItem
+    order: int
+    content_start_page: int | None
+    content_end_page: int | None
+    content_markdown: str
+    word_count: int
+    contained_plan_node_ids: list[str]
 
 
 def export_markdown_graph(
@@ -99,9 +119,11 @@ def export_markdown_graph(
     by_id = {node.node_id: node for node in nodes}
 
     plan_path = root_dir / "bookmark_plan.json"
-    write_json(plan_path, _plan_rows(nodes))
+    write_json(plan_path, _plan_rows(plan))
     toc_path = root_dir / "toc.md"
-    toc_path.write_text(_render_toc(nodes, content_mode), encoding="utf-8")
+    toc_path.write_text(
+        _render_toc(nodes, content_mode, "tree_graph"), encoding="utf-8"
+    )
 
     node_paths: list[Path] = []
     for node in nodes:
@@ -118,6 +140,7 @@ def export_markdown_graph(
         page_texts,
         total_pages,
         content_mode,
+        _build_graph(plan, total_pages, content_mode),
     )
     manifest = {
         "schema_version": MARKDOWN_MANIFEST_SCHEMA_VERSION,
@@ -165,6 +188,131 @@ def export_markdown_graph(
     )
 
 
+def export_markdown_split_graph(
+    input_pdf: Path,
+    output_dir: Path,
+    plan: list[BookmarkPlanItem],
+    total_pages: int,
+    page_texts: dict[int, str],
+    documents: list[MarkdownSplitGraphDocument],
+    *,
+    chosen_level: int,
+    constraint_satisfied: bool,
+    fallback_used: bool,
+    fallback_reason: str | None,
+    max_words: int,
+    max_words_coverage: float,
+    word_count_stats: dict[str, int | float | None],
+    level_statistics: dict[str, dict[str, int | float | None]],
+) -> MarkdownExportResult:
+    """길이 제한 boundary를 bounded-content Markdown graph로 export한다."""
+
+    if not plan:
+        raise ValueError("Markdown split graph를 만들 bookmark plan이 비어 있다")
+    if not documents:
+        raise ValueError("Markdown split graph를 만들 boundary 문서가 비어 있다")
+
+    root_dir = output_dir / f"{input_pdf.stem}_markdown_split"
+    root_dir.mkdir(parents=True, exist_ok=True)
+    _remove_legacy_split_files(root_dir)
+    nodes_dir = root_dir / "nodes"
+    if nodes_dir.exists():
+        shutil.rmtree(nodes_dir)
+    nodes_dir.mkdir(parents=True, exist_ok=True)
+
+    nodes = _build_split_graph(documents)
+    by_id = {node.node_id: node for node in nodes}
+    plan_path = root_dir / "bookmark_plan.json"
+    write_json(plan_path, _plan_rows(plan))
+    toc_path = root_dir / "toc.md"
+    toc_path.write_text(_render_toc(nodes, "bounded", "split"), encoding="utf-8")
+
+    node_paths: list[Path] = []
+    file_stats: list[MarkdownFileStat] = []
+    for node in nodes:
+        path = root_dir / node.relative_path
+        path.write_text(_render_split_node(node, by_id), encoding="utf-8")
+        node_paths.append(path)
+        file_stats.append(
+            MarkdownFileStat(
+                path=path,
+                title=node.title,
+                level=node.level,
+                start_pdf_page=node.pdf_page,
+                end_pdf_page=node.pdf_end_page,
+                word_count=node.word_count or 0,
+            )
+        )
+
+    validation = _validate_graph(
+        root_dir,
+        nodes,
+        page_texts,
+        total_pages,
+        "bounded",
+        _build_split_graph(documents),
+    )
+    manifest = {
+        "schema_version": MARKDOWN_MANIFEST_SCHEMA_VERSION,
+        "input": {
+            "pdf_path": str(input_pdf),
+            "sha256": file_sha256(input_pdf),
+            "page_count": total_pages,
+        },
+        "plan": {
+            "path": "bookmark_plan.json",
+            "sha256": file_sha256(plan_path),
+        },
+        "export_mode": "split",
+        "content_mode": "bounded",
+        "same_page_content_owner": "last_exported_boundary_on_page",
+        "confidence_semantics": (
+            "pipeline evidence 값이며 bookmark 내용 품질의 합격 확률이 아니다"
+        ),
+        "word_count_semantics": (
+            "본문과 plan heading을 포함하고 front matter/navigation은 제외한다"
+        ),
+        "chosen_level": chosen_level,
+        "constraint_satisfied": constraint_satisfied,
+        "fallback_used": fallback_used,
+        "fallback_reason": fallback_reason,
+        "max_words": max_words,
+        "max_words_coverage": max_words_coverage,
+        "node_count": len(nodes),
+        "root_count": sum(node.parent_id is None for node in nodes),
+        "mapping_sha256": _mapping_sha256(nodes),
+        "nodes": _graph_snapshot(nodes),
+        "coverage": validation["coverage"],
+        "warnings": validation["warnings"],
+        "validation": validation["validation"],
+        "statistics": word_count_stats,
+        "levels": level_statistics,
+        "files": file_stats,
+    }
+    manifest_path = root_dir / "markdown_manifest.json"
+    write_json(manifest_path, manifest)
+    if not validation["validation"]["valid"]:
+        raise RuntimeError(
+            "생성한 Markdown split graph validation이 실패했다: "
+            f"manifest={manifest_path}"
+        )
+
+    overflow_files = [stat for stat in file_stats if stat.word_count > max_words]
+    return MarkdownExportResult(
+        output_dir=root_dir,
+        chosen_level=chosen_level,
+        constraint_satisfied=constraint_satisfied,
+        file_count=len(nodes),
+        total_word_count=sum(stat.word_count for stat in file_stats),
+        fallback_used=fallback_used,
+        fallback_reason=fallback_reason,
+        word_count_stats=word_count_stats,
+        overflow_files=overflow_files,
+        manifest_path=manifest_path,
+        export_mode="split",
+    )
+
+
 def _build_graph(
     plan: list[BookmarkPlanItem],
     total_pages: int,
@@ -192,8 +340,46 @@ def _build_graph(
                 pdf_end_page=pdf_end_page,
                 content_start_page=content_start_page,
                 content_end_page=content_end_page,
+                contained_plan_node_ids=[f"n{order:04d}"],
             )
         )
+    _link_nodes(nodes)
+    return nodes
+
+
+def _build_split_graph(
+    documents: list[MarkdownSplitGraphDocument],
+) -> list[MarkdownGraphNode]:
+    """선택된 split boundary를 원래 plan identity를 유지하는 graph로 만든다."""
+
+    nodes: list[MarkdownGraphNode] = []
+    for document in documents:
+        filename = _filename_for(document.item, document.order)
+        nodes.append(
+            MarkdownGraphNode(
+                item=document.item,
+                order=document.order,
+                node_id=f"n{document.order:04d}",
+                filename=filename,
+                relative_path=(Path("nodes") / filename).as_posix(),
+                pdf_end_page=(
+                    document.content_end_page
+                    if document.content_end_page is not None
+                    else document.item.pdf_page
+                ),
+                content_start_page=document.content_start_page,
+                content_end_page=document.content_end_page,
+                contained_plan_node_ids=document.contained_plan_node_ids,
+                content_markdown=document.content_markdown,
+                word_count=document.word_count,
+            )
+        )
+    _link_nodes(nodes)
+    return nodes
+
+
+def _link_nodes(nodes: list[MarkdownGraphNode]) -> None:
+    """선택된 node의 hierarchy와 plan-order navigation 관계를 연결한다."""
 
     stack: list[MarkdownGraphNode] = []
     for node in nodes:
@@ -209,7 +395,18 @@ def _build_graph(
             node.previous_id = nodes[index - 1].node_id
         if index + 1 < len(nodes):
             node.next_id = nodes[index + 1].node_id
-    return nodes
+
+
+def _remove_legacy_split_files(root_dir: Path) -> None:
+    """0.1.0 이전 flat split이 남긴 생성 파일만 제거한다."""
+
+    legacy_pattern = re.compile(r"^\d{3}_L\d+_p\d+_.+\.md$")
+    for path in root_dir.iterdir():
+        if path.is_file() and legacy_pattern.match(path.name):
+            path.unlink()
+    legacy_manifest = root_dir / "manifest.json"
+    if legacy_manifest.is_file():
+        legacy_manifest.unlink()
 
 
 def _logical_end_page(
@@ -279,7 +476,64 @@ def _render_node(
     page_texts: dict[int, str],
     content_mode: MarkdownContentMode,
 ) -> str:
-    metadata = {
+    metadata = _node_metadata(node, by_id, content_mode)
+    lines = [
+        _render_front_matter(metadata).rstrip(),
+        "",
+        f"# {node.title}",
+        "",
+        *_navigation_lines(node, by_id),
+        "",
+        "## Content",
+        "",
+    ]
+    if not node.owned_pages:
+        lines.extend(
+            [
+                "이 node가 직접 소유하는 page text는 없습니다. ",
+                "하위 내용은 Children link를 따라가서 확인합니다.",
+                "",
+            ]
+        )
+    for pdf_page in node.owned_pages:
+        lines.extend([f"<!-- pdf_page {pdf_page} -->", ""])
+        if text := page_texts.get(pdf_page, "").strip():
+            lines.extend([text, ""])
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def _render_split_node(
+    node: MarkdownGraphNode,
+    by_id: dict[str, MarkdownGraphNode],
+) -> str:
+    """bounded split node의 metadata, navigation과 content를 렌더링한다."""
+
+    metadata = _node_metadata(node, by_id, "bounded")
+    lines = [
+        _render_front_matter(metadata).rstrip(),
+        "",
+        f"# {node.title}",
+        "",
+        *_navigation_lines(node, by_id),
+        "",
+        "## Content",
+        "",
+    ]
+    if node.content_markdown:
+        lines.append(node.content_markdown.rstrip())
+    else:
+        lines.append("이 segment가 직접 소유하는 page text는 없습니다.")
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def _node_metadata(
+    node: MarkdownGraphNode,
+    by_id: dict[str, MarkdownGraphNode],
+    content_mode: str,
+) -> dict[str, Any]:
+    """tree와 split node가 공유하는 front matter를 만든다."""
+
+    return {
         "schema_version": MARKDOWN_MANIFEST_SCHEMA_VERSION,
         "node_id": node.node_id,
         "order": node.order,
@@ -300,16 +554,18 @@ def _render_node(
         "next_id": node.next_id,
         "next": _wiki_link(by_id[node.next_id]) if node.next_id else None,
         "children": [_wiki_link(by_id[item]) for item in node.children_ids],
+        "contained_plan_node_ids": node.contained_plan_node_ids,
         "evidence_ref": f"../bookmark_plan.json#{node.node_id}",
     }
-    lines = [
-        _render_front_matter(metadata).rstrip(),
-        "",
-        f"# {node.title}",
-        "",
-        "## Navigation",
-        "",
-    ]
+
+
+def _navigation_lines(
+    node: MarkdownGraphNode,
+    by_id: dict[str, MarkdownGraphNode],
+) -> list[str]:
+    """사람이 읽는 navigation block을 만든다."""
+
+    lines = ["## Navigation", ""]
     for label, related_id in (
         ("Parent", node.parent_id),
         ("Previous", node.previous_id),
@@ -322,24 +578,11 @@ def _render_node(
         lines.extend(f"  - {_wiki_link(by_id[item])}" for item in node.children_ids)
     else:
         lines.append("  - 없음")
-    lines.extend(["", "## Content", ""])
-    if not node.owned_pages:
-        lines.extend(
-            [
-                "이 node가 직접 소유하는 page text는 없습니다. ",
-                "하위 내용은 Children link를 따라가서 확인합니다.",
-                "",
-            ]
-        )
-    for pdf_page in node.owned_pages:
-        lines.extend([f"<!-- pdf_page {pdf_page} -->", ""])
-        if text := page_texts.get(pdf_page, "").strip():
-            lines.extend([text, ""])
-    return "\n".join(lines).rstrip() + "\n"
+    return lines
 
 
 def _render_toc(
-    nodes: list[MarkdownGraphNode], content_mode: MarkdownContentMode
+    nodes: list[MarkdownGraphNode], content_mode: str, export_mode: str
 ) -> str:
     roots = [node for node in nodes if node.parent_id is None]
     metadata = {
@@ -349,6 +592,7 @@ def _render_toc(
         "node_count": len(nodes),
         "root_count": len(roots),
         "content_mode": content_mode,
+        "export_mode": export_mode,
     }
     lines = [
         _render_front_matter(metadata).rstrip(),
@@ -368,19 +612,19 @@ def _render_toc(
     return "\n".join(lines).rstrip() + "\n"
 
 
-def _plan_rows(nodes: list[MarkdownGraphNode]) -> list[dict[str, Any]]:
+def _plan_rows(plan: list[BookmarkPlanItem]) -> list[dict[str, Any]]:
     return [
         {
-            "node_id": node.node_id,
-            "order": node.order,
-            "title": node.title,
-            "level": node.level,
-            "pdf_page": node.pdf_page,
-            "source": node.item.source,
-            "confidence": node.item.confidence,
-            "evidence": node.item.evidence,
+            "node_id": f"n{order:04d}",
+            "order": order,
+            "title": item.title,
+            "level": item.level,
+            "pdf_page": item.pdf_page,
+            "source": item.source,
+            "confidence": item.confidence,
+            "evidence": item.evidence,
         }
-        for node in nodes
+        for order, item in enumerate(plan, start=1)
     ]
 
 
@@ -402,6 +646,8 @@ def _graph_snapshot(nodes: list[MarkdownGraphNode]) -> list[dict[str, Any]]:
             "next_id": node.next_id,
             "source": node.item.source,
             "confidence": node.item.confidence,
+            "contained_plan_node_ids": node.contained_plan_node_ids,
+            "word_count": node.word_count,
             "evidence_ref": f"../bookmark_plan.json#{node.node_id}",
         }
         for node in nodes
@@ -437,7 +683,8 @@ def _validate_graph(
     nodes: list[MarkdownGraphNode],
     page_texts: dict[int, str],
     total_pages: int,
-    content_mode: MarkdownContentMode,
+    content_mode: str,
+    rerendered: list[MarkdownGraphNode],
 ) -> dict[str, Any]:
     by_id = {node.node_id: node for node in nodes}
     known_targets = {Path(node.filename).stem for node in nodes}
@@ -505,13 +752,12 @@ def _validate_graph(
         for left, right in zip(nodes, nodes[1:])
         if left.pdf_page == right.pdf_page
     ]
-    rerendered = _build_graph([node.item for node in nodes], total_pages, content_mode)
     duplicate_node_ids = sum(
         count - 1 for count in node_id_counts.values() if count > 1
     )
     duplicate_paths = sum(count - 1 for count in path_counts.values() if count > 1)
-    direct_duplicate_error_count = (
-        len(duplicated_pages) if content_mode == "direct" else 0
+    duplicate_page_error_count = (
+        len(duplicated_pages) if content_mode in {"direct", "bounded"} else 0
     )
     validation_counts = (
         len(yaml_errors),
@@ -522,7 +768,7 @@ def _validate_graph(
         len(previous_next_errors),
         len(nodes) - len(reachable),
         len(known_targets - toc_targets),
-        direct_duplicate_error_count,
+        duplicate_page_error_count,
     )
     return {
         "coverage": {

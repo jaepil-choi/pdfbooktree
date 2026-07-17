@@ -130,7 +130,30 @@ def test_inspect_plan_artifact_summarizes_validation_and_markdown(
     )
     write_json(
         tmp_path / "book_report.json",
-        {"markdown_export": {"file_count": 2, "constraint_satisfied": True}},
+        {
+            "markdown_export": {
+                "file_count": 2,
+                "constraint_satisfied": True,
+                "manifest_path": "book_markdown/markdown_manifest.json",
+            }
+        },
+    )
+    write_json(
+        tmp_path / "book_markdown" / "markdown_manifest.json",
+        {
+            "schema_version": 1,
+            "export_mode": "tree_graph",
+            "content_mode": "direct",
+            "node_count": 2,
+            "root_count": 1,
+            "constraint_satisfied": True,
+            "validation": {"valid": True, "dangling_link_count": 0},
+            "coverage": {
+                "assigned_page_count": 2,
+                "unassigned_page_count": 0,
+            },
+            "warnings": {"same_page_boundary_count": 0},
+        },
     )
 
     result = inspect_plan_artifact(tmp_path)
@@ -140,6 +163,57 @@ def test_inspect_plan_artifact_summarizes_validation_and_markdown(
     assert result["bookmark_levels"] == [1, 2]
     assert result["validation"]["valid"] is True
     assert result["markdown_export"]["file_count"] == 2
+    assert result["markdown_manifest_path"].endswith("markdown_manifest.json")
+    assert result["markdown_manifest"] == {
+        "schema_version": 1,
+        "export_mode": "tree_graph",
+        "content_mode": "direct",
+        "node_count": 2,
+        "root_count": 1,
+        "chosen_level": None,
+        "constraint_satisfied": True,
+        "fallback_used": None,
+        "validation": {"valid": True, "dangling_link_count": 0},
+        "coverage": {"assigned_page_count": 2, "unassigned_page_count": 0},
+        "manifest_warnings": {"same_page_boundary_count": 0},
+    }
+
+
+def test_inspect_plan_artifact는_run_manifest의_markdown_manifest를_따른다(
+    tmp_path: Path,
+) -> None:
+    write_json(
+        tmp_path / "bookmark_plan.json",
+        [{"title": "Chapter", "level": 1, "pdf_page": 1}],
+    )
+    manifest_path = tmp_path / "artifacts" / "markdown_manifest.json"
+    write_json(
+        manifest_path,
+        {
+            "schema_version": 1,
+            "export_mode": "split",
+            "content_mode": "bounded",
+            "node_count": 1,
+            "root_count": 1,
+            "chosen_level": 1,
+            "constraint_satisfied": False,
+            "fallback_used": True,
+            "validation": {"valid": True},
+            "coverage": {"duplicated_page_count": 0},
+            "warnings": {},
+        },
+    )
+    write_json(
+        tmp_path / "run_manifest.json",
+        {"artifact_paths": {"markdown_manifest": str(manifest_path)}},
+    )
+
+    result = inspect_plan_artifact(tmp_path)
+
+    assert result["markdown_manifest_path"] == str(manifest_path)
+    assert result["markdown_manifest"]["export_mode"] == "split"
+    assert result["markdown_manifest"]["chosen_level"] == 1
+    assert result["markdown_manifest"]["fallback_used"] is True
 
 
 def test_inspect_compare_plans_reports_added_removed_and_moved(

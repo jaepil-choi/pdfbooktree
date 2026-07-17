@@ -243,3 +243,44 @@ def test_apply_records_plan_source_sha256_in_run_manifest(tmp_path: Path) -> Non
     assert manifest["plan_source"]["path"] == str(plan_path)
     assert manifest["plan_source"]["sha256"] == file_sha256(plan_path)
     assert Path(manifest["artifact_paths"]["markdown_manifest"]).is_file()
+
+
+def test_apply_cli_length_limit은_split_graph_manifest를_연결한다(
+    tmp_path: Path,
+) -> None:
+    pdf = tmp_path / "book.pdf"
+    output_root = tmp_path / "runs"
+    _make_typography_book(pdf)
+    plan_path = tmp_path / "plan.json"
+    plan_path.write_text(
+        json.dumps([{"title": "Chapter 1", "level": 1, "pdf_page": 1}]),
+        encoding="utf-8",
+    )
+
+    result = RUNNER.invoke(
+        app,
+        [
+            "apply",
+            str(pdf),
+            "--plan",
+            str(plan_path),
+            "--output-dir",
+            str(output_root),
+            "--set",
+            "markdown.max_words=1000",
+            "--set",
+            "markdown.max_words_coverage=1.0",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    run_manifest_path = next(output_root.rglob("run_manifest.json"))
+    run_manifest = json.loads(run_manifest_path.read_text(encoding="utf-8"))
+    markdown_manifest_path = Path(run_manifest["artifact_paths"]["markdown_manifest"])
+    markdown_manifest = json.loads(markdown_manifest_path.read_text(encoding="utf-8"))
+    assert markdown_manifest_path.name == "markdown_manifest.json"
+    assert markdown_manifest["export_mode"] == "split"
+    assert markdown_manifest["content_mode"] == "bounded"
+    assert markdown_manifest["validation"]["valid"] is True
+    assert (markdown_manifest_path.parent / "toc.md").is_file()
+    assert (markdown_manifest_path.parent / "nodes").is_dir()

@@ -171,6 +171,8 @@ def inspect_plan_artifact(output_dir: Path | str) -> dict[str, Any]:
     validation = _read_optional_json(validation_path, warnings)
     report_path = _find_processing_report(root)
     report = _read_optional_json(report_path, warnings) if report_path else None
+    run_manifest_path = root / "run_manifest.json"
+    run_manifest = _read_optional_json(run_manifest_path, warnings)
 
     if plan is None:
         warnings.append("bookmark plan artifact가 없다.")
@@ -191,6 +193,17 @@ def inspect_plan_artifact(output_dir: Path | str) -> dict[str, Any]:
     markdown_export = (
         report.get("markdown_export") if isinstance(report, dict) else None
     )
+    markdown_manifest_path = _find_markdown_manifest(
+        root,
+        markdown_export,
+        run_manifest,
+        warnings,
+    )
+    markdown_manifest = _read_optional_json(markdown_manifest_path, warnings)
+    markdown_manifest_summary = _summarize_markdown_manifest(
+        markdown_manifest,
+        warnings,
+    )
     return {
         "status": "available" if plan_path else "missing",
         "output_dir": str(root),
@@ -201,6 +214,10 @@ def inspect_plan_artifact(output_dir: Path | str) -> dict[str, Any]:
         "validation": validation,
         "report_path": str(report_path) if report_path else None,
         "markdown_export": markdown_export,
+        "markdown_manifest_path": (
+            str(markdown_manifest_path) if markdown_manifest_path else None
+        ),
+        "markdown_manifest": markdown_manifest_summary,
         "warnings": warnings,
     }
 
@@ -402,3 +419,70 @@ def _first_existing_path(*paths: Path) -> Path | None:
 
 def _find_processing_report(root: Path) -> Path | None:
     return next(iter(sorted(root.glob("*_report.json"))), None)
+
+
+def _find_markdown_manifest(
+    root: Path,
+    markdown_export: object,
+    run_manifest: object,
+    warnings: list[str],
+) -> Path | None:
+    """report, run manifest와 output tree에서 graph manifest를 찾는다."""
+
+    candidates: list[Path] = []
+    if isinstance(markdown_export, dict):
+        _append_artifact_path(candidates, root, markdown_export.get("manifest_path"))
+    if isinstance(run_manifest, dict):
+        artifact_paths = run_manifest.get("artifact_paths")
+        if isinstance(artifact_paths, dict):
+            _append_artifact_path(
+                candidates,
+                root,
+                artifact_paths.get("markdown_manifest"),
+            )
+    candidates.append(root / "markdown_manifest.json")
+    for path in candidates:
+        if path.is_file():
+            return path
+
+    discovered = sorted(root.rglob("markdown_manifest.json"))
+    if len(discovered) > 1:
+        warnings.append(
+            f"Markdown manifest가 여러 개라 첫 경로를 사용한다: count={len(discovered)}"
+        )
+    return discovered[0] if discovered else None
+
+
+def _append_artifact_path(candidates: list[Path], root: Path, value: object) -> None:
+    """문자열 artifact path를 absolute/relative 후보로 추가한다."""
+
+    if not isinstance(value, str) or not value:
+        return
+    path = Path(value)
+    candidates.append(path if path.is_absolute() else root / path)
+
+
+def _summarize_markdown_manifest(
+    value: object,
+    warnings: list[str],
+) -> dict[str, Any] | None:
+    """node 파일을 읽지 않고 graph 계약과 coverage 핵심값만 반환한다."""
+
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        warnings.append("Markdown manifest 형식이 JSON object가 아니다.")
+        return None
+    return {
+        "schema_version": value.get("schema_version"),
+        "export_mode": value.get("export_mode"),
+        "content_mode": value.get("content_mode"),
+        "node_count": value.get("node_count"),
+        "root_count": value.get("root_count"),
+        "chosen_level": value.get("chosen_level"),
+        "constraint_satisfied": value.get("constraint_satisfied"),
+        "fallback_used": value.get("fallback_used"),
+        "validation": value.get("validation"),
+        "coverage": value.get("coverage"),
+        "manifest_warnings": value.get("warnings"),
+    }
