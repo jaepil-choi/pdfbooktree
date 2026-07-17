@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import replace as dataclass_replace
+from importlib import metadata
 from pathlib import Path
 from typing import cast
 
@@ -77,7 +78,8 @@ from pdfbooktree.run import RunError, create_run_context
 from pdfbooktree.utils.hashing import file_sha256
 
 app = typer.Typer(
-    help="PDF 책의 typography hierarchy로 bookmark와 Markdown tree를 만든다."
+    help="PDF 책의 typography hierarchy로 bookmark와 Markdown tree를 만든다.",
+    no_args_is_help=True,
 )
 inspect_app = typer.Typer(help="PDF와 처리 artifact를 읽기 전용으로 조사한다.")
 config_app = typer.Typer(help="versioned processing config를 생성하고 검증한다.")
@@ -85,6 +87,32 @@ skill_app = typer.Typer(help="pdfbooktree 사용 skill을 project scope에 설�
 app.add_typer(inspect_app, name="inspect")
 app.add_typer(config_app, name="config")
 app.add_typer(skill_app, name="skill")
+
+
+def _version_callback(value: bool) -> None:
+    """설치된 package version을 출력하고 즉시 종료한다."""
+
+    if not value:
+        return
+    try:
+        version = metadata.version("pdfbooktree")
+    except metadata.PackageNotFoundError:
+        version = "0+unknown"
+    typer.echo(f"pdfbooktree {version}")
+    raise typer.Exit()
+
+
+@app.callback()
+def root_callback(
+    version: bool = typer.Option(
+        False,
+        "--version",
+        callback=_version_callback,
+        is_eager=True,
+        help="설치된 pdfbooktree version을 출력한다.",
+    ),
+) -> None:
+    """pdfbooktree 최상위 option을 처리한다."""
 
 
 def _stage_output_format(value: str) -> OutputFormat:
