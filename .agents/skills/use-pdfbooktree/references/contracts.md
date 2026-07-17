@@ -58,8 +58,10 @@ plan이 의심스러우면 validation만 보지 말고 heading과 fallback 후�
 - 기존 subtree 본문 중복이 필요할 때만 `processing.markdown_content_mode=inclusive`를 명시한다.
 - `markdown_manifest.json`에서 node mapping, source/confidence/evidence reference, assigned/unassigned/empty/duplicated page와 graph validation을 확인하라.
 - `MarkdownExportResult.export_mode=tree_graph`이며 `manifest_path`가 graph manifest를 가리킨다. run manifest도 이를 `artifact_paths.markdown_manifest`로 연결한다.
-- length coverage split은 `<input-stem>_markdown_split/`에 `NNN_L<level>_p<page>_<title>.md` 파일과 `manifest.json`을 만든다.
-- split manifest의 `chosen_level`, `constraint_satisfied`, `fallback_used`, `fallback_reason`, word-count statistics, overflow file을 확인하라.
+- length coverage split도 `<input-stem>_markdown_split/` 아래 `toc.md`, `bookmark_plan.json`, `markdown_manifest.json`, `nodes/`를 가진 graph다. 선택된 boundary 파일은 원래 plan의 global order를 유지한 `NNNN_L<level>_p<page>_<title>.md`이며 `export_mode=split`, `content_mode=bounded`를 사용한다.
+- split node의 `contained_plan_node_ids`로 해당 segment에 포함된 plan 범위를 확인하라. 같은 page의 연속 boundary는 마지막 export node만 본문을 소유하고 앞선 node는 navigation-only가 된다.
+- split manifest의 `chosen_level`, `constraint_satisfied`, `fallback_used`, `fallback_reason`, word-count statistics, overflow file과 graph validation을 함께 확인하라. word count는 본문과 plan heading을 포함하고 front matter, navigation, page marker는 제외한다.
+- `inspect plan <RUN_OR_OUTPUT_DIR> --format json`은 node 파일을 열지 않고 `markdown_manifest_path`와 schema/export mode, validation, coverage, manifest warning 요약을 반환한다.
 - 기존 outline 재사용 경로는 Markdown을 만들지만 outline을 덮어쓴 PDF는 만들지 않는다.
 
 ## Batch와 분류 report

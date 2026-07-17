@@ -94,6 +94,8 @@ print(result.output_pdf, result.output_markdown_dir, result.bookmark_count)
 
 기본 tree에서도 `markdown_export`는 `None`이 아니며 `export_mode="tree_graph"`, `output_dir`, `file_count`, `manifest_path`를 제공한다. graph manifest는 `artifact_paths["markdown_manifest"]`에도 연결된다.
 
+`MarkdownSplitConfig`를 사용한 결과도 같은 `toc.md`, `bookmark_plan.json`, `nodes/`, `markdown_manifest.json` graph 계약을 쓴다. 이때 `markdown_export.export_mode="split"`, manifest의 `content_mode="bounded"`이며 선택된 boundary는 원래 plan order 기반 node ID를 유지한다. `inspect_plan_artifact()` 결과의 `markdown_manifest_path`와 `markdown_manifest`에서 validation, coverage, 선택 level과 fallback 여부를 node 파일 없이 확인할 수 있다.
+
 `ProcessingConfig.ocr_policy`는 현재 `Processor`에 OCR 전처리를 연결하지 않는다. OCR overlay를 먼저 별도 실행하라.
 
 ## 분석·추론·적용 단계
@@ -169,7 +171,7 @@ CLI와 같은 읽기 전용 조사 함수를 사용하라.
 - `inspect_text(pdf_path, pages: list[int]) -> dict`
 - `inspect_bookmarks(pdf_path) -> dict`
 - `inspect_ocr_artifact(artifact_dir) -> dict`
-- `inspect_plan_artifact(output_dir) -> dict`
+- `inspect_plan_artifact(output_dir) -> dict`: plan/report와 함께 Markdown manifest의 schema, export mode, validation, coverage와 warning 요약을 반환한다.
 - `inspect_compare_plans(plan_a, plan_b, page_tolerance=None, title_similarity_threshold=None) -> dict`
 
 두 in-memory plan을 비교하려면 `compare_bookmark_plans(before, after, page_tolerance=0, title_similarity_threshold=0.7) -> PlanDiffResult`를 사용하라. gold/predicted 품질 지표가 필요하면 `match_bookmark_plans(gold, predicted, page_tolerance=1, title_similarity_threshold=0.7) -> PlanMatchResult`를 사용하라.

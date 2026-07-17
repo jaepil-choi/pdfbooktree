@@ -1,4 +1,4 @@
 interface:
   display_name: "pdfbooktree 사용"
-  short_description: "PDF 책 구조화와 Markdown graph 사용 안내"
-  default_prompt: "$use-pdfbooktree를 사용해 이 저장소에서 PDF 조사·OCR·북마크·Markdown graph 작업을 수행하세요."
+  short_description: "PDF 책 구조화와 progressive Markdown graph 안내"
+  default_prompt: "$use-pdfbooktree를 사용해 PDF 조사·OCR·북마크와 tree/split Markdown graph 검토 작업을 수행하세요."

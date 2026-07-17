@@ -109,7 +109,7 @@ uv run pdfbooktree process <PDF> [-o <OUTPUT_ROOT>] `
 - Markdown split: `--max-words`, `--max-words-coverage`.
 
 더 많은 설정은 `--set`으로 전달하고 `config explain`에서 key를 확인하라.
-기본 tree 결과의 `markdown_manifest.json`과 run manifest의 `artifact_paths.markdown_manifest`를 먼저 읽으면 node 파일을 모두 열지 않고도 graph와 page coverage를 조사할 수 있다.
+기본 tree와 length-limited split은 모두 `toc.md`, `bookmark_plan.json`, `nodes/`, `markdown_manifest.json` graph를 만든다. split node는 선택된 level의 boundary만 export하되 원래 plan order 기반 `n####` identity와 source/confidence/evidence reference를 유지한다. run manifest의 `artifact_paths.markdown_manifest` 또는 `inspect plan` 결과를 먼저 읽으면 node 파일을 모두 열지 않고도 graph와 page coverage를 조사할 수 있다.
 
 ### `infer`
 
@@ -219,11 +219,12 @@ output root 아래 `pdfs/`, `artifacts/`, `ocr_overlay_batch_report.csv`, `ocr_o
 | `inspect text` | 선택 page의 추출 text 확인 | `<PDF> --pages 1-3,42` |
 | `inspect bookmarks` | 기존 bookmark와 target page 확인 | `<PDF>` |
 | `inspect ocr` | OCR progress, cache, stats, 마지막 log 확인 | `<ARTIFACT_DIR>` |
-| `inspect plan` | plan validation, report, Markdown export 요약 | `<RUN_OR_OUTPUT_DIR>` |
+| `inspect plan` | plan validation, report, Markdown manifest validation·coverage 요약 | `<RUN_OR_OUTPUT_DIR>` |
 | `inspect compare` | 두 plan의 added/removed/moved/level/source 차이 | `<PLAN_A> <PLAN_B> [--page-tolerance 0] [--title-similarity-threshold 0.7]` |
 
 ```powershell
 uv run pdfbooktree inspect ocr .\ocr-artifacts --format json
+uv run pdfbooktree inspect plan .\runs\<run-dir> --format json
 uv run pdfbooktree inspect compare .\plan-a.json .\plan-b.json `
   --page-tolerance 1 --title-similarity-threshold 0.8 --format json
 ```

@@ -52,6 +52,30 @@ pdfbooktree apply $pdf `
   -o .\runs --format json
 ```
 
+`apply` 또는 `process`가 만든 output은 node 파일을 전부 열기 전에 `inspect plan`으로 조사할 수 있다. 결과의 `markdown_manifest`에는 export mode, node/root 수, link와 관계 validation, assigned/unassigned/duplicated page 통계가 포함된다.
+
+## Markdown graph
+
+기본 tree와 길이 제한 split은 모두 다음 graph 구조를 사용한다.
+
+```text
+<input-stem>_markdown[_split]/
+├── toc.md
+├── bookmark_plan.json
+├── markdown_manifest.json
+└── nodes/
+    ├── 0001_L1_p0010_Chapter-1.md
+    └── 0002_L2_p0015_First-section.md
+```
+
+모든 Markdown은 첫 줄부터 표준 YAML front matter를 가지며 parent, children, previous, next wiki link로 이동할 수 있다. 기본 tree의 `content_mode=direct`는 다음 bookmark 전까지의 page만 node에 넣는다. length-limited split은 `export_mode=split`, `content_mode=bounded`를 사용하고 선택된 boundary가 원래 plan의 node ID, source, confidence와 evidence reference를 유지한다.
+
+```powershell
+pdfbooktree process "book.pdf" -o .\runs `
+  --max-words 10000 --max-words-coverage 0.95 --format json
+pdfbooktree inspect plan "<process 결과의 run_dir>" --format json
+```
+
 한 번에 처리하거나 폴더 전체를 일괄 처리할 수도 있다.
 
 ```powershell
