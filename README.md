@@ -46,11 +46,17 @@ pdfbooktree skill install
 $pdf = "book.pdf"
 
 pdfbooktree infer $pdf -o .\runs --format json
-pdfbooktree inspect plan "<infer 결과의 run_dir>" --format json
+pdfbooktree inspect plan "<infer 결과의 run_dir>" --summary --format json
+pdfbooktree inspect plan "<infer 결과의 run_dir>" `
+  --attention-only --limit 20 --format json
+pdfbooktree inspect plan "<infer 결과의 run_dir>" `
+  --item-id n0042 --format json
 pdfbooktree apply $pdf `
   --plan "<infer 결과의 run_dir>\bookmark_plan.json" `
   -o .\runs --format json
 ```
+
+`infer`는 `bookmark_review_summary.json`과 `bookmark_review_items.jsonl`을 만든다. summary에서 level/source 분포와 attention signal을 확인한 뒤 필요한 item만 열면 전체 `whole_book_lines.jsonl`을 scan하지 않고도 후보 geometry, 주변 typography line, page preview와 원본 evidence 위치를 확인할 수 있다. attention signal과 `confidence`는 검토 순서를 위한 heuristic evidence이며 품질 합격/불합격 판정이나 정확도 확률이 아니다.
 
 `apply` 또는 `process`가 만든 output은 node 파일을 전부 열기 전에 `inspect plan`으로 조사할 수 있다. 결과의 `markdown_manifest`에는 export mode, node/root 수, link와 관계 validation, assigned/unassigned/duplicated page 통계가 포함된다.
 
@@ -108,6 +114,9 @@ pdfbooktree batch .\books -o .\runs `
 pdfbooktree inspect page-count "book.pdf" --format json
 pdfbooktree inspect text "book.pdf" --pages 10-12 --format json
 pdfbooktree inspect bookmarks "book.pdf" --format json
+pdfbooktree inspect plan ".\runs\<run-dir>" --summary --format json
+pdfbooktree inspect plan ".\runs\<run-dir>" `
+  --page-range 100-120 --source geometry_position_fallback --format json
 pdfbooktree inspect compare "plan-a.json" "plan-b.json" --format json
 pdfbooktree infer "book.pdf" --set typography.position_fallback_enabled=false
 ```

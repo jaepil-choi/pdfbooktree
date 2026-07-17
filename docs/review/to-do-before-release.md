@@ -214,12 +214,12 @@ agent가 모든 Markdown을 열지 않고도 output을 조사할 수 있도록 r
 
 ### 4.1 자동 품질 판정을 하지 않는 원칙
 
-- [ ] bookmark plan의 내용 품질을 단일 score로 합격/불합격 처리하지 않는다.
-- [ ] `confidence`를 정확도 확률로 설명하지 않는다.
-- [ ] `process`가 heuristic score만으로 plan을 자동 거부하지 않는다.
-- [ ] 빈 plan, page 범위 오류, level jump 같은 구조적 오류는 기존처럼 validation
+- [x] bookmark plan의 내용 품질을 단일 score로 합격/불합격 처리하지 않는다.
+- [x] `confidence`를 정확도 확률로 설명하지 않는다.
+- [x] `process`가 heuristic score만으로 plan을 자동 거부하지 않는다.
+- [x] 빈 plan, page 범위 오류, level jump 같은 구조적 오류는 기존처럼 validation
       실패로 처리한다.
-- [ ] attention signal은 판정이 아니라 review 우선순위를 정하는 정보로만 쓴다.
+- [x] attention signal은 판정이 아니라 review 우선순위를 정하는 정보로만 쓴다.
 
 ### 4.2 agent가 먼저 읽을 review summary
 
@@ -244,10 +244,10 @@ agent가 모든 Markdown을 열지 않고도 output을 조사할 수 있도록 r
 
 구현 체크리스트:
 
-- [ ] summary가 항상 JSON으로 저장된다.
-- [ ] human CLI 완료 출력에 summary 경로와 핵심 count를 표시한다.
-- [ ] JSON CLI result가 summary 경로를 반환한다.
-- [ ] run manifest가 summary를 artifact로 연결한다.
+- [x] summary가 항상 JSON으로 저장된다.
+- [x] human CLI 완료 출력에 summary 경로와 핵심 count를 표시한다.
+- [x] JSON CLI result가 summary 경로를 반환한다.
+- [x] run manifest가 summary를 artifact로 연결한다.
 
 ### 4.3 item 단위 review detail
 
@@ -266,24 +266,24 @@ agent가 모든 Markdown을 열지 않고도 output을 조사할 수 있도록 r
 
 구현 체크리스트:
 
-- [ ] item 한 개를 읽기 위해 전체 `whole_book_lines.jsonl`을 scan하지 않아도 된다.
-- [ ] preview 길이는 제한하되 원본 artifact 위치를 함께 제공한다.
-- [ ] JSONL 한 줄이 독립적으로 parse 가능하다.
-- [ ] source/evidence가 plan과 review detail 사이에서 손실되지 않는다.
+- [x] item 한 개를 읽기 위해 전체 `whole_book_lines.jsonl`을 scan하지 않아도 된다.
+- [x] preview 길이는 제한하되 원본 artifact 위치를 함께 제공한다.
+- [x] JSONL 한 줄이 독립적으로 parse 가능하다.
+- [x] source/evidence가 plan과 review detail 사이에서 손실되지 않는다.
 
 ### 4.4 inspection CLI
 
 agent가 terminal에서 필요한 만큼만 열 수 있도록 다음 기능을 추가한다.
 
-- [ ] `inspect plan <RUN> --summary`
-- [ ] `inspect plan <RUN> --items --limit N`
-- [ ] `inspect plan <RUN> --item-id n0001`
-- [ ] `inspect plan <RUN> --page-range 100-120`
-- [ ] `inspect plan <RUN> --level 1`
-- [ ] `inspect plan <RUN> --source position_fallback`
-- [ ] `inspect plan <RUN> --attention-only`
-- [ ] item 상세에서 주변 page text와 evidence artifact 경로를 함께 출력한다.
-- [ ] 모든 option이 `--format json` 계약을 지킨다.
+- [x] `inspect plan <RUN> --summary`
+- [x] `inspect plan <RUN> --items --limit N`
+- [x] `inspect plan <RUN> --item-id n0001`
+- [x] `inspect plan <RUN> --page-range 100-120`
+- [x] `inspect plan <RUN> --level 1`
+- [x] `inspect plan <RUN> --source geometry_position_fallback`
+- [x] `inspect plan <RUN> --attention-only`
+- [x] item 상세에서 주변 page text와 evidence artifact 경로를 함께 출력한다.
+- [x] 모든 option이 `--format json` 계약을 지킨다.
 
 권장 eye-check 흐름:
 
@@ -297,11 +297,11 @@ uv run pdfbooktree inspect text $pdf --pages 120-122 --format json
 
 ### 4.5 실제 데이터 showcase
 
-- [ ] bookmark 수가 적은 책, 많은 책, OCR 책, native 책을 각각 사용한다.
-- [ ] summary만 읽고 review할 item을 선택할 수 있음을 보여준다.
-- [ ] item detail에서 원문 page와 후보 근거까지 추적할 수 있음을 보여준다.
+- [x] bookmark 수가 적은 책, 많은 책, OCR 책, native 책을 각각 사용한다.
+- [x] summary만 읽고 review할 item을 선택할 수 있음을 보여준다.
+- [x] item detail에서 원문 page와 후보 근거까지 추적할 수 있음을 보여준다.
 - [ ] agent가 plan을 수정한 뒤 `apply`할 수 있는 전체 흐름을 보여준다.
-- [ ] 자동 품질 판정이나 synthetic data로 성공을 주장하지 않는다.
+- [x] 자동 품질 판정이나 synthetic data로 성공을 주장하지 않는다.
 
 ## 5. P0: 공개 설정과 실제 동작 일치
 
