@@ -114,6 +114,32 @@ def test_batch_writes_csv_and_jsonl_reports_with_correct_targets(
     assert summary["error_count"] == 1
 
 
+def test_batch_accepts_relative_root_paths(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.chdir(tmp_path)
+    input_dir = Path("pdfs")
+    input_dir.mkdir()
+    _write_scanned_pdf_without_bookmark(input_dir / "scanned.pdf")
+
+    classifier = ScanBookmarkClassifier(
+        ClassifyBatchConfig(
+            input_dir=input_dir,
+            output_dir=Path("out"),
+            dry_run=True,
+        )
+    )
+    result = classifier.run()
+
+    assert classifier.input_dir == (tmp_path / "pdfs").resolve()
+    assert classifier.output_dir == (tmp_path / "out").resolve()
+    assert result.total_pdf_count == 1
+    assert result.results[0].relative_path == "scanned.pdf"
+    assert result.results[0].pdf_path == (tmp_path / "pdfs" / "scanned.pdf").resolve()
+    assert (
+        result.report_csv_path
+        == (tmp_path / "out" / "classification_report.csv").resolve()
+    )
+
+
 def test_batch_dry_run_writes_report_files_when_enabled(tmp_path: Path) -> None:
     input_dir = tmp_path / "pdfs"
     input_dir.mkdir()

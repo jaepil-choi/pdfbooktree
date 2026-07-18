@@ -73,8 +73,8 @@ class ScanBookmarkClassifier:
     def __init__(
         self, config: ClassifyBatchConfig, logger: ClassifyLogger | None = None
     ) -> None:
-        self.input_dir = Path(config.input_dir)
-        self.output_dir = Path(config.output_dir)
+        self.input_dir = Path(config.input_dir).resolve()
+        self.output_dir = Path(config.output_dir).resolve()
         self.config = config
         self.logger = logger or NullClassifyLogger()
 
