@@ -19019,6 +19019,56 @@
       },
       "finding": "기존 unlink-first 흐름은 input과 output이 같으면 원본을 먼저 삭제한다. 동일 경로를 조기 거부하고 sibling temporary PDF를 완전히 저장한 뒤 os.replace해야 기존 output도 실패 시 보존된다.",
       "ran_at": "2026-07-17T15:10:00+09:00"
+    },
+    {
+      "id": "110_optional_ocr_dependency_contract",
+      "purpose": "OCR 전용 dependency를 core install에서 분리하고 실제 overlay 시점에 안정된 optional dependency 오류로 실패하는 계약을 검증한다.",
+      "inputs": [
+        "pyproject.toml project dependencies",
+        "pyproject.toml project.optional-dependencies.ocr",
+        "OptionalDependencyError",
+        "require_ocr_dependencies"
+      ],
+      "outputs": "experiments\\outputs\\110_optional_ocr_dependency_contract\\result.json",
+      "method": "core와 ocr extra metadata를 직접 비교하고 import module이 모두 없다고 가정한 환경에서 lazy preflight 오류의 extra, 누락 package, 설치 명령을 검증했다.",
+      "summary": {
+        "core_dependency_count": 6,
+        "ocr_dependency_count": 3,
+        "tqdm_is_core": true,
+        "ocr_packages_not_core": true,
+        "ocr_extra_exact": true,
+        "stable_error_type": true,
+        "stable_install_command": true,
+        "validation_passed": true
+      },
+      "finding": "tqdm은 core에 남고 httpx, pikepdf, python-dotenv는 ocr extra에만 존재한다. extra가 없으면 OptionalDependencyError가 extra=ocr, 세 누락 distribution과 python -m pip install \"pdfbooktree[ocr]\"를 보존한다.",
+      "ran_at": "2026-07-18T15:01:34+09:00"
+    },
+    {
+      "id": "111_python_workflow_contract",
+      "purpose": "infer_pdf에서 preview_apply_plan을 거쳐 apply_plan_file로 이어지는 immutable Python workflow와 canonical bookmark plan 계약을 검증한다.",
+      "inputs": [
+        "기존 outline을 가진 생성 3-page PDF",
+        "infer_pdf",
+        "preview_apply_plan",
+        "apply_plan_file"
+      ],
+      "outputs": "experiments\\outputs\\111_python_workflow_contract\\result.json",
+      "method": "고수준 Python API로 infer와 apply run을 만들고 preview 전후 filesystem, run-owned plan snapshot bytes와 manifest plan_source SHA-256을 비교했다.",
+      "summary": {
+        "bookmark_count": 4,
+        "infer_manifest_succeeded": true,
+        "infer_plan_is_run_owned": true,
+        "preview_valid": true,
+        "preview_created_no_files": true,
+        "apply_manifest_succeeded": true,
+        "apply_plan_is_run_owned": true,
+        "plan_snapshot_matches": true,
+        "plan_source_hash_matches": true,
+        "validation_passed": true
+      },
+      "finding": "infer/apply는 각각 immutable run과 canonical bookmark_plan.json을 만들고 preview는 파일을 만들지 않았다. apply manifest는 외부 infer snapshot 경로와 SHA-256을 plan_source로 보존했다.",
+      "ran_at": "2026-07-18T15:01:35+09:00"
     }
   ]
 }
