@@ -6,7 +6,7 @@ fallback에 잡힌 false positive이므로 해당 항목 하나만 제거하고 
 ``apply --dry-run``과 실제 ``apply``를 연속 실행한다.
 
 실행:
-    uv run --no-sync python showcase/032_agent_edit_validate_apply.py
+    uv run python showcase/032_agent_edit_validate_apply.py
 """
 
 from __future__ import annotations
@@ -67,7 +67,7 @@ def _write_json(path: Path, value: Any) -> None:
 
 def _run_cli(arguments: list[str]) -> dict[str, Any]:
     completed = subprocess.run(
-        ["uv", "run", "--no-sync", "pdfbooktree", *arguments],
+        ["uv", "run", "pdfbooktree", *arguments],
         cwd=ROOT_DIR,
         capture_output=True,
         text=True,
@@ -235,7 +235,7 @@ def _record_showcase(result: dict[str, Any]) -> None:
         ],
         "outputs": str(OUTPUT_DIR.relative_to(ROOT_DIR)),
         "finding": result["finding"],
-        "command": "uv run --no-sync python showcase/032_agent_edit_validate_apply.py",
+        "command": "uv run python showcase/032_agent_edit_validate_apply.py",
         "ran_at": datetime.now().astimezone().isoformat(timespec="seconds"),
     }
     showcases = data["showcases"]

@@ -374,7 +374,7 @@
       ],
       "outputs": "showcase\\outputs\\031_wheel_install_smoke\\result.json",
       "finding": "clean wheel install=True, version=pdfbooktree 0.1.0, License-Expression=MIT, License-File=LICENSE, 실제 PDF 2쪽 processed, bookmark=1, Markdown manifest 생성=True, package skill file=5",
-      "command": "uv run --no-sync python showcase/031_wheel_install_smoke.py",
+      "command": "uv run python showcase/031_wheel_install_smoke.py",
       "ran_at": "2026-07-17T14:23:49+09:00"
     },
     {
@@ -386,8 +386,19 @@
       ],
       "outputs": "showcase\\outputs\\032_agent_edit_validate_apply",
       "finding": "실제 OCR plan 74개에서 page 98의 n0008 false positive 1개를 제거했다. dry-run valid=True, 실제 apply bookmark=73, Markdown graph valid=True.",
-      "command": "uv run --no-sync python showcase/032_agent_edit_validate_apply.py",
+      "command": "uv run python showcase/032_agent_edit_validate_apply.py",
       "ran_at": "2026-07-17T20:39:03+09:00"
+    },
+    {
+      "id": "033_python_workflow_api",
+      "purpose": "실제 PDF에서 infer_pdf → preview_apply_plan → apply_plan_file 고수준 Python workflow와 canonical plan snapshot을 검증한다.",
+      "inputs": [
+        "data\\300STUDY\\b_nonbooks\\b_lecture\\MIT OCW 18.06 Linear Algebra\\18-06sc-fall-2011\\18-06sc-fall-2011\\contents\\resource-index\\problem-solving-eigenvalues-and-eigenvectors\\mVeuZzJdd1w.pdf"
+      ],
+      "outputs": "showcase\\outputs\\033_python_workflow_api",
+      "finding": "실제 2-page MIT OCW PDF에서 infer→preview→apply Python workflow가 bookmark 1개를 같은 canonical plan snapshot으로 처리했다.",
+      "command": "uv run python showcase/033_python_workflow_api.py",
+      "ran_at": "2026-07-18T15:05:07+09:00"
     }
   ]
 }
