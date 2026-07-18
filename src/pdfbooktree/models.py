@@ -233,6 +233,47 @@ class ProcessingResult:
     report_path: Path | None = None
     existing_outline_quality: OutlineQualityAssessment | None = None
 
+    def _artifact_path(self, name: str) -> Path | None:
+        """알려진 artifact key를 typed optional 경로로 반환한다."""
+
+        return self.artifact_paths.get(name)
+
+    @property
+    def bookmark_plan_path(self) -> Path | None:
+        """이 실행이 선택하거나 적용한 canonical bookmark plan 경로다."""
+
+        return self._artifact_path("bookmark_plan")
+
+    @property
+    def bookmark_validation_path(self) -> Path | None:
+        """bookmark plan 구조 검증 artifact 경로다."""
+
+        return self._artifact_path("bookmark_plan_validation")
+
+    @property
+    def review_summary_path(self) -> Path | None:
+        """bookmark review summary artifact 경로다."""
+
+        return self._artifact_path("bookmark_review_summary")
+
+    @property
+    def review_items_path(self) -> Path | None:
+        """bookmark item review JSONL artifact 경로다."""
+
+        return self._artifact_path("bookmark_review_items")
+
+    @property
+    def markdown_manifest_path(self) -> Path | None:
+        """Markdown graph manifest 경로다."""
+
+        return self._artifact_path("markdown_manifest")
+
+    @property
+    def existing_outline_quality_path(self) -> Path | None:
+        """기존 outline 품질 평가 artifact 경로다."""
+
+        return self._artifact_path("existing_outline_quality")
+
 
 @dataclass(frozen=True)
 class BatchItemResult(ProcessingResult):

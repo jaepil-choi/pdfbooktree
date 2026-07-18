@@ -29,6 +29,8 @@
 - `run_manifest.json`: created → running → succeeded/failed lifecycle, 입력 SHA-256/크기/page 수, package/git identity, config hash, artifact/output/report path, warning, 오류를 기록한다.
 - `config.resolved.json`: 실제 실행에 사용한 최종 versioned config다.
 - `<input-stem>_report.json`: `ProcessingResult` 직렬화 결과다.
+- `bookmark_plan.json`: 해당 run이 선택·적용한 plan의 immutable canonical
+  snapshot이다. non-dry-run `process`, `infer`, `apply`에 항상 존재한다.
 - `apply` manifest의 `plan_source`: plan path와 SHA-256이다.
 
 재현 가능한 실행에는 기본 mode를 사용하라. `--flat-output`은 기존 flat path가 필요한 호환 작업에만 사용하라.
@@ -53,6 +55,11 @@
 plan이 의심스러우면 review summary를 먼저 읽고 `inspect plan --attention-only --limit N`, `--item-id`, `--page-range`, `--level`, `--source`로 필요한 item만 연 뒤 heading/fallback 후보, tier와 원문 page를 확인하라. attention signal과 confidence는 내용 품질 판정이나 정확도 확률이 아니다.
 
 같은 source/page/title candidate가 여러 개면 plan normalization이 보존한 첫 후보가 canonical `candidate_ref`가 되고 나머지는 `candidate_alternative_refs`에 남는다. `duplicate_candidates_collapsed` signal은 근거 손실 없는 eye-check 지점이다.
+
+`ProcessingResult`는 기존 `artifact_paths` mapping을 유지하면서
+`bookmark_plan_path`, `bookmark_validation_path`, `review_summary_path`,
+`review_items_path`, `markdown_manifest_path`, `existing_outline_quality_path`
+typed property를 제공한다. 없는 artifact의 property는 `None`이다.
 
 ## 최종 PDF와 Markdown
 
@@ -87,6 +94,10 @@ plan이 의심스러우면 review summary를 먼저 읽고 `inspect plan --atten
 PDF 하나의 오류가 batch 전체를 멈추지 않을 수 있으므로 최종 exit뿐 아니라 item/error count를 검사하라.
 
 ## OCR artifact와 cache
+
+실제 OCR overlay에는 `pdfbooktree[ocr]` extra가 필요하다. extra가 없어도 OCR
+config/result model import, command help와 batch dry-run은 가능하며 실제
+single/batch overlay는 side effect 전에 `OptionalDependencyError`로 실패한다.
 
 단일 OCR artifact directory에는 raw/insertable cache, page·element·line 통계, 선택적 word 통계, 진행 상태와 JSONL log가 들어간다. 정확한 상태는 `inspect ocr <ARTIFACT_DIR>`로 읽으라.
 

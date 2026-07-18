@@ -104,6 +104,7 @@ def test_infer_skips_when_existing_outline_is_good_quality(tmp_path: Path) -> No
 
     assert result.exit_code == 0, result.output
     assert (output_dir / "existing_outline_plan.json").exists()
+    assert (output_dir / "bookmark_plan.json").exists()
     assert not (output_dir / "whole_book_lines.jsonl").exists()
     quality = json.loads(
         (output_dir / "existing_outline_quality.json").read_text("utf-8")
@@ -125,6 +126,7 @@ def test_infer_flags_low_quality_existing_outline_but_still_skips_by_default(
 
     assert result.exit_code == 0, result.output
     assert (output_dir / "existing_outline_plan.json").exists()
+    assert (output_dir / "bookmark_plan.json").exists()
     assert not (output_dir / "whole_book_lines.jsonl").exists()
     quality = json.loads(
         (output_dir / "existing_outline_quality.json").read_text("utf-8")

@@ -10,18 +10,26 @@ import fitz
 
 from pdfbooktree.ocr.cache import OcrCache, file_sha256
 from pdfbooktree.ocr.config import OcrOverlayConfig
-from pdfbooktree.ocr.insertion import write_overlay_pdf
 from pdfbooktree.ocr.logger import NullOcrLogger, OcrLogger, OcrLogEvent, OcrLogLevel
 from pdfbooktree.ocr.models import InsertableOcrPage, OcrOverlayResult
 from pdfbooktree.ocr.registry import create_ocr_engine
 from pdfbooktree.ocr.render import render_pdf_page, write_rendered_page_image
 from pdfbooktree.ocr.stats import write_ocr_stats
+from pdfbooktree.optional_dependencies import require_ocr_dependencies
 from pdfbooktree.pdf.bookmarks import extract_existing_bookmarks
 from pdfbooktree.utils.jsonio import write_json
 
 
 class ExistingBookmarkConfirmationRequired(RuntimeError):
     """기존 bookmark가 있는 PDF에 OCR overwrite 확인이 없을 때 발생한다."""
+
+
+def write_overlay_pdf(*args: object, **kwargs: object) -> None:
+    """pikepdf 구현을 실제 overlay 시점에만 import한다."""
+
+    from pdfbooktree.ocr.insertion import write_overlay_pdf as implementation
+
+    implementation(*args, **kwargs)
 
 
 class OcrOverlayBuilder:
@@ -46,6 +54,7 @@ class OcrOverlayBuilder:
     def run(self) -> OcrOverlayResult:
         """OCR overlay PDF와 stats artifact를 생성한다."""
 
+        require_ocr_dependencies()
         self._started_at = time.monotonic()
         try:
             self._validate_output()

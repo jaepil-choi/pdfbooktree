@@ -30,6 +30,7 @@ from pdfbooktree.pdf.bookmarks import (
 )
 from pdfbooktree.pdf.scan_classification import classify_scan
 from pdfbooktree.pdf.scan_signals import DEFAULT_MAX_SAMPLE_PAGES
+from pdfbooktree.optional_dependencies import require_ocr_dependencies
 from pdfbooktree.utils.jsonio import to_jsonable, write_json
 from pdfbooktree.utils.pdf_discovery import discover_pdfs
 
@@ -176,6 +177,8 @@ class OcrOverlayBatchRunner:
     def run(self) -> OcrOverlayBatchResult:
         """PDF를 찾아 target만 OCR overlay하고 report를 저장한다."""
 
+        if not self.config.dry_run:
+            require_ocr_dependencies()
         started_at = time.monotonic()
         preparation = OcrBatchPreparationProgress(self.log_mode, command=self.command)
         try:

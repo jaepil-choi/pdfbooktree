@@ -26,13 +26,11 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
     "Topic :: Text Processing :: Markup",
     "Topic :: Utilities",
+    "Typing :: Typed",
 ]
 dependencies = [
-    "httpx>=0.28.1",
     "numpy>=2.4.6",
-    "pikepdf>=10.9.1",
     "pymupdf>=1.27.2.3",
-    "python-dotenv>=1.2.2",
     "pyyaml>=6.0.3",
     "rich>=15.0.0",
     "tqdm>=4.68.1",
@@ -51,6 +49,11 @@ pdfbooktree = "pdfbooktree.cli:main"
 [project.optional-dependencies]
 analysis = [
     "matplotlib>=3.10.9",
+]
+ocr = [
+    "httpx>=0.28.1",
+    "pikepdf>=10.9.1",
+    "python-dotenv>=1.2.2",
 ]
 
 [build-system]

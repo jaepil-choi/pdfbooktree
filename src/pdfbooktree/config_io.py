@@ -98,6 +98,23 @@ def resolve_processing_config(
     )
 
 
+def resolve_config_input(
+    config: ProcessingConfig | ResolvedConfig | None,
+) -> ResolvedConfig:
+    """Python API config 입력을 재현 가능한 resolved config로 정규화한다."""
+
+    if isinstance(config, ResolvedConfig):
+        return config
+    processing_config = config or ProcessingConfig()
+    data = processing_config_to_data(processing_config)
+    return ResolvedConfig(
+        config=processing_config,
+        data=data,
+        config_hash=stable_json_hash(data),
+        sources=({"kind": "python_api"},),
+    )
+
+
 def processing_config_to_data(config: ProcessingConfig) -> dict[str, Any]:
     """ProcessingConfig를 외부 TOML/JSON section 구조로 바꾼다."""
 

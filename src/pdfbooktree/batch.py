@@ -12,12 +12,11 @@ from pdfbooktree.batch_run import BatchRunContext, create_batch_run_context
 from pdfbooktree.config import ProcessingConfig
 from pdfbooktree.config_io import (
     ResolvedConfig,
-    processing_config_to_data,
+    resolve_config_input,
 )
 from pdfbooktree.models import BatchItemResult, BatchResult, ProcessingResult
 from pdfbooktree.processor import Processor
 from pdfbooktree.run import RunContext, create_run_context
-from pdfbooktree.utils.hashing import stable_json_hash
 from pdfbooktree.utils.pdf_discovery import discover_pdfs
 
 logger = logging.getLogger(__name__)
@@ -193,16 +192,7 @@ def _resolve_batch_config(
 ) -> ResolvedConfig:
     """CLI resolved config 또는 Python API config를 run identity로 정규화한다."""
 
-    if isinstance(config, ResolvedConfig):
-        return config
-    processing_config = config or ProcessingConfig()
-    data = processing_config_to_data(processing_config)
-    return ResolvedConfig(
-        config=processing_config,
-        data=data,
-        config_hash=stable_json_hash(data),
-        sources=({"kind": "python_api"},),
-    )
+    return resolve_config_input(config)
 
 
 def _batch_item_result(

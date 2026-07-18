@@ -82,6 +82,7 @@ def main() -> None:
     run_dir = output_root / datetime.now().strftime("%Y%m%dT%H%M%S%f")
     dist_dir = run_dir / "dist"
     venv_dir = run_dir / "venv"
+    ocr_venv_dir = run_dir / "ocr-venv"
     project_dir = run_dir / "project"
     process_output_dir = run_dir / "process-output"
     dist_dir.mkdir(parents=True, exist_ok=False)
@@ -92,6 +93,10 @@ def main() -> None:
     if len(wheels) != 1:
         raise RuntimeError(f"wheel이 정확히 하나가 아니다: {wheels!r}")
     wheel = wheels[0]
+    sdists = sorted(dist_dir.glob("*.tar.gz"))
+    if len(sdists) != 1:
+        raise RuntimeError(f"sdist가 정확히 하나가 아니다: {sdists!r}")
+    sdist = sdists[0]
 
     run(["uv", "venv", "--python", "3.12", str(venv_dir)])
     python_exe, cli_exe = clean_environment_paths(venv_dir)
@@ -99,15 +104,24 @@ def main() -> None:
 
     metadata_code = """
 import json
-from importlib.metadata import metadata
+from importlib import resources
+from importlib.metadata import metadata, requires, version
+from importlib.util import find_spec
 
 value = metadata("pdfbooktree")
 print(json.dumps({
+    "version": version("pdfbooktree"),
     "license_expression": value["License-Expression"],
     "license_files": value.get_all("License-File") or [],
     "project_urls": value.get_all("Project-URL") or [],
     "keywords": value["Keywords"],
     "classifiers": value.get_all("Classifier") or [],
+    "requirements": requires("pdfbooktree") or [],
+    "py_typed": resources.files("pdfbooktree").joinpath("py.typed").is_file(),
+    "ocr_modules_installed": {
+        name: find_spec(name) is not None
+        for name in ("httpx", "pikepdf", "dotenv")
+    },
 }))
 """
     metadata_payload = run_json([str(python_exe), "-c", metadata_code])
@@ -115,11 +129,52 @@ print(json.dumps({
         raise RuntimeError("wheel License-Expression이 MIT가 아니다.")
     if "LICENSE" not in metadata_payload["license_files"]:
         raise RuntimeError("wheel metadata가 LICENSE 파일을 연결하지 않는다.")
+    if metadata_payload["version"] != "0.1.0":
+        raise RuntimeError("설치 wheel metadata version이 0.1.0이 아니다.")
+    if "Typing :: Typed" not in metadata_payload["classifiers"]:
+        raise RuntimeError("wheel metadata에 Typing :: Typed classifier가 없다.")
+    if not metadata_payload["py_typed"]:
+        raise RuntimeError("설치 wheel에 py.typed가 없다.")
+    if any(metadata_payload["ocr_modules_installed"].values()):
+        raise RuntimeError("core-only 설치에 OCR package가 포함됐다.")
+    ocr_requirements = {
+        requirement.split(">=", 1)[0]
+        for requirement in metadata_payload["requirements"]
+        if "extra == 'ocr'" in requirement
+    }
+    if ocr_requirements != {"httpx", "pikepdf", "python-dotenv"}:
+        raise RuntimeError(f"OCR extra metadata가 예상과 다르다: {ocr_requirements!r}")
 
     version = run([str(cli_exe), "--version"]).stdout.strip()
     if version != "pdfbooktree 0.1.0":
         raise RuntimeError(f"예상하지 못한 version 출력이다: {version!r}")
     run([str(cli_exe), "--help"])
+    run([str(cli_exe), "ocr-overlay", "--help"])
+    run([str(cli_exe), "ocr-overlay-batch", "--help"])
+    run([str(cli_exe), "process", "--help"])
+    run([str(cli_exe), "infer", "--help"])
+    run([str(cli_exe), "apply", "--help"])
+    run([str(cli_exe), "batch", "--help"])
+    run([str(cli_exe), "classify-scan", "--help"])
+    run([str(cli_exe), "inspect", "--help"])
+
+    empty_input_dir = run_dir / "empty-input"
+    ocr_dry_run_dir = run_dir / "ocr-dry-run"
+    empty_input_dir.mkdir()
+    ocr_dry_run_payload = run_json(
+        [
+            str(cli_exe),
+            "ocr-overlay-batch",
+            str(empty_input_dir),
+            "--output-dir",
+            str(ocr_dry_run_dir),
+            "--dry-run",
+            "--format",
+            "json",
+        ]
+    )
+    if not ocr_dry_run_payload.get("ok"):
+        raise RuntimeError("core-only OCR batch dry-run이 실패했다.")
 
     config_payload = run_json([str(cli_exe), "config", "schema", "--format", "json"])
     if not config_payload.get("ok"):
@@ -171,6 +226,62 @@ document.save(path)
 document.close()
 """
         run([str(python_exe), "-c", generate_code, str(sample_pdf)])
+
+    missing_ocr_output = run_dir / "must-not-exist-ocr.pdf"
+    missing_ocr_artifacts = run_dir / "must-not-exist-ocr_artifacts"
+    missing_ocr = subprocess.run(
+        [
+            str(cli_exe),
+            "ocr-overlay",
+            str(sample_pdf),
+            "--output",
+            str(missing_ocr_output),
+            "--output-dir",
+            str(missing_ocr_artifacts),
+            "--format",
+            "json",
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        check=False,
+    )
+    if missing_ocr.returncode != 1:
+        raise RuntimeError(
+            f"core-only live OCR exit code가 1이 아니다: {missing_ocr.returncode}"
+        )
+    missing_ocr_payload = json.loads(missing_ocr.stderr)
+    if missing_ocr_payload["error"]["code"] != "missing_optional_dependency":
+        raise RuntimeError(
+            f"OCR optional error가 예상과 다르다: {missing_ocr_payload!r}"
+        )
+    if missing_ocr_output.exists() or missing_ocr_artifacts.exists():
+        raise RuntimeError("core-only live OCR 실패가 output을 만들었다.")
+
+    run(["uv", "venv", "--python", "3.12", str(ocr_venv_dir)])
+    ocr_python_exe, _ = clean_environment_paths(ocr_venv_dir)
+    run(
+        [
+            "uv",
+            "pip",
+            "install",
+            "--python",
+            str(ocr_python_exe),
+            f"pdfbooktree[ocr] @ {wheel.as_uri()}",
+        ]
+    )
+    ocr_import_code = """
+from importlib.util import find_spec
+
+from pdfbooktree.ocr import OcrOverlayBuilder, OcrOverlayConfig
+
+assert OcrOverlayBuilder is not None
+assert OcrOverlayConfig is not None
+assert all(find_spec(name) is not None for name in ("httpx", "pikepdf", "dotenv"))
+"""
+    run([str(ocr_python_exe), "-c", ocr_import_code])
 
     inspect_payload = run_json(
         [
@@ -273,11 +384,17 @@ print(json.dumps({
         "status": "passed",
         "platform": sys.platform,
         "wheel": str(wheel),
+        "sdist": str(sdist),
         "version": version,
         "license_expression": metadata_payload["license_expression"],
         "license_files": metadata_payload["license_files"],
         "project_url_count": len(metadata_payload["project_urls"]),
         "classifier_count": len(metadata_payload["classifiers"]),
+        "py_typed": metadata_payload["py_typed"],
+        "ocr_extra_requirements": sorted(ocr_requirements),
+        "core_ocr_batch_dry_run": ocr_dry_run_payload["ok"],
+        "core_live_ocr_error_code": missing_ocr_payload["error"]["code"],
+        "ocr_extra_imports": "passed",
         "installed_skill_file_count": skill_file_count,
         "sample": sample_result,
         "build_log_tail": build.stderr.splitlines()[-10:],

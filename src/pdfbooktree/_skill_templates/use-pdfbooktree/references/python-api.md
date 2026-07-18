@@ -19,8 +19,15 @@
 일반 기능은 package root에서 import하라.
 
 ```python
-from pdfbooktree import Processor, ProcessingConfig
+from pdfbooktree import (
+    __version__,
+    ProcessingConfig,
+    package_version,
+    process_pdf,
+)
 ```
+
+`__version__`과 `package_version()`은 설치 package metadata version을 반환한다.
 
 OCR, scan 분류, 낮은 수준 typography 기능은 각각의 공개 subpackage에서 import하라.
 
@@ -63,34 +70,65 @@ print(result.status, result.skill_dir, result.files)
 
 ## 단일 PDF 고수준 처리
 
-`Processor(input_pdf, output_dir, config=None, log=None).run() -> ProcessingResult`를 사용해 기존 outline 정책부터 PDF/Markdown/report 생성까지 한 번에 실행하라.
+CLI와 같은 immutable run, resolved config와 manifest lifecycle이 필요하면 다음
+고수준 workflow를 사용하라.
+
+- `process_pdf(input_pdf, output_root, config=None, log=None) -> ProcessingRunResult`
+- `infer_pdf(input_pdf, output_root, config=None, log=None) -> ProcessingRunResult`
+- `preview_apply_plan(input_pdf, plan_path, output_root, config=None) -> ApplyPreview`
+- `apply_plan_file(input_pdf, plan_path, output_root, config=None) -> ProcessingRunResult`
 
 ```python
 from pathlib import Path
 
 from pdfbooktree import (
-    MarkdownSplitConfig,
-    OutlineQualityConfig,
-    ProcessingConfig,
-    Processor,
+    apply_plan_file,
+    infer_pdf,
+    preview_apply_plan,
 )
 
 pdf = Path("book.pdf")
-config = ProcessingConfig(
-    outline_quality=OutlineQualityConfig(replace_when_low_quality=True),
-    markdown_split=MarkdownSplitConfig(
-        max_words=10_000,
-        max_words_coverage=0.95,
-    ),
-)
-result = Processor(pdf, Path("output"), config).run()
+inferred = infer_pdf(pdf, Path("runs"))
+plan = inferred.result.bookmark_plan_path
+assert plan is not None
 
-if result.status == "failed":
-    raise RuntimeError(result.warnings)
-print(result.output_pdf, result.output_markdown_dir, result.bookmark_count)
+preview = preview_apply_plan(pdf, plan, Path("runs"))
+assert preview.validation.valid
+applied = apply_plan_file(pdf, plan, Path("runs"))
+print(applied.run_id, applied.manifest_path, applied.result.output_pdf)
 ```
 
-`ProcessingResult`에서 `status`, `input_pdf`, `output_pdf`, `output_markdown_dir`, `markdown_export`, `bookmark_count`, `confidence_summary`, `warnings`, `artifact_paths`, `report_path`, `existing_outline_quality`를 검사하라. 기존 outline 재사용 경로에서는 `output_pdf`가 `None`일 수 있다.
+`ProcessingRunResult`는 `command`, `run_id`, `run_dir`, `manifest_path`,
+`config_hash`, 최종 `manifest`, 실제 `result`를 제공한다. plain
+`ProcessingConfig` 입력은 `sources=[{"kind": "python_api"}]`와 안정된 hash로
+정규화되며 `ResolvedConfig` 입력은 기존 source/hash를 보존한다.
+
+`ApplyPreview`는 input/plan path와 SHA-256, page/bookmark 수, validation, 예상
+PDF/Markdown 경로를 반환하며 output root나 run directory를 만들지 않는다.
+`apply_plan_file()`은 외부 plan path/hash를 manifest `plan_source`에 기록하고
+동일 내용을 run root `bookmark_plan.json`에 복사한다.
+
+flat directory에 직접 쓰는 호환 흐름이 필요할 때만
+`Processor(input_pdf, output_dir, config=None, log=None).run()`을 사용하라.
+
+`ProcessingResult`에서 `status`, `input_pdf`, `output_pdf`,
+`output_markdown_dir`, `markdown_export`, `bookmark_count`,
+`confidence_summary`, `warnings`, `artifact_paths`, `report_path`,
+`existing_outline_quality`를 검사하라. 다음 typed property는 기존 mapping key의
+`Path`를 반환하고 artifact가 없으면 `None`이다.
+
+- `bookmark_plan_path`
+- `bookmark_validation_path`
+- `review_summary_path`
+- `review_items_path`
+- `markdown_manifest_path`
+- `existing_outline_quality_path`
+
+모든 non-dry-run `process`, `infer`, `apply` run은 선택·적용한 plan을 run root
+`bookmark_plan.json`에 보존한다. 기존 outline 재사용도 예외가 아니다. 기존
+outline 근거용 `existing_outline_plan.json`은 별도 artifact로 유지한다.
+
+기존 outline 재사용 경로에서는 `output_pdf`가 `None`일 수 있다.
 
 기본 tree에서도 `markdown_export`는 `None`이 아니며 `export_mode="tree_graph"`, `output_dir`, `file_count`, `manifest_path`를 제공한다. graph manifest는 `artifact_paths["markdown_manifest"]`에도 연결된다.
 
@@ -98,7 +136,10 @@ print(result.output_pdf, result.output_markdown_dir, result.bookmark_count)
 
 `ProcessingConfig.ocr_policy`는 현재 `never`만 지원한다. `auto|always`는
 `ConfigError`로 조기 거부된다. OCR overlay를 먼저 별도 실행하고 생성된 PDF를
-`Processor` 또는 단계형 API에 전달하라.
+`process_pdf()` 또는 단계형 API에 전달하라. 실제 OCR API에는
+`python -m pip install "pdfbooktree[ocr]"`가 필요하고 extra가 없으면
+`OptionalDependencyError`가 `extra`, `missing_packages`, `install_command`를
+보존한다.
 
 ## 분석·추론·적용 단계
 

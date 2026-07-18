@@ -5,12 +5,12 @@ from __future__ import annotations
 import subprocess
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
-from importlib import metadata
 from pathlib import Path
 from typing import Any, Literal
 
 import fitz
 
+from pdfbooktree._version import package_version
 from pdfbooktree.config_io import ResolvedConfig
 from pdfbooktree.utils.hashing import file_sha256
 from pdfbooktree.utils.jsonio import write_json
@@ -217,14 +217,10 @@ def create_run_context(
 def tool_identity(repository_root: Path | None = None) -> ToolIdentity:
     """설치 package version과 가능한 경우 git revision/dirty 상태를 읽는다."""
 
-    try:
-        package_version = metadata.version("pdfbooktree")
-    except metadata.PackageNotFoundError:
-        package_version = "0+unknown"
     revision = _git_output(repository_root, "rev-parse", "HEAD")
     dirty_output = _git_output(repository_root, "status", "--porcelain")
     return ToolIdentity(
-        package_version=package_version,
+        package_version=package_version(),
         git_revision=revision or None,
         git_dirty=bool(dirty_output) if dirty_output is not None else None,
     )

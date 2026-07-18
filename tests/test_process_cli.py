@@ -53,6 +53,7 @@ def install_fake_processor(monkeypatch, captured: dict[str, object]) -> None:
             )
 
     monkeypatch.setattr("pdfbooktree.cli.Processor", FakeProcessor)
+    monkeypatch.setattr("pdfbooktree.workflows.Processor", FakeProcessor)
 
 
 def test_process는_기본적으로_run_directory와_manifest를_만든다(
@@ -165,7 +166,7 @@ def test_process_exception은_run_manifest를_failed로_남긴다(
         def run(self):
             raise RuntimeError("pipeline failed")
 
-    monkeypatch.setattr("pdfbooktree.cli.Processor", FailingProcessor)
+    monkeypatch.setattr("pdfbooktree.workflows.Processor", FailingProcessor)
     pdf = tmp_path / "book.pdf"
     output_root = tmp_path / "runs"
     make_pdf(pdf)

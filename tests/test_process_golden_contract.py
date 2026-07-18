@@ -50,6 +50,7 @@ INFERENCE_ARTIFACT_FILES = {
 }
 
 EXISTING_OUTLINE_ARTIFACT_FILES = {
+    "bookmark_plan": "bookmark_plan.json",
     "existing_outline_plan": "existing_outline_plan.json",
     "bookmark_plan_validation": "bookmark_plan_validation.json",
     "existing_outline_quality": "existing_outline_quality.json",

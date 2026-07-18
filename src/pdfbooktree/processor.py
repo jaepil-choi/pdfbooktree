@@ -113,6 +113,10 @@ class Processor:
             decision.quality,
             decision.existing_outline,
         )
+        if "bookmark_plan" not in artifacts:
+            artifacts["bookmark_plan"] = write_artifact(
+                self.output_dir, "bookmark_plan", inference.plan
+            )
         self._emit(
             "artifacts_written",
             f"추론 artifact 기록 완료: count={len(artifacts)}",
@@ -264,16 +268,21 @@ class Processor:
     def _write_existing_artifacts(
         self, plan, validation, quality: OutlineQualityAssessment | None = None
     ) -> dict[str, Path]:
-        if not self.config.write_artifacts:
-            return {}
         artifacts = {
-            "existing_outline_plan": write_artifact(
-                self.output_dir, "existing_outline_plan", plan
-            ),
-            "bookmark_plan_validation": write_artifact(
-                self.output_dir, "bookmark_plan_validation", validation
-            ),
+            "bookmark_plan": write_artifact(self.output_dir, "bookmark_plan", plan),
         }
+        if not self.config.write_artifacts:
+            return artifacts
+        artifacts.update(
+            {
+                "existing_outline_plan": write_artifact(
+                    self.output_dir, "existing_outline_plan", plan
+                ),
+                "bookmark_plan_validation": write_artifact(
+                    self.output_dir, "bookmark_plan_validation", validation
+                ),
+            }
+        )
         if quality is not None:
             artifacts["existing_outline_quality"] = write_artifact(
                 self.output_dir, "existing_outline_quality", quality

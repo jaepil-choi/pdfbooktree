@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from pdfbooktree.ocr.engines.base import OcrEngine
-from pdfbooktree.ocr.engines.upstage import UpstageOcrEngine
+from pdfbooktree.optional_dependencies import require_ocr_dependencies
 
 
 def create_ocr_engine(engine: str, options: dict[str, Any] | None = None) -> OcrEngine:
@@ -13,5 +13,8 @@ def create_ocr_engine(engine: str, options: dict[str, Any] | None = None) -> Ocr
 
     normalized = engine.strip().lower()
     if normalized == "upstage":
+        require_ocr_dependencies()
+        from pdfbooktree.ocr.engines.upstage import UpstageOcrEngine
+
         return UpstageOcrEngine(options)
     raise ValueError(f"지원하지 않는 OCR engine이다: {engine}")

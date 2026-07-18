@@ -2,16 +2,13 @@
 
 from __future__ import annotations
 
-import time
-from dataclasses import replace as dataclass_replace
-from importlib import metadata
 from pathlib import Path
 from typing import cast
 
 import fitz
 import typer
 
-from pdfbooktree.artifacts import write_artifact, write_inference_artifacts
+from pdfbooktree._version import package_version
 from pdfbooktree.batch import BatchProcessor
 from pdfbooktree.batch_logger import (
     BatchLogMode,
@@ -51,9 +48,7 @@ from pdfbooktree.inspection import (
     inspect_plan_artifact,
     inspect_text,
 )
-from pdfbooktree.models import BookmarkPlanItem, ConfidenceSummary, ProcessingResult
-from pdfbooktree.export.markdown import plan_markdown_dir_path
-from pdfbooktree.export.pdf import plan_bookmarked_pdf_path
+from pdfbooktree.models import BookmarkPlanItem, ProcessingResult
 from pdfbooktree.ocr import (
     ExistingBookmarkConfirmationRequired,
     OcrOverlayBatchConfig,
@@ -64,21 +59,12 @@ from pdfbooktree.ocr import (
 from pdfbooktree.ocr.config import CachePolicy
 from pdfbooktree.ocr.logger import OcrLogMode, build_ocr_logger, default_ocr_log_mode
 from pdfbooktree.outline.plan_io import PlanError, load_bookmark_plan_json
-from pdfbooktree.outline.validate import validate_bookmark_plan
-from pdfbooktree.pdf.outline import outline_to_plan
-from pdfbooktree.pdf.scan_signals import DEFAULT_MAX_SAMPLE_PAGES
-from pdfbooktree.pipeline import (
-    analyze_pdf,
-    apply_plan,
-    confidence_summary_for_inference,
-    infer_bookmarks,
-    resolve_existing_outline_action,
-    validate_plan,
+from pdfbooktree.optional_dependencies import (
+    OptionalDependencyError,
+    require_ocr_dependencies,
 )
+from pdfbooktree.pdf.scan_signals import DEFAULT_MAX_SAMPLE_PAGES
 from pdfbooktree.processing_logger import (
-    NullProcessingLogger,
-    ProcessingLogEvent,
-    ProcessingLogLevel,
     ProcessingLogger,
     ProcessingLogMode,
     build_processing_logger,
@@ -86,9 +72,15 @@ from pdfbooktree.processing_logger import (
 )
 from pdfbooktree.processor import Processor
 from pdfbooktree.project_skill import SkillInstallError, install_project_skill
-from pdfbooktree.report import write_processing_report
-from pdfbooktree.run import RunError, create_run_context
-from pdfbooktree.utils.hashing import file_sha256
+from pdfbooktree.run import RunError
+from pdfbooktree.workflows import (
+    apply_plan_to_directory,
+    apply_plan_file,
+    infer_to_directory,
+    infer_pdf,
+    preview_apply_plan,
+    process_pdf,
+)
 
 app = typer.Typer(
     help="PDF 책의 typography hierarchy로 bookmark와 Markdown tree를 만든다.",
@@ -107,11 +99,7 @@ def _version_callback(value: bool) -> None:
 
     if not value:
         return
-    try:
-        version = metadata.version("pdfbooktree")
-    except metadata.PackageNotFoundError:
-        version = "0+unknown"
-    typer.echo(f"pdfbooktree {version}")
+    typer.echo(f"pdfbooktree {package_version()}")
     raise typer.Exit()
 
 
@@ -208,15 +196,21 @@ def _exit_stage_runtime_error(
     *,
     output_format: OutputFormat,
     debug: bool,
+    code: str = "runtime_error",
 ) -> None:
     """예상하지 못한 runtime 오류를 숨기거나 debug에서 다시 발생시킨다."""
 
     if debug:
         raise error
+    resolved_code = (
+        "missing_optional_dependency"
+        if isinstance(error, OptionalDependencyError)
+        else code
+    )
     exit_command_error(
         command,
         error,
-        code="runtime_error",
+        code=resolved_code,
         exit_code=CLI_EXIT_RUNTIME_ERROR,
         output_format=output_format,
     )
@@ -987,6 +981,7 @@ def ocr_overlay(
             output_format=resolved_output_format,
         )
     try:
+        require_ocr_dependencies()
         resolved_ocr_output_dir = output_dir or (
             output_pdf.parent / f"{output_pdf.stem}_artifacts"
         )
@@ -1406,13 +1401,11 @@ def process(
         )
         return
 
+    logger = _build_stage_processing_logger(
+        "process", log_mode, output_format=resolved_output_format
+    )
     try:
-        run = create_run_context(
-            pdf,
-            output_dir,
-            resolved,
-            repository_root=Path.cwd(),
-        )
+        workflow = process_pdf(pdf, output_dir, resolved, log=logger)
     except RunError as error:
         _exit_stage_input_error(
             "process",
@@ -1420,15 +1413,7 @@ def process(
             code="invalid_input",
             output_format=resolved_output_format,
         )
-    run.start()
-    logger = _build_stage_processing_logger(
-        "process", log_mode, output_format=resolved_output_format
-    )
-    try:
-        result = Processor(pdf, run.run_dir, resolved.config, log=logger).run()
-        manifest = run.complete(result)
     except Exception as error:
-        run.fail(error)
         _exit_stage_runtime_error(
             "process",
             error,
@@ -1436,16 +1421,16 @@ def process(
             debug=debug,
         )
     payload = {
-        "run_id": manifest.run_id,
-        "run_dir": manifest.run_dir,
-        "manifest_path": run.manifest_path,
-        "config_hash": manifest.config_hash,
-        "result": result,
+        "run_id": workflow.run_id,
+        "run_dir": workflow.run_dir,
+        "manifest_path": workflow.manifest_path,
+        "config_hash": workflow.config_hash,
+        "result": workflow.result,
     }
     _emit_stage_result(
         "process",
         payload,
-        result,
+        workflow.result,
         output_format=resolved_output_format,
     )
 
@@ -1458,144 +1443,7 @@ def _run_infer(
 ) -> ProcessingResult:
     """existing-outline policy를 따르고, 필요할 때만 typography 추론을 실행한다."""
 
-    logger = log or NullProcessingLogger()
-    started_at = time.perf_counter()
-    total_pages = 0
-
-    def emit(
-        event: str,
-        message: str,
-        *,
-        level: ProcessingLogLevel = "info",
-        completed_pages: int = 0,
-        bookmark_count: int = 0,
-    ) -> None:
-        logger.emit(
-            ProcessingLogEvent(
-                event=event,
-                level=level,
-                input_pdf=pdf,
-                completed_pages=completed_pages,
-                total_pages=total_pages,
-                bookmark_count=bookmark_count,
-                elapsed_sec=time.perf_counter() - started_at,
-                message=message,
-            )
-        )
-
-    try:
-        output_dir.mkdir(parents=True, exist_ok=True)
-        with fitz.open(pdf) as document:
-            total_pages = document.page_count
-
-        emit("existing_outline_check_started", "기존 outline 확인 시작")
-        decision = resolve_existing_outline_action(pdf, total_pages, config)
-        emit(
-            "existing_outline_check_completed",
-            f"기존 outline 확인 완료: items={len(decision.existing_outline)}",
-        )
-        if decision.reuse_existing:
-            plan = outline_to_plan(decision.existing_outline)
-            validation = validate_bookmark_plan(plan, total_pages)
-            artifacts: dict[str, Path] = {}
-            if config.write_artifacts:
-                artifacts["existing_outline_plan"] = write_artifact(
-                    output_dir, "existing_outline_plan", plan
-                )
-                artifacts["bookmark_plan_validation"] = write_artifact(
-                    output_dir, "bookmark_plan_validation", validation
-                )
-                if decision.quality is not None:
-                    artifacts["existing_outline_quality"] = write_artifact(
-                        output_dir, "existing_outline_quality", decision.quality
-                    )
-            warnings = [
-                f"기존 outline {len(plan)}개를 재사용했고 typography 추론은 실행하지 않았다."
-            ] + validation.warnings
-            if decision.quality is not None:
-                if decision.quality.is_low_quality:
-                    warnings.append(
-                        "기존 outline이 low quality로 판정됐다: "
-                        f"reasons={decision.quality.reasons}. "
-                        "outline_quality.replace_when_low_quality=true로 재추론할 수 있다."
-                    )
-            result = ProcessingResult(
-                status="skipped",
-                input_pdf=pdf,
-                bookmark_count=len(plan),
-                confidence_summary=ConfidenceSummary(outline=1.0),
-                warnings=warnings,
-                artifact_paths=artifacts,
-                existing_outline_quality=decision.quality,
-            )
-            emit(
-                "artifacts_written",
-                f"기존 outline artifact 기록 완료: count={len(artifacts)}",
-                completed_pages=total_pages,
-                bookmark_count=len(plan),
-            )
-        else:
-            analysis = analyze_pdf(pdf, config.typography, log=logger)
-            emit(
-                "inference_started",
-                "bookmark 추론 시작",
-                completed_pages=total_pages,
-            )
-            inference = infer_bookmarks(analysis, config.typography)
-            emit(
-                "inference_completed",
-                f"bookmark 추론 완료: items={len(inference.plan)}, "
-                f"valid={inference.validation.valid}",
-                completed_pages=total_pages,
-                bookmark_count=len(inference.plan),
-            )
-            artifacts = (
-                write_inference_artifacts(
-                    output_dir,
-                    inference,
-                    decision.quality,
-                    input_pdf=pdf,
-                    total_pages=analysis.total_pages,
-                    existing_outline=decision.existing_outline,
-                )
-                if config.write_artifacts
-                else {}
-            )
-            emit(
-                "artifacts_written",
-                f"추론 artifact 기록 완료: count={len(artifacts)}",
-                completed_pages=total_pages,
-                bookmark_count=len(inference.plan),
-            )
-            warnings = list(inference.validation.warnings)
-            if decision.quality is not None and decision.quality.is_low_quality:
-                warnings.append(
-                    "기존 outline이 low quality로 판정돼 typography 추론 결과로 "
-                    f"교체했다: reasons={decision.quality.reasons}"
-                )
-            result = ProcessingResult(
-                status="processed" if inference.validation.valid else "failed",
-                input_pdf=pdf,
-                bookmark_count=len(inference.plan),
-                confidence_summary=confidence_summary_for_inference(inference),
-                warnings=warnings,
-                artifact_paths=artifacts,
-                existing_outline_quality=decision.quality,
-            )
-        report_path = write_processing_report(result, output_dir)
-        final_result = dataclass_replace(result, report_path=report_path)
-        emit(
-            "done",
-            "bookmark plan 추론 완료",
-            completed_pages=total_pages,
-            bookmark_count=result.bookmark_count,
-        )
-        return final_result
-    except Exception as error:
-        emit("failed", f"bookmark plan 추론 실패: {error}", level="error")
-        raise
-    finally:
-        logger.close()
+    return infer_to_directory(pdf, output_dir, config, log)
 
 
 @app.command()
@@ -1673,8 +1521,11 @@ def infer(
         )
         return
 
+    logger = _build_stage_processing_logger(
+        "infer", log_mode, output_format=resolved_output_format
+    )
     try:
-        run = create_run_context(pdf, output_dir, resolved, repository_root=Path.cwd())
+        workflow = infer_pdf(pdf, output_dir, resolved, log=logger)
     except RunError as error:
         _exit_stage_input_error(
             "infer",
@@ -1682,15 +1533,7 @@ def infer(
             code="invalid_input",
             output_format=resolved_output_format,
         )
-    run.start()
-    logger = _build_stage_processing_logger(
-        "infer", log_mode, output_format=resolved_output_format
-    )
-    try:
-        result = _run_infer(pdf, run.run_dir, resolved.config, logger)
-        manifest = run.complete(result)
     except Exception as error:
-        run.fail(error)
         _exit_stage_runtime_error(
             "infer",
             error,
@@ -1698,16 +1541,16 @@ def infer(
             debug=debug,
         )
     payload = {
-        "run_id": manifest.run_id,
-        "run_dir": manifest.run_dir,
-        "manifest_path": run.manifest_path,
-        "config_hash": manifest.config_hash,
-        "result": result,
+        "run_id": workflow.run_id,
+        "run_dir": workflow.run_dir,
+        "manifest_path": workflow.manifest_path,
+        "config_hash": workflow.config_hash,
+        "result": workflow.result,
     }
     _emit_stage_result(
         "infer",
         payload,
-        result,
+        workflow.result,
         output_format=resolved_output_format,
     )
 
@@ -1720,40 +1563,7 @@ def _run_apply(
 ) -> ProcessingResult:
     """검증된 plan으로 bookmarked PDF/Markdown만 만든다. typography 추론은 하지 않는다."""
 
-    output_dir.mkdir(parents=True, exist_ok=True)
-    with fitz.open(pdf) as document:
-        total_pages = document.page_count
-    apply_result = apply_plan(
-        pdf,
-        output_dir,
-        plan,
-        total_pages,
-        config.markdown_split,
-        config.markdown_content_mode,
-    )
-    artifacts: dict[str, Path] = {}
-    if config.write_artifacts:
-        artifacts["bookmark_plan_validation"] = write_artifact(
-            output_dir, "bookmark_plan_validation", apply_result.validation
-        )
-    if (
-        apply_result.markdown_export is not None
-        and apply_result.markdown_export.manifest_path is not None
-    ):
-        artifacts["markdown_manifest"] = apply_result.markdown_export.manifest_path
-    result = ProcessingResult(
-        status="processed" if apply_result.validation.valid else "failed",
-        input_pdf=pdf,
-        output_pdf=apply_result.output_pdf,
-        output_markdown_dir=apply_result.output_markdown_dir,
-        markdown_export=apply_result.markdown_export,
-        bookmark_count=len(plan),
-        confidence_summary=ConfidenceSummary(outline=1.0),
-        warnings=list(apply_result.validation.warnings),
-        artifact_paths=artifacts,
-    )
-    report_path = write_processing_report(result, output_dir)
-    return dataclass_replace(result, report_path=report_path)
+    return apply_plan_to_directory(pdf, output_dir, plan, config)
 
 
 @app.command()
@@ -1819,28 +1629,29 @@ def apply(
         )
 
     if dry_run:
-        _validate_flat_input_pdf(
-            "apply",
-            pdf,
-            output_format=resolved_output_format,
-        )
-        validation = validate_plan(pdf, plan)
-        with fitz.open(pdf) as document:
-            total_pages = document.page_count
+        try:
+            preview = preview_apply_plan(pdf, plan_path, output_dir, resolved)
+        except (PlanError, RunError, FileNotFoundError) as error:
+            _exit_stage_input_error(
+                "apply",
+                error,
+                code="invalid_input",
+                output_format=resolved_output_format,
+            )
         payload = {
-            "status": "valid" if validation.valid else "failed",
-            "dry_run": True,
-            "input_pdf": pdf.resolve(),
-            "input_sha256": file_sha256(pdf),
-            "plan_path": plan_path.resolve(),
-            "plan_sha256": file_sha256(plan_path),
-            "total_pages": total_pages,
-            "bookmark_count": len(plan),
-            "validation": validation,
-            "planned_output_pdf": plan_bookmarked_pdf_path(pdf, output_dir),
-            "planned_output_markdown_dir": plan_markdown_dir_path(pdf, output_dir),
+            "status": preview.status,
+            "dry_run": preview.dry_run,
+            "input_pdf": preview.input_pdf,
+            "input_sha256": preview.input_sha256,
+            "plan_path": preview.plan_path,
+            "plan_sha256": preview.plan_sha256,
+            "total_pages": preview.total_pages,
+            "bookmark_count": preview.bookmark_count,
+            "validation": preview.validation,
+            "planned_output_pdf": preview.planned_output_pdf,
+            "planned_output_markdown_dir": preview.planned_output_markdown_dir,
         }
-        if not validation.valid:
+        if not preview.validation.valid:
             exit_command_error(
                 "apply",
                 ProcessingFailedError("bookmark plan 구조 검증에 실패했다."),
@@ -1880,21 +1691,15 @@ def apply(
         return
 
     try:
-        run = create_run_context(pdf, output_dir, resolved, repository_root=Path.cwd())
-    except RunError as error:
+        workflow = apply_plan_file(pdf, plan_path, output_dir, resolved)
+    except (PlanError, RunError) as error:
         _exit_stage_input_error(
             "apply",
             error,
             code="invalid_input",
             output_format=resolved_output_format,
         )
-    run.start()
-    try:
-        result = _run_apply(pdf, run.run_dir, plan, resolved.config)
-        run.record_plan_source(plan_path, file_sha256(plan_path))
-        manifest = run.complete(result)
     except Exception as error:
-        run.fail(error)
         _exit_stage_runtime_error(
             "apply",
             error,
@@ -1902,16 +1707,16 @@ def apply(
             debug=debug,
         )
     payload = {
-        "run_id": manifest.run_id,
-        "run_dir": manifest.run_dir,
-        "manifest_path": run.manifest_path,
-        "config_hash": manifest.config_hash,
-        "result": result,
+        "run_id": workflow.run_id,
+        "run_dir": workflow.run_dir,
+        "manifest_path": workflow.manifest_path,
+        "config_hash": workflow.config_hash,
+        "result": workflow.result,
     }
     _emit_stage_result(
         "apply",
         payload,
-        result,
+        workflow.result,
         output_format=resolved_output_format,
     )
 

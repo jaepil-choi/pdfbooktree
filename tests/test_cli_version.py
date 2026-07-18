@@ -12,7 +12,7 @@ def test_cli_version은_설치_metadata_version을_출력한다(monkeypatch) -> 
     """`--version`이 package metadata를 읽고 성공 종료해야 한다."""
 
     monkeypatch.setattr(
-        "pdfbooktree.cli.metadata.version",
+        "pdfbooktree._version.metadata.version",
         lambda package: "9.8.7" if package == "pdfbooktree" else "",
     )
 
