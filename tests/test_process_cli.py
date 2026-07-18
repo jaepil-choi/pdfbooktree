@@ -29,7 +29,7 @@ def install_fake_processor(monkeypatch, captured: dict[str, object]) -> None:
     """config/run 연결만 검증하도록 실제 typography 계산을 대체한다."""
 
     class FakeProcessor:
-        def __init__(self, pdf, output_dir, config):
+        def __init__(self, pdf, output_dir, config, log=None):
             captured["pdf"] = Path(pdf)
             captured["output_dir"] = Path(output_dir)
             captured["config"] = config
@@ -53,6 +53,7 @@ def install_fake_processor(monkeypatch, captured: dict[str, object]) -> None:
             )
 
     monkeypatch.setattr("pdfbooktree.cli.Processor", FakeProcessor)
+    monkeypatch.setattr("pdfbooktree.workflows.Processor", FakeProcessor)
 
 
 def test_process는_기본적으로_run_directory와_manifest를_만든다(
@@ -159,13 +160,13 @@ def test_process_exception은_run_manifest를_failed로_남긴다(
     monkeypatch, tmp_path: Path
 ) -> None:
     class FailingProcessor:
-        def __init__(self, pdf, output_dir, config):
+        def __init__(self, pdf, output_dir, config, log=None):
             self.output_dir = Path(output_dir)
 
         def run(self):
             raise RuntimeError("pipeline failed")
 
-    monkeypatch.setattr("pdfbooktree.cli.Processor", FailingProcessor)
+    monkeypatch.setattr("pdfbooktree.workflows.Processor", FailingProcessor)
     pdf = tmp_path / "book.pdf"
     output_root = tmp_path / "runs"
     make_pdf(pdf)

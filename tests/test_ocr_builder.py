@@ -66,6 +66,54 @@ def test_ocr_overlay_requires_confirmation_when_input_has_bookmarks(
         builder.run()
 
 
+def test_ocr_overlay_rejects_same_input_output_even_with_force(
+    tmp_path: Path,
+) -> None:
+    input_pdf = tmp_path / "book.pdf"
+    make_pdf(input_pdf)
+    original = input_pdf.read_bytes()
+    builder = OcrOverlayBuilder(
+        OcrOverlayConfig(
+            input_pdf=input_pdf,
+            output_pdf=input_pdf,
+            output_dir=tmp_path / "artifacts",
+            force=True,
+        )
+    )
+
+    with pytest.raises(ValueError, match="같은 파일"):
+        builder.run()
+
+    assert input_pdf.read_bytes() == original
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("engine", ""),
+        ("engine_options", []),
+        ("render_dpi", 0),
+        ("render_dpi", True),
+        ("pages", [0]),
+        ("pages", [True]),
+        ("cache_policy", "invalid"),
+        ("force", 1),
+    ],
+)
+def test_ocr_overlay_config_rejects_invalid_python_values(
+    tmp_path: Path, field: str, value: object
+) -> None:
+    values = {
+        "input_pdf": tmp_path / "input.pdf",
+        "output_pdf": tmp_path / "output.pdf",
+        "output_dir": tmp_path / "artifacts",
+        field: value,
+    }
+
+    with pytest.raises(ValueError):
+        OcrOverlayConfig(**values)
+
+
 def test_ocr_overlay_builder_emits_runtime_log_events(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

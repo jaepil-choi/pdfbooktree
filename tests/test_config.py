@@ -18,6 +18,7 @@ def test_default_processing_config는_기존_기본값을_유지한다() -> None
     assert config.skip_existing_bookmarks is True
     assert config.write_artifacts is True
     assert config.ocr_policy == "never"
+    assert config.markdown_content_mode == "direct"
     assert config.typography.heading_candidate_mode == "font"
     assert config.typography.position_fallback_enabled is True
     assert config.markdown_split is None
@@ -51,6 +52,15 @@ def test_markdown_config는_잘못된_coverage를_거절한다() -> None:
         MarkdownSplitConfig(max_words_coverage=1.1)
 
 
-def test_processing_config는_잘못된_literal을_거절한다() -> None:
-    with pytest.raises(ConfigError, match="ocr_policy"):
-        ProcessingConfig(ocr_policy="sometimes")
+@pytest.mark.parametrize("ocr_policy", ["auto", "always", "sometimes"])
+def test_processing_config는_지원하지_않는_ocr_policy를_조기_거절한다(
+    ocr_policy: str,
+) -> None:
+    with pytest.raises(ConfigError, match="현재 never만 지원"):
+        ProcessingConfig(ocr_policy=ocr_policy)  # type: ignore[arg-type]
+
+
+def test_processing_config는_잘못된_markdown_literal을_거절한다() -> None:
+
+    with pytest.raises(ConfigError, match="markdown_content_mode"):
+        ProcessingConfig(markdown_content_mode="nested")

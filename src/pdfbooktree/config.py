@@ -360,9 +360,19 @@ class ProcessingConfig:
         True,
         description="검토 가능한 중간 JSON/JSONL artifact를 저장할지 정한다.",
     )
-    ocr_policy: Literal["never", "auto", "always"] = _setting(
+    ocr_policy: Literal["never"] = _setting(
         "never",
-        description="OCR 전처리 정책이다. 현재 Processor에는 아직 연결되지 않았다.",
+        description=(
+            "Processor의 OCR 전처리 정책이다. 현재 never만 지원하며 OCR은 "
+            "ocr-overlay 또는 ocr-overlay-batch로 먼저 실행한다."
+        ),
+    )
+    markdown_content_mode: Literal["direct", "inclusive"] = _setting(
+        "direct",
+        description=(
+            "기본 Markdown tree에서 node가 직접 본문만 소유할지(direct), "
+            "descendant 본문까지 포함할지(inclusive) 정한다."
+        ),
     )
     typography: TypographyConfig = field(
         default_factory=TypographyConfig,
@@ -382,9 +392,14 @@ class ProcessingConfig:
             raise ConfigError("processing.skip_existing_bookmarks는 bool이어야 한다.")
         if not isinstance(self.write_artifacts, bool):
             raise ConfigError("processing.write_artifacts는 bool이어야 한다.")
-        if self.ocr_policy not in {"never", "auto", "always"}:
+        if self.ocr_policy != "never":
             raise ConfigError(
-                "processing.ocr_policy는 never, auto, always 중 하나여야 한다."
+                "processing.ocr_policy는 현재 never만 지원한다. "
+                "OCR은 ocr-overlay 또는 ocr-overlay-batch로 먼저 실행해야 한다."
+            )
+        if self.markdown_content_mode not in {"direct", "inclusive"}:
+            raise ConfigError(
+                "processing.markdown_content_mode는 direct, inclusive 중 하나여야 한다."
             )
         if not isinstance(self.typography, TypographyConfig):
             raise ConfigError("processing.typography는 TypographyConfig여야 한다.")

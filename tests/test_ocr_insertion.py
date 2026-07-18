@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import fitz
+import pytest
 
 from pdfbooktree.ocr.insertion import (
     FIT_MIN_FONT_SIZE_PT,
@@ -90,6 +91,56 @@ def test_write_overlay_pdf_strips_existing_text_and_preserves_page_render(
         assert output_doc.page_count == 2
     finally:
         output_doc.close()
+
+
+def test_write_overlay_pdf_rejects_same_path_without_deleting_source(
+    tmp_path: Path,
+) -> None:
+    input_pdf = tmp_path / "input.pdf"
+    make_pdf_with_invisible_text(input_pdf)
+    original = input_pdf.read_bytes()
+
+    with pytest.raises(ValueError, match="같은 파일"):
+        write_overlay_pdf([], input_pdf, input_pdf, tmp_path / "overlay_pages")
+
+    assert input_pdf.read_bytes() == original
+
+
+def test_write_overlay_pdf_preserves_existing_output_when_generation_fails(
+    monkeypatch, tmp_path: Path
+) -> None:
+    input_pdf = tmp_path / "input.pdf"
+    output_pdf = tmp_path / "output.pdf"
+    make_pdf_with_invisible_text(input_pdf)
+    output_pdf.write_bytes(b"existing-output")
+
+    def fail_insert(*_args: object) -> None:
+        raise RuntimeError("삽입 실패")
+
+    monkeypatch.setattr(
+        "pdfbooktree.ocr.insertion._insert_invisible_lines", fail_insert
+    )
+
+    with pytest.raises(RuntimeError, match="삽입 실패"):
+        write_overlay_pdf([], input_pdf, output_pdf, tmp_path / "overlay_pages")
+
+    assert output_pdf.read_bytes() == b"existing-output"
+    assert not list(tmp_path.glob(".output.*.pdf"))
+
+
+def test_write_overlay_pdf_atomically_replaces_existing_output(
+    tmp_path: Path,
+) -> None:
+    input_pdf = tmp_path / "input.pdf"
+    output_pdf = tmp_path / "output.pdf"
+    make_pdf_with_invisible_text(input_pdf)
+    output_pdf.write_bytes(b"existing-output")
+
+    write_overlay_pdf([], input_pdf, output_pdf, tmp_path / "overlay_pages")
+
+    with fitz.open(output_pdf) as document:
+        assert document.page_count == 2
+    assert output_pdf.read_bytes() != b"existing-output"
 
 
 def test_element_overlay_wraps_long_text_instead_of_clipping(tmp_path: Path) -> None:

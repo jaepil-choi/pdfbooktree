@@ -36,6 +36,12 @@ def test_processor_exports_markdown_for_existing_outline(tmp_path: Path) -> None
     assert result.output_pdf is None
     assert result.output_markdown_dir is not None
     assert (result.output_markdown_dir / "toc.md").exists()
+    assert result.markdown_export is not None
+    assert result.markdown_export.export_mode == "tree_graph"
+    assert result.markdown_export.manifest_path is not None
+    assert result.artifact_paths["markdown_manifest"] == (
+        result.markdown_export.manifest_path
+    )
     assert result.bookmark_count == 2
     assert result.existing_outline_quality is not None
     assert result.existing_outline_quality.is_low_quality is True
@@ -68,6 +74,52 @@ def test_processor_exports_coverage_split_for_existing_outline(tmp_path: Path) -
     assert result.markdown_export.chosen_level == 2
     assert result.markdown_export.file_count == 2
     assert result.markdown_export.manifest_path is not None
+
+
+def test_existing_outline_split은_same_page의_하위_heading을_보존한다(
+    tmp_path: Path,
+) -> None:
+    pdf = tmp_path / "same-page-bookmarked.pdf"
+    document = fitz.open()
+    try:
+        for index in range(3):
+            page = document.new_page()
+            page.insert_text(
+                (72, 72),
+                f"Page {index + 1} body text",
+                fontsize=12,
+            )
+        document.set_toc(
+            [
+                [1, "Chapter 1", 1],
+                [2, "Section Before Next Chapter", 2],
+                [1, "Chapter 2", 2],
+                [2, "Section 2", 3],
+            ]
+        )
+        document.save(pdf)
+    finally:
+        document.close()
+
+    result = Processor(
+        pdf,
+        tmp_path / "out",
+        ProcessingConfig(
+            markdown_split=MarkdownSplitConfig(
+                max_words=1_000,
+                max_words_coverage=1.0,
+            )
+        ),
+    ).run()
+
+    assert result.markdown_export is not None
+    assert result.markdown_export.chosen_level == 1
+    node_text = "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in sorted((result.output_markdown_dir / "nodes").glob("*.md"))
+    )
+    assert node_text.count("## Section Before Next Chapter") == 1
+    assert node_text.count("<!-- pdf_page 2 -->") == 1
 
 
 def _make_typography_book_with_tiny_toc(path: Path) -> None:
@@ -134,3 +186,22 @@ def test_processor_replaces_low_quality_existing_outline_when_configured(
     assert result.bookmark_count > 2
     assert result.existing_outline_quality is not None
     assert result.existing_outline_quality.is_low_quality is True
+    assert result.artifact_paths["bookmark_review_summary"].is_file()
+    assert result.artifact_paths["bookmark_review_items"].is_file()
+    assert result.artifact_paths["existing_outline_plan"].is_file()
+
+
+def test_processor_failed_result_does_not_claim_nonexistent_outputs(
+    tmp_path: Path,
+) -> None:
+    pdf = tmp_path / "blank.pdf"
+    document = fitz.open()
+    document.new_page()
+    document.save(pdf)
+    document.close()
+
+    result = Processor(pdf, tmp_path / "out").run()
+
+    assert result.status == "failed"
+    assert result.output_pdf is None
+    assert result.output_markdown_dir is None

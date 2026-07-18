@@ -328,6 +328,77 @@
       "finding": "wheel 설치 CLI가 skill file 5개를 실행 project에 byte-identical하게 생성했고, 기존 target은 exit 2로 보호하며 --force에서 전체 교체했다.",
       "command": "uv run python showcase/027_install_project_skill_cli.py",
       "ran_at": "2026-07-17T07:49:48+09:00"
+    },
+    {
+      "id": "028_markdown_graph_progressive_review",
+      "purpose": "실제 Shreve PDF에서 기존 outline tree graph와 typography inference length-limited split graph를 만들고 inspect plan, YAML, wiki relation, coverage와 source/confidence/evidence 보존을 검증한다.",
+      "inputs": [
+        "data\\scanned-pdf-indexed\\(Springer Finance) Steven E. Shreve - Stochastic Calculus for Finance I The Binomial Asset Pricing Model-Springer (2005)-indexed.pdf"
+      ],
+      "outputs": "showcase\\outputs\\028_markdown_graph_review",
+      "finding": "tree nodes=238, tree valid=True, split nodes=36, split valid=True, split evidence nodes=36, dangling=0",
+      "command": "uv run python showcase/028_markdown_graph_progressive_review.py",
+      "ran_at": "2026-07-17T09:40:21+09:00"
+    },
+    {
+      "id": "029_bookmark_review_progressive_inspection",
+      "purpose": "실제 native/OCR PDF에서 review summary, attention filter, item detail과 원문 page로 이어지는 progressive inspection 흐름을 검증한다.",
+      "inputs": [
+        "data\\native-pdf-indexed\\John Hull - Options, Futures, and Other Derivatives, Global Edition-Pearson (2021).pdf",
+        "data\\scanned-pdf-indexed\\(Springer Finance) Steven E. Shreve - Stochastic Calculus for Finance I The Binomial Asset Pricing Model-Springer (2005)-indexed.pdf",
+        "showcase\\outputs\\014_ocr_overlay_math_statistics\\pdfs\\수리통계학(개정판)-김우철_upocr_merged_ocr.pdf"
+      ],
+      "outputs": "showcase\\outputs\\029_bookmark_review_progressive_inspection",
+      "finding": "native_hull: plan=1098, attention=836, valid=True; scanned_indexed_shreve: plan=357, attention=270, valid=True; ocr_math_statistics: plan=74, attention=40, valid=True",
+      "command": "uv run python showcase/029_bookmark_review_progressive_inspection.py",
+      "ran_at": "2026-07-17T11:21:29+09:00"
+    },
+    {
+      "id": "030_ocr_policy_fail_fast",
+      "purpose": "실제 PDF를 process CLI에 전달했을 때 unsupported ocr_policy가 분석·output·외부 OCR 호출 전에 ConfigError/exit 2로 종료되는지 검증한다.",
+      "inputs": [
+        "data\\native-pdf-indexed\\John Hull - Options, Futures, and Other Derivatives, Global Edition-Pearson (2021).pdf",
+        "showcase\\outputs\\030_ocr_policy_fail_fast\\unsupported-auto.toml"
+      ],
+      "outputs": "showcase\\outputs\\030_ocr_policy_fail_fast",
+      "finding": "actual_pdf_pages=881, schema=['never'], config_auto_exit=2, process_always_exit=2, output_created=False",
+      "command": "uv run python showcase/030_ocr_policy_fail_fast.py",
+      "ran_at": "2026-07-17T12:29:57+09:00"
+    },
+    {
+      "id": "031_wheel_install_smoke",
+      "purpose": "현재 source에서 만든 wheel을 별도 Python 3.12 clean venv에 설치한 뒤 CLI version/config/inspect, 실제 PDF process와 package skill 설치가 source checkout 없이 작동하는지 검증한다.",
+      "inputs": [
+        "data\\300STUDY\\b_nonbooks\\b_lecture\\MIT OCW 18.06 Linear Algebra\\18-06sc-fall-2011\\18-06sc-fall-2011\\contents\\resource-index\\problem-solving-eigenvalues-and-eigenvectors\\mVeuZzJdd1w.pdf",
+        "현재 source에서 빌드한 pdfbooktree wheel"
+      ],
+      "outputs": "showcase\\outputs\\031_wheel_install_smoke\\result.json",
+      "finding": "clean wheel install=True, version=pdfbooktree 0.1.0, License-Expression=MIT, License-File=LICENSE, 실제 PDF 2쪽 processed, bookmark=1, Markdown manifest 생성=True, package skill file=5",
+      "command": "uv run python showcase/031_wheel_install_smoke.py",
+      "ran_at": "2026-07-17T14:23:49+09:00"
+    },
+    {
+      "id": "032_agent_edit_validate_apply",
+      "purpose": "실제 637-page OCR 책의 review evidence로 false positive를 제거한 뒤 plan 비교, apply dry-run과 실제 PDF/Markdown 적용 전체 흐름을 검증한다.",
+      "inputs": [
+        "showcase\\outputs\\014_ocr_overlay_math_statistics\\pdfs\\수리통계학(개정판)-김우철_upocr_merged_ocr.pdf",
+        "showcase\\outputs\\029_bookmark_review_progressive_inspection\\ocr_math_statistics\\bookmark_plan.json"
+      ],
+      "outputs": "showcase\\outputs\\032_agent_edit_validate_apply",
+      "finding": "실제 OCR plan 74개에서 page 98의 n0008 false positive 1개를 제거했다. dry-run valid=True, 실제 apply bookmark=73, Markdown graph valid=True.",
+      "command": "uv run python showcase/032_agent_edit_validate_apply.py",
+      "ran_at": "2026-07-17T20:39:03+09:00"
+    },
+    {
+      "id": "033_python_workflow_api",
+      "purpose": "실제 PDF에서 infer_pdf → preview_apply_plan → apply_plan_file 고수준 Python workflow와 canonical plan snapshot을 검증한다.",
+      "inputs": [
+        "data\\300STUDY\\b_nonbooks\\b_lecture\\MIT OCW 18.06 Linear Algebra\\18-06sc-fall-2011\\18-06sc-fall-2011\\contents\\resource-index\\problem-solving-eigenvalues-and-eigenvectors\\mVeuZzJdd1w.pdf"
+      ],
+      "outputs": "showcase\\outputs\\033_python_workflow_api",
+      "finding": "실제 2-page MIT OCW PDF에서 infer→preview→apply Python workflow가 bookmark 1개를 같은 canonical plan snapshot으로 처리했다.",
+      "command": "uv run python showcase/033_python_workflow_api.py",
+      "ran_at": "2026-07-18T15:05:07+09:00"
     }
   ]
 }

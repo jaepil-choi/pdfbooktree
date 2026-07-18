@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 import fitz
+import yaml
 
 from pdfbooktree.config import MarkdownSplitConfig, TypographyConfig
 from pdfbooktree.export.fallback import choose_deepest_available_level
@@ -165,7 +166,14 @@ def test_split_export_selects_coarsest_level_that_meets_coverage(
         document.close()
     plan = [
         BookmarkPlanItem(title="Chapter", level=1, pdf_page=1),
-        BookmarkPlanItem(title="Section", level=2, pdf_page=2),
+        BookmarkPlanItem(
+            title="Section",
+            level=2,
+            pdf_page=2,
+            source="position_fallback",
+            confidence=0.61,
+            evidence=["page_top_repetition"],
+        ),
         BookmarkPlanItem(title="Topic", level=3, pdf_page=3),
     ]
 
@@ -183,7 +191,61 @@ def test_split_export_selects_coarsest_level_that_meets_coverage(
     assert result.chosen_level == 2
     assert result.file_count == 2
     assert result.manifest_path is not None and result.manifest_path.exists()
+    assert result.manifest_path.name == "markdown_manifest.json"
+    assert result.export_mode == "split"
     assert result.overflow_files == []
+    manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
+    assert manifest["export_mode"] == "split"
+    assert manifest["content_mode"] == "bounded"
+    assert manifest["validation"]["valid"] is True
+    assert [node["node_id"] for node in manifest["nodes"]] == ["n0001", "n0002"]
+    assert manifest["nodes"][1]["contained_plan_node_ids"] == ["n0002", "n0003"]
+    assert (result.output_dir / "toc.md").is_file()
+    node_path = result.output_dir / manifest["nodes"][1]["relative_path"]
+    lines = node_path.read_text(encoding="utf-8").splitlines()
+    end = lines.index("---", 1)
+    front_matter = yaml.safe_load("\n".join(lines[1:end]))
+    assert front_matter["node_id"] == "n0002"
+    assert front_matter["source"] == "position_fallback"
+    assert front_matter["confidence"] == 0.61
+    assert front_matter["evidence_count"] == 1
+    assert front_matter["evidence_ref"] == "../bookmark_plan.json#n0002"
+
+
+def test_split_graph는_same_page_boundary에서_마지막_node만_page를_소유한다(
+    tmp_path: Path,
+) -> None:
+    pdf = tmp_path / "same-page.pdf"
+    document = fitz.open()
+    try:
+        for text in ("first page body", "second page body"):
+            page = document.new_page()
+            page.insert_text((72, 72), text, fontsize=12)
+        document.save(pdf)
+    finally:
+        document.close()
+    plan = [
+        BookmarkPlanItem(title="Chapter", level=1, pdf_page=1),
+        BookmarkPlanItem(title="Section", level=2, pdf_page=1),
+        BookmarkPlanItem(title="Next", level=1, pdf_page=2),
+    ]
+
+    result = export_markdown_split(
+        pdf,
+        tmp_path / "out",
+        plan,
+        total_pages=2,
+        config=MarkdownSplitConfig(max_words=1, max_words_coverage=1.0),
+    )
+
+    assert result.fallback_used is True
+    assert result.chosen_level == 2
+    assert result.manifest_path is not None
+    manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
+    assert manifest["coverage"]["duplicated_page_count"] == 0
+    assert manifest["coverage"]["navigation_only_node_count"] == 1
+    assert manifest["warnings"]["same_page_boundary_count"] == 1
+    assert manifest["validation"]["valid"] is True
 
 
 def test_deepest_level_fallback은_문서가_있는_가장_깊은_level을_고른다():

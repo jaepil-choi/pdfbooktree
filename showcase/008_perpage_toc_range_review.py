@@ -51,7 +51,10 @@ SHOWCASE_JSON = ROOT_DIR / "showcase" / "showcase.json"
 SHOWCASE_ID = "008_perpage_toc_range_review"
 LABELS_JSON = ROOT_DIR / "experiments" / "labels" / "answer_toc_ranges_manual.json"
 MODEL_PATH = (
-    ROOT_DIR / "outputs" / "300study_toc_page_dataset_model" / "toc_page_dataset_model.joblib"
+    ROOT_DIR
+    / "outputs"
+    / "300study_toc_page_dataset_model"
+    / "toc_page_dataset_model.joblib"
 )
 MAX_SEARCH_PAGES = 80
 
@@ -68,9 +71,7 @@ def _prf(predicted: list[int], gold: list[int]) -> dict[str, Any]:
         if (precision + recall) > 0
         else 0.0
     )
-    start_err = (
-        abs(min(predicted) - min(gold)) if predicted and gold else None
-    )
+    start_err = abs(min(predicted) - min(gold)) if predicted and gold else None
     end_err = abs(max(predicted) - max(gold)) if predicted and gold else None
     return {
         "precision": round(precision, 4),

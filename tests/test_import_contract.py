@@ -2,10 +2,22 @@
 
 from __future__ import annotations
 
+from importlib import metadata, resources
+
 import pdfbooktree
 
 
 def test_public_import_contract() -> None:
+    assert pdfbooktree.__version__ == metadata.version("pdfbooktree")
+    assert pdfbooktree.package_version() == pdfbooktree.__version__
+    assert resources.files("pdfbooktree").joinpath("py.typed").is_file()
+    assert pdfbooktree.OptionalDependencyError is not None
+    assert pdfbooktree.ProcessingRunResult is not None
+    assert pdfbooktree.ApplyPreview is not None
+    assert pdfbooktree.process_pdf is not None
+    assert pdfbooktree.infer_pdf is not None
+    assert pdfbooktree.preview_apply_plan is not None
+    assert pdfbooktree.apply_plan_file is not None
     assert pdfbooktree.Processor is not None
     assert pdfbooktree.BatchProcessor is not None
     assert pdfbooktree.ProcessingConfig is not None
@@ -43,3 +55,21 @@ def test_public_import_contract() -> None:
     assert str(pdfbooktree.PROJECT_SKILL_RELATIVE_PATH).replace("\\", "/") == (
         ".agents/skills/use-pdfbooktree"
     )
+
+
+def test_ocr_dependencies는_extra_marker를_가진다() -> None:
+    requirements = metadata.requires("pdfbooktree") or []
+    core_requirements = {
+        requirement.split(">=", 1)[0]
+        for requirement in requirements
+        if "extra ==" not in requirement
+    }
+    ocr_requirements = {
+        requirement.split(">=", 1)[0]
+        for requirement in requirements
+        if "extra == 'ocr'" in requirement
+    }
+
+    assert "tqdm" in core_requirements
+    assert not {"httpx", "pikepdf", "python-dotenv"} & core_requirements
+    assert ocr_requirements == {"httpx", "pikepdf", "python-dotenv"}

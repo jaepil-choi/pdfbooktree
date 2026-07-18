@@ -38,7 +38,16 @@ def test_batch_cli_parses_options(monkeypatch, tmp_path: Path) -> None:
             return None
 
     class FakeBatchProcessor:
-        def __init__(self, input_dir, output_dir, config, recursive=False, log=None):
+        def __init__(
+            self,
+            input_dir,
+            output_dir,
+            config,
+            recursive=False,
+            log=None,
+            include_globs=(),
+            exclude_globs=(),
+        ):
             captured["input_dir"] = input_dir
             captured["output_dir"] = output_dir
             captured["config"] = config
@@ -91,7 +100,16 @@ def test_batch_json_result_and_events_use_separate_streams(
     input_dir.mkdir()
 
     class FakeBatchProcessor:
-        def __init__(self, input_dir, output_dir, config, recursive=False, log=None):
+        def __init__(
+            self,
+            input_dir,
+            output_dir,
+            config,
+            recursive=False,
+            log=None,
+            include_globs=(),
+            exclude_globs=(),
+        ):
             self.input_dir = input_dir
             self.log = log
 
@@ -271,7 +289,16 @@ def test_batch_runtime_error_and_debug_contract(monkeypatch, tmp_path: Path) -> 
     input_dir.mkdir()
 
     class FailingBatchProcessor:
-        def __init__(self, input_dir, output_dir, config, recursive=False, log=None):
+        def __init__(
+            self,
+            input_dir,
+            output_dir,
+            config,
+            recursive=False,
+            log=None,
+            include_globs=(),
+            exclude_globs=(),
+        ):
             pass
 
         def run(self):

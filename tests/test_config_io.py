@@ -83,6 +83,15 @@ def test_markdown_override는_optional_section을_활성화한다() -> None:
     assert resolved.data["markdown"]["max_words_coverage"] == 0.9
 
 
+def test_markdown_content_mode는_processing_override로_설정한다() -> None:
+    resolved = resolve_processing_config(
+        set_overrides=["processing.markdown_content_mode=inclusive"]
+    )
+
+    assert resolved.config.markdown_content_mode == "inclusive"
+    assert resolved.data["processing"]["markdown_content_mode"] == "inclusive"
+
+
 def test_unknown_key와_schema_version을_거절한다(tmp_path: Path) -> None:
     unknown = tmp_path / "unknown.toml"
     unknown.write_text(
@@ -132,7 +141,12 @@ def test_schema와_specs는_전체_public_field를_설명한다() -> None:
     assert schema["properties"]["schema_version"]["const"] == CONFIG_SCHEMA_VERSION
     assert "typography.position_fallback_tolerance" in specs
     assert specs["typography.position_fallback_tolerance"]["type"] == "number"
-    assert specs["processing.ocr_policy"]["enum"] == ["never", "auto", "always"]
+    assert specs["processing.ocr_policy"]["enum"] == ["never"]
+    assert "ocr-overlay" in specs["processing.ocr_policy"]["description"]
+    assert specs["processing.markdown_content_mode"]["enum"] == [
+        "direct",
+        "inclusive",
+    ]
 
 
 def test_config_template은_기존_파일을_보호하고_다시_읽을_수_있다(
@@ -156,3 +170,11 @@ def test_rendered_toml과_json_data는_agent가_parse할_수_있다() -> None:
     assert f"schema_version = {CONFIG_SCHEMA_VERSION}" in rendered
     assert "[typography]" in rendered
     assert json.loads(json.dumps(resolved.data))["processing"]["ocr_policy"] == "never"
+
+
+@pytest.mark.parametrize("ocr_policy", ["auto", "always"])
+def test_resolve_processing_config는_지원하지_않는_ocr_policy를_거절한다(
+    ocr_policy: str,
+) -> None:
+    with pytest.raises(ConfigError, match="ocr-overlay"):
+        resolve_processing_config(set_overrides=[f"processing.ocr_policy={ocr_policy}"])

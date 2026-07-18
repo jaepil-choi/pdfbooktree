@@ -76,9 +76,7 @@ def match_id(entries: list[dict[str, Any]], query: str) -> list[dict[str, Any]]:
     if exact:
         return exact
     # 숫자 접두사(예: "038")나 부분 문자열로 매칭한다.
-    prefix_matches = [
-        e for e in entries if str(e.get("id", "")).startswith(query)
-    ]
+    prefix_matches = [e for e in entries if str(e.get("id", "")).startswith(query)]
     if prefix_matches:
         return prefix_matches
     return [e for e in entries if query.lower() in str(e.get("id", "")).lower()]
@@ -90,7 +88,9 @@ def cmd_get(entries: list[dict[str, Any]], log_name: str, query: str) -> None:
         print(f"[{log_name}] '{query}'와 일치하는 id가 없다.")
         return
     if len(matches) > 1:
-        print(f"[{log_name}] '{query}'에 여러 항목이 일치한다. id를 더 구체적으로 지정하라:")
+        print(
+            f"[{log_name}] '{query}'에 여러 항목이 일치한다. id를 더 구체적으로 지정하라:"
+        )
         for entry in sorted(matches, key=sort_key):
             purpose = truncate(str(entry.get("purpose", "")), PURPOSE_PREVIEW_LEN)
             print(f"  {entry.get('id', '?')}: {purpose}")
@@ -126,7 +126,9 @@ def cmd_search(
                 hits.append((entry, field, snippet))
                 break
     if not hits:
-        print(f"[{log_name}] '{keyword}'와 일치하는 항목이 없다 (검색 필드: {', '.join(fields)}).")
+        print(
+            f"[{log_name}] '{keyword}'와 일치하는 항목이 없다 (검색 필드: {', '.join(fields)})."
+        )
         return
     print(f"[{log_name}] '{keyword}' 검색 결과 {len(hits)}건")
     for entry, field, snippet in sorted(hits, key=lambda h: sort_key(h[0])):
@@ -182,7 +184,9 @@ def main() -> None:
         elif args.command == "get":
             cmd_get(entries, log_name, args.query)
         elif args.command == "search":
-            fields = ["id", "purpose", "finding"] if args.field == "all" else [args.field]
+            fields = (
+                ["id", "purpose", "finding"] if args.field == "all" else [args.field]
+            )
             cmd_search(entries, log_name, args.keyword, fields)
         if log_name != log_names[-1]:
             print()

@@ -1,5 +1,6 @@
 """PDF 책 구조화 패키지의 공개 API다."""
 
+from pdfbooktree._version import __version__, package_version
 from pdfbooktree.artifacts import write_inference_artifacts
 from pdfbooktree.batch import BatchProcessor
 from pdfbooktree.batch_run import (
@@ -67,6 +68,7 @@ from pdfbooktree.models import (
     TypographyLine,
 )
 from pdfbooktree.outline.plan_io import PlanError, load_bookmark_plan_json
+from pdfbooktree.optional_dependencies import OptionalDependencyError
 from pdfbooktree.pdf.outline_quality import assess_outline_quality
 from pdfbooktree.pipeline import (
     analyze_pdf,
@@ -74,6 +76,14 @@ from pdfbooktree.pipeline import (
     confidence_summary_for_inference,
     infer_bookmarks,
     resolve_existing_outline_action,
+    validate_plan,
+)
+from pdfbooktree.processing_logger import (
+    ProcessingLogEvent,
+    ProcessingLogger,
+    ProcessingLogMode,
+    build_processing_logger,
+    default_processing_log_mode,
 )
 from pdfbooktree.processor import Processor
 from pdfbooktree.project_skill import (
@@ -91,10 +101,21 @@ from pdfbooktree.run import (
     ToolIdentity,
     create_run_context,
 )
+from pdfbooktree.workflows import (
+    ApplyPreview,
+    ProcessingRunResult,
+    apply_plan_file,
+    infer_pdf,
+    preview_apply_plan,
+    process_pdf,
+)
 
 __all__ = [
+    "__version__",
     "analyze_pdf",
     "apply_plan",
+    "apply_plan_file",
+    "ApplyPreview",
     "ApplyResult",
     "CLI_RESULT_SCHEMA_VERSION",
     "assess_outline_quality",
@@ -125,6 +146,7 @@ __all__ = [
     "ExistingOutlineItem",
     "HeadingCandidate",
     "infer_bookmarks",
+    "infer_pdf",
     "install_project_skill",
     "match_bookmark_plans",
     "MatchedPair",
@@ -141,19 +163,28 @@ __all__ = [
     "MarkdownSplitConfig",
     "OutlineQualityAssessment",
     "OutlineQualityConfig",
+    "OptionalDependencyError",
+    "package_version",
     "PdfAnalysis",
     "PlanDiffEntry",
     "PlanDiffResult",
     "PlanError",
     "PlanMatchResult",
     "ProcessingConfig",
+    "ProcessingLogEvent",
+    "ProcessingLogger",
+    "ProcessingLogMode",
     "ProcessingResult",
+    "ProcessingRunResult",
     "Processor",
     "PROJECT_SKILL_NAME",
     "PROJECT_SKILL_RELATIVE_PATH",
+    "preview_apply_plan",
+    "process_pdf",
     "resolve_existing_outline_action",
     "ResolvedConfig",
     "resolve_processing_config",
+    "validate_plan",
     "RunContext",
     "RunError",
     "RunManifest",
@@ -168,4 +199,6 @@ __all__ = [
     "TypographyConfig",
     "TypographyLine",
     "write_inference_artifacts",
+    "build_processing_logger",
+    "default_processing_log_mode",
 ]

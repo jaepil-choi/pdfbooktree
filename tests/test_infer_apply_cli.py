@@ -65,6 +65,31 @@ def test_infer_does_not_write_pdf_or_markdown(tmp_path: Path) -> None:
     assert not list(output_dir.glob("*_markdown"))
     plan = json.loads((output_dir / "bookmark_plan.json").read_text("utf-8"))
     assert len(plan) > 2
+    assert (output_dir / "bookmark_review_summary.json").is_file()
+    assert (output_dir / "bookmark_review_items.jsonl").is_file()
+
+
+def test_infer_run_manifest_links_review_artifacts(tmp_path: Path) -> None:
+    pdf = tmp_path / "book.pdf"
+    output_root = tmp_path / "runs"
+    _make_typography_book(pdf)
+
+    result = RUNNER.invoke(
+        app,
+        ["infer", str(pdf), "--output-dir", str(output_root)]
+        + _typography_set_options(),
+    )
+
+    assert result.exit_code == 0, result.output
+    manifest_path = next(output_root.rglob("run_manifest.json"))
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    summary_path = Path(manifest["artifact_paths"]["bookmark_review_summary"])
+    items_path = Path(manifest["artifact_paths"]["bookmark_review_items"])
+    assert summary_path.is_file()
+    assert items_path.is_file()
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    assert summary["plan_item_count"] > 2
+    assert summary["candidate_mapping"]["missing_count"] == 0
 
 
 def test_infer_skips_when_existing_outline_is_good_quality(tmp_path: Path) -> None:
@@ -79,6 +104,7 @@ def test_infer_skips_when_existing_outline_is_good_quality(tmp_path: Path) -> No
 
     assert result.exit_code == 0, result.output
     assert (output_dir / "existing_outline_plan.json").exists()
+    assert (output_dir / "bookmark_plan.json").exists()
     assert not (output_dir / "whole_book_lines.jsonl").exists()
     quality = json.loads(
         (output_dir / "existing_outline_quality.json").read_text("utf-8")
@@ -100,6 +126,7 @@ def test_infer_flags_low_quality_existing_outline_but_still_skips_by_default(
 
     assert result.exit_code == 0, result.output
     assert (output_dir / "existing_outline_plan.json").exists()
+    assert (output_dir / "bookmark_plan.json").exists()
     assert not (output_dir / "whole_book_lines.jsonl").exists()
     quality = json.loads(
         (output_dir / "existing_outline_quality.json").read_text("utf-8")
@@ -214,6 +241,74 @@ def test_apply_rejects_invalid_plan_json(tmp_path: Path) -> None:
     assert "level" in result.output
 
 
+def test_apply_dry_run_validates_without_writing(tmp_path: Path) -> None:
+    pdf = tmp_path / "book.pdf"
+    output_root = tmp_path / "runs"
+    _make_typography_book(pdf)
+    plan_path = tmp_path / "plan.json"
+    plan_path.write_text(
+        json.dumps([{"title": "Chapter 1", "level": 1, "pdf_page": 1}]),
+        encoding="utf-8",
+    )
+
+    result = RUNNER.invoke(
+        app,
+        [
+            "apply",
+            str(pdf),
+            "--plan",
+            str(plan_path),
+            "--output-dir",
+            str(output_root),
+            "--dry-run",
+            "--format",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)
+    assert payload["result"]["dry_run"] is True
+    assert payload["result"]["validation"]["valid"] is True
+    assert payload["result"]["bookmark_count"] == 1
+    assert payload["result"]["input_sha256"] == file_sha256(pdf)
+    assert not output_root.exists()
+
+
+def test_apply_dry_run_semantic_failure_uses_exit_three_without_writing(
+    tmp_path: Path,
+) -> None:
+    pdf = tmp_path / "book.pdf"
+    output_root = tmp_path / "runs"
+    _make_typography_book(pdf)
+    plan_path = tmp_path / "plan.json"
+    plan_path.write_text(
+        json.dumps([{"title": "Outside", "level": 1, "pdf_page": 999}]),
+        encoding="utf-8",
+    )
+
+    result = RUNNER.invoke(
+        app,
+        [
+            "apply",
+            str(pdf),
+            "--plan",
+            str(plan_path),
+            "--output-dir",
+            str(output_root),
+            "--dry-run",
+            "--format",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 3
+    payload = json.loads(result.stderr)
+    assert payload["error"]["code"] == "processing_failed"
+    assert payload["error"]["details"]["validation"]["valid"] is False
+    assert not output_root.exists()
+
+
 def test_apply_records_plan_source_sha256_in_run_manifest(tmp_path: Path) -> None:
     pdf = tmp_path / "book.pdf"
     output_root = tmp_path / "runs"
@@ -242,3 +337,45 @@ def test_apply_records_plan_source_sha256_in_run_manifest(tmp_path: Path) -> Non
     manifest = json.loads(manifests[0].read_text("utf-8"))
     assert manifest["plan_source"]["path"] == str(plan_path)
     assert manifest["plan_source"]["sha256"] == file_sha256(plan_path)
+    assert Path(manifest["artifact_paths"]["markdown_manifest"]).is_file()
+
+
+def test_apply_cli_length_limit은_split_graph_manifest를_연결한다(
+    tmp_path: Path,
+) -> None:
+    pdf = tmp_path / "book.pdf"
+    output_root = tmp_path / "runs"
+    _make_typography_book(pdf)
+    plan_path = tmp_path / "plan.json"
+    plan_path.write_text(
+        json.dumps([{"title": "Chapter 1", "level": 1, "pdf_page": 1}]),
+        encoding="utf-8",
+    )
+
+    result = RUNNER.invoke(
+        app,
+        [
+            "apply",
+            str(pdf),
+            "--plan",
+            str(plan_path),
+            "--output-dir",
+            str(output_root),
+            "--set",
+            "markdown.max_words=1000",
+            "--set",
+            "markdown.max_words_coverage=1.0",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    run_manifest_path = next(output_root.rglob("run_manifest.json"))
+    run_manifest = json.loads(run_manifest_path.read_text(encoding="utf-8"))
+    markdown_manifest_path = Path(run_manifest["artifact_paths"]["markdown_manifest"])
+    markdown_manifest = json.loads(markdown_manifest_path.read_text(encoding="utf-8"))
+    assert markdown_manifest_path.name == "markdown_manifest.json"
+    assert markdown_manifest["export_mode"] == "split"
+    assert markdown_manifest["content_mode"] == "bounded"
+    assert markdown_manifest["validation"]["valid"] is True
+    assert (markdown_manifest_path.parent / "toc.md").is_file()
+    assert (markdown_manifest_path.parent / "nodes").is_dir()

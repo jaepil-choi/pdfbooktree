@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-from dataclasses import replace as dataclass_replace
 from pathlib import Path
 from typing import cast
 
 import fitz
 import typer
 
-from pdfbooktree.artifacts import write_artifact, write_inference_artifacts
+from pdfbooktree._version import package_version
 from pdfbooktree.batch import BatchProcessor
 from pdfbooktree.batch_logger import (
     BatchLogMode,
@@ -49,7 +48,7 @@ from pdfbooktree.inspection import (
     inspect_plan_artifact,
     inspect_text,
 )
-from pdfbooktree.models import BookmarkPlanItem, ConfidenceSummary, ProcessingResult
+from pdfbooktree.models import BookmarkPlanItem, ProcessingResult
 from pdfbooktree.ocr import (
     ExistingBookmarkConfirmationRequired,
     OcrOverlayBatchConfig,
@@ -60,24 +59,32 @@ from pdfbooktree.ocr import (
 from pdfbooktree.ocr.config import CachePolicy
 from pdfbooktree.ocr.logger import OcrLogMode, build_ocr_logger, default_ocr_log_mode
 from pdfbooktree.outline.plan_io import PlanError, load_bookmark_plan_json
-from pdfbooktree.outline.validate import validate_bookmark_plan
-from pdfbooktree.pdf.outline import outline_to_plan
+from pdfbooktree.optional_dependencies import (
+    OptionalDependencyError,
+    require_ocr_dependencies,
+)
 from pdfbooktree.pdf.scan_signals import DEFAULT_MAX_SAMPLE_PAGES
-from pdfbooktree.pipeline import (
-    analyze_pdf,
-    apply_plan,
-    confidence_summary_for_inference,
-    infer_bookmarks,
-    resolve_existing_outline_action,
+from pdfbooktree.processing_logger import (
+    ProcessingLogger,
+    ProcessingLogMode,
+    build_processing_logger,
+    default_processing_log_mode,
 )
 from pdfbooktree.processor import Processor
 from pdfbooktree.project_skill import SkillInstallError, install_project_skill
-from pdfbooktree.report import write_processing_report
-from pdfbooktree.run import RunError, create_run_context
-from pdfbooktree.utils.hashing import file_sha256
+from pdfbooktree.run import RunError
+from pdfbooktree.workflows import (
+    apply_plan_to_directory,
+    apply_plan_file,
+    infer_to_directory,
+    infer_pdf,
+    preview_apply_plan,
+    process_pdf,
+)
 
 app = typer.Typer(
-    help="PDF 책의 typography hierarchy로 bookmark와 Markdown tree를 만든다."
+    help="PDF 책의 typography hierarchy로 bookmark와 Markdown tree를 만든다.",
+    no_args_is_help=True,
 )
 inspect_app = typer.Typer(help="PDF와 처리 artifact를 읽기 전용으로 조사한다.")
 config_app = typer.Typer(help="versioned processing config를 생성하고 검증한다.")
@@ -87,6 +94,28 @@ app.add_typer(config_app, name="config")
 app.add_typer(skill_app, name="skill")
 
 
+def _version_callback(value: bool) -> None:
+    """설치된 package version을 출력하고 즉시 종료한다."""
+
+    if not value:
+        return
+    typer.echo(f"pdfbooktree {package_version()}")
+    raise typer.Exit()
+
+
+@app.callback()
+def root_callback(
+    version: bool = typer.Option(
+        False,
+        "--version",
+        callback=_version_callback,
+        is_eager=True,
+        help="설치된 pdfbooktree version을 출력한다.",
+    ),
+) -> None:
+    """pdfbooktree 최상위 option을 처리한다."""
+
+
 def _stage_output_format(value: str) -> OutputFormat:
     """단계형 command의 출력 형식을 Typer 입력 오류로 검증한다."""
 
@@ -94,6 +123,25 @@ def _stage_output_format(value: str) -> OutputFormat:
         return parse_output_format(value)
     except ValueError as error:
         raise typer.BadParameter(str(error)) from error
+
+
+def _build_stage_processing_logger(
+    command: str,
+    log_mode: str,
+    *,
+    output_format: OutputFormat,
+) -> ProcessingLogger:
+    """process/infer log mode를 검증하고 stderr logger를 만든다."""
+
+    resolved = default_processing_log_mode() if log_mode == "auto" else log_mode
+    if resolved not in {"rich", "plain", "json", "none"}:
+        _exit_stage_input_error(
+            command,
+            ValueError("log-mode은 auto, rich, plain, json, none 중 하나여야 한다."),
+            code="invalid_input",
+            output_format=output_format,
+        )
+    return build_processing_logger(cast(ProcessingLogMode, resolved), command=command)
 
 
 def _exit_stage_input_error(
@@ -148,15 +196,21 @@ def _exit_stage_runtime_error(
     *,
     output_format: OutputFormat,
     debug: bool,
+    code: str = "runtime_error",
 ) -> None:
     """예상하지 못한 runtime 오류를 숨기거나 debug에서 다시 발생시킨다."""
 
     if debug:
         raise error
+    resolved_code = (
+        "missing_optional_dependency"
+        if isinstance(error, OptionalDependencyError)
+        else code
+    )
     exit_command_error(
         command,
         error,
-        code="runtime_error",
+        code=resolved_code,
         exit_code=CLI_EXIT_RUNTIME_ERROR,
         output_format=output_format,
     )
@@ -439,6 +493,30 @@ def parse_page_ranges(value: str | None) -> list[int] | None:
     return sorted(dict.fromkeys(pages))
 
 
+def parse_closed_page_range(value: str | None) -> tuple[int, int] | None:
+    """inspect plan의 단일 1-based page 또는 닫힌 범위를 해석한다."""
+
+    if value is None or not value.strip():
+        return None
+    token = value.strip()
+    if "," in token:
+        raise typer.BadParameter("--page-range는 단일 page 또는 start-end 형식이다.")
+    try:
+        if "-" in token:
+            start_text, end_text = token.split("-", 1)
+            start = int(start_text)
+            end = int(end_text)
+        else:
+            start = end = int(token)
+    except ValueError as exc:
+        raise typer.BadParameter(
+            "--page-range는 단일 page 또는 start-end 정수 형식이어야 한다."
+        ) from exc
+    if start < 1 or end < start:
+        raise typer.BadParameter("--page-range는 1 이상의 오름차순 범위여야 한다.")
+    return start, end
+
+
 def parse_engine_options(values: list[str]) -> dict[str, object]:
     """--engine-option key=value 목록을 dict로 변환한다."""
 
@@ -612,6 +690,49 @@ def inspect_ocr_cmd(
 @inspect_app.command("plan")
 def inspect_plan_cmd(
     output_dir: Path = typer.Argument(..., help="process output directory다."),
+    summary: bool = typer.Option(
+        False,
+        "--summary",
+        help="review summary와 기존 plan/Markdown 요약만 반환한다.",
+    ),
+    items: bool = typer.Option(
+        False,
+        "--items",
+        help="bookmark review item을 반환한다.",
+    ),
+    limit: int = typer.Option(
+        20,
+        "--limit",
+        min=1,
+        max=1000,
+        help="반환할 review item 최대 개수다.",
+    ),
+    item_id: str | None = typer.Option(
+        None,
+        "--item-id",
+        help="단일 plan node ID를 확인한다. 예: n0042.",
+    ),
+    page_range: str | None = typer.Option(
+        None,
+        "--page-range",
+        help="1-based PDF page 범위다. 예: 100-120.",
+    ),
+    level: int | None = typer.Option(
+        None,
+        "--level",
+        min=1,
+        help="bookmark level로 review item을 제한한다.",
+    ),
+    source: str | None = typer.Option(
+        None,
+        "--source",
+        help="bookmark source로 review item을 제한한다.",
+    ),
+    attention_only: bool = typer.Option(
+        False,
+        "--attention-only",
+        help="attention signal이 있는 review item만 반환한다.",
+    ),
     output_format: str = typer.Option(
         "human", "--format", help="출력 형식이다: human, json."
     ),
@@ -622,12 +743,36 @@ def inspect_plan_cmd(
         False, "--debug", help="예상하지 못한 오류의 traceback을 그대로 노출한다."
     ),
 ) -> None:
-    """bookmark plan validation과 Markdown export 결과를 확인한다."""
+    """bookmark plan summary에서 item 근거까지 점진적으로 확인한다."""
 
     resolved_output_format = _inspection_output_format(output_format, as_json=as_json)
     try:
-        result = inspect_plan_artifact(output_dir)
-    except (FileNotFoundError, ValueError) as error:
+        query_requested = any(
+            (
+                items,
+                item_id is not None,
+                page_range is not None,
+                level is not None,
+                source is not None,
+                attention_only,
+            )
+        )
+        if summary and query_requested:
+            raise typer.BadParameter(
+                "--summary는 item selector/filter와 함께 사용할 수 없다."
+            )
+        parsed_page_range = parse_closed_page_range(page_range)
+        result = inspect_plan_artifact(
+            output_dir,
+            include_items=query_requested,
+            limit=limit,
+            item_id=item_id,
+            page_range=parsed_page_range,
+            level=level,
+            source=source,
+            attention_only=attention_only,
+        )
+    except (FileNotFoundError, ValueError, typer.BadParameter) as error:
         _exit_stage_input_error(
             "inspect.plan",
             error,
@@ -764,8 +909,10 @@ def ocr_overlay(
     output_pdf: Path = typer.Option(
         ..., "--output", "-o", help="생성할 searchable OCR PDF 경로다."
     ),
-    output_dir: Path = typer.Option(
-        ..., "--output-dir", help="OCR cache와 stats artifact를 저장할 디렉터리다."
+    output_dir: Path | None = typer.Option(
+        None,
+        "--output-dir",
+        help="OCR cache와 stats artifact 디렉터리다. 기본값은 <output-stem>_artifacts다.",
     ),
     engine: str = typer.Option("upstage", "--engine", help="OCR engine 이름이다."),
     render_dpi: int = typer.Option(300, "--render-dpi", min=72, help="렌더링 DPI다."),
@@ -834,16 +981,20 @@ def ocr_overlay(
             output_format=resolved_output_format,
         )
     try:
+        require_ocr_dependencies()
+        resolved_ocr_output_dir = output_dir or (
+            output_pdf.parent / f"{output_pdf.stem}_artifacts"
+        )
         logger = build_ocr_logger(
             cast(OcrLogMode, resolved_log_mode),
-            output_dir,
+            resolved_ocr_output_dir,
             enable_file=not no_log_file,
             desc=f"OCR overlay: {pdf.name}",
         )
         config = OcrOverlayConfig(
             input_pdf=pdf,
             output_pdf=output_pdf,
-            output_dir=output_dir,
+            output_dir=resolved_ocr_output_dir,
             engine=engine,
             engine_options=parse_engine_options(engine_option),
             render_dpi=render_dpi,
@@ -904,6 +1055,16 @@ def ocr_overlay_batch_cmd(
     ),
     recursive: bool = typer.Option(
         False, "--recursive", "-r", help="하위 디렉터리까지 찾는다."
+    ),
+    include_glob: list[str] = typer.Option(
+        [],
+        "--include-glob",
+        help="포함할 상대 POSIX 경로 glob이다. 여러 번 지정할 수 있다.",
+    ),
+    exclude_glob: list[str] = typer.Option(
+        [],
+        "--exclude-glob",
+        help="제외할 상대 POSIX 경로 glob이다. include보다 우선한다.",
     ),
     dry_run: bool = typer.Option(
         False,
@@ -996,6 +1157,8 @@ def ocr_overlay_batch_cmd(
             min_page_count=min_page_count,
             max_sample_pages=max_sample_pages,
             stats_word_level=stats_word_level,
+            include_globs=tuple(include_glob),
+            exclude_globs=tuple(exclude_glob),
         )
         runner = OcrOverlayBatchRunner(
             config,
@@ -1039,6 +1202,9 @@ def ocr_overlay_batch_cmd(
         "report_csv_path": result.report_csv_path,
         "detail_jsonl_path": result.detail_jsonl_path,
         "summary_path": result.summary_path,
+        "include_globs": result.include_globs,
+        "exclude_globs": result.exclude_globs,
+        "excluded_output_subtree": result.excluded_output_subtree,
     }
     emit_command_result(command, payload, output_format=resolved_output_format)
 
@@ -1160,6 +1326,11 @@ def process(
         max=1.0,
         help="max-words 이하가 되어야 하는 Markdown 파일 비율이다.",
     ),
+    log_mode: str = typer.Option(
+        "auto",
+        "--log-mode",
+        help="처리 진행 로그 방식이다. auto, rich, plain, json, none 중 하나다.",
+    ),
     output_format: str = typer.Option(
         "human", "--format", help="final result 출력 형식이다: human, json."
     ),
@@ -1210,8 +1381,11 @@ def process(
             pdf,
             output_format=resolved_output_format,
         )
+        logger = _build_stage_processing_logger(
+            "process", log_mode, output_format=resolved_output_format
+        )
         try:
-            result = Processor(pdf, output_dir, resolved.config).run()
+            result = Processor(pdf, output_dir, resolved.config, log=logger).run()
         except Exception as error:
             _exit_stage_runtime_error(
                 "process",
@@ -1227,13 +1401,11 @@ def process(
         )
         return
 
+    logger = _build_stage_processing_logger(
+        "process", log_mode, output_format=resolved_output_format
+    )
     try:
-        run = create_run_context(
-            pdf,
-            output_dir,
-            resolved,
-            repository_root=Path.cwd(),
-        )
+        workflow = process_pdf(pdf, output_dir, resolved, log=logger)
     except RunError as error:
         _exit_stage_input_error(
             "process",
@@ -1241,12 +1413,7 @@ def process(
             code="invalid_input",
             output_format=resolved_output_format,
         )
-    run.start()
-    try:
-        result = Processor(pdf, run.run_dir, resolved.config).run()
-        manifest = run.complete(result)
     except Exception as error:
-        run.fail(error)
         _exit_stage_runtime_error(
             "process",
             error,
@@ -1254,88 +1421,29 @@ def process(
             debug=debug,
         )
     payload = {
-        "run_id": manifest.run_id,
-        "run_dir": manifest.run_dir,
-        "manifest_path": run.manifest_path,
-        "config_hash": manifest.config_hash,
-        "result": result,
+        "run_id": workflow.run_id,
+        "run_dir": workflow.run_dir,
+        "manifest_path": workflow.manifest_path,
+        "config_hash": workflow.config_hash,
+        "result": workflow.result,
     }
     _emit_stage_result(
         "process",
         payload,
-        result,
+        workflow.result,
         output_format=resolved_output_format,
     )
 
 
 def _run_infer(
-    pdf: Path, output_dir: Path, config: ProcessingConfig
+    pdf: Path,
+    output_dir: Path,
+    config: ProcessingConfig,
+    log: ProcessingLogger | None = None,
 ) -> ProcessingResult:
     """existing-outline policy를 따르고, 필요할 때만 typography 추론을 실행한다."""
 
-    output_dir.mkdir(parents=True, exist_ok=True)
-    with fitz.open(pdf) as document:
-        total_pages = document.page_count
-
-    decision = resolve_existing_outline_action(pdf, total_pages, config)
-    if decision.reuse_existing:
-        plan = outline_to_plan(decision.existing_outline)
-        validation = validate_bookmark_plan(plan, total_pages)
-        artifacts: dict[str, Path] = {}
-        if config.write_artifacts:
-            artifacts["existing_outline_plan"] = write_artifact(
-                output_dir, "existing_outline_plan", plan
-            )
-            artifacts["bookmark_plan_validation"] = write_artifact(
-                output_dir, "bookmark_plan_validation", validation
-            )
-            if decision.quality is not None:
-                artifacts["existing_outline_quality"] = write_artifact(
-                    output_dir, "existing_outline_quality", decision.quality
-                )
-        warnings = [
-            f"기존 outline {len(plan)}개를 재사용했고 typography 추론은 실행하지 않았다."
-        ] + validation.warnings
-        if decision.quality is not None and decision.quality.is_low_quality:
-            warnings.append(
-                "기존 outline이 low quality로 판정됐다: "
-                f"reasons={decision.quality.reasons}. "
-                "outline_quality.replace_when_low_quality=true로 재추론할 수 있다."
-            )
-        result = ProcessingResult(
-            status="skipped",
-            input_pdf=pdf,
-            bookmark_count=len(plan),
-            confidence_summary=ConfidenceSummary(outline=1.0),
-            warnings=warnings,
-            artifact_paths=artifacts,
-            existing_outline_quality=decision.quality,
-        )
-    else:
-        analysis = analyze_pdf(pdf, config.typography)
-        inference = infer_bookmarks(analysis, config.typography)
-        artifacts = (
-            write_inference_artifacts(output_dir, inference, decision.quality)
-            if config.write_artifacts
-            else {}
-        )
-        warnings = list(inference.validation.warnings)
-        if decision.quality is not None and decision.quality.is_low_quality:
-            warnings.append(
-                "기존 outline이 low quality로 판정돼 typography 추론 결과로 "
-                f"교체했다: reasons={decision.quality.reasons}"
-            )
-        result = ProcessingResult(
-            status="processed" if inference.validation.valid else "failed",
-            input_pdf=pdf,
-            bookmark_count=len(inference.plan),
-            confidence_summary=confidence_summary_for_inference(inference),
-            warnings=warnings,
-            artifact_paths=artifacts,
-            existing_outline_quality=decision.quality,
-        )
-    report_path = write_processing_report(result, output_dir)
-    return dataclass_replace(result, report_path=report_path)
+    return infer_to_directory(pdf, output_dir, config, log)
 
 
 @app.command()
@@ -1356,6 +1464,11 @@ def infer(
         False,
         "--flat-output",
         help="호환을 위해 immutable run directory 없이 기존 flat output을 사용한다.",
+    ),
+    log_mode: str = typer.Option(
+        "auto",
+        "--log-mode",
+        help="추론 진행 로그 방식이다. auto, rich, plain, json, none 중 하나다.",
     ),
     output_format: str = typer.Option(
         "human", "--format", help="final result 출력 형식이다: human, json."
@@ -1388,8 +1501,11 @@ def infer(
             pdf,
             output_format=resolved_output_format,
         )
+        logger = _build_stage_processing_logger(
+            "infer", log_mode, output_format=resolved_output_format
+        )
         try:
-            result = _run_infer(pdf, output_dir, resolved.config)
+            result = _run_infer(pdf, output_dir, resolved.config, logger)
         except Exception as error:
             _exit_stage_runtime_error(
                 "infer",
@@ -1405,8 +1521,11 @@ def infer(
         )
         return
 
+    logger = _build_stage_processing_logger(
+        "infer", log_mode, output_format=resolved_output_format
+    )
     try:
-        run = create_run_context(pdf, output_dir, resolved, repository_root=Path.cwd())
+        workflow = infer_pdf(pdf, output_dir, resolved, log=logger)
     except RunError as error:
         _exit_stage_input_error(
             "infer",
@@ -1414,12 +1533,7 @@ def infer(
             code="invalid_input",
             output_format=resolved_output_format,
         )
-    run.start()
-    try:
-        result = _run_infer(pdf, run.run_dir, resolved.config)
-        manifest = run.complete(result)
     except Exception as error:
-        run.fail(error)
         _exit_stage_runtime_error(
             "infer",
             error,
@@ -1427,16 +1541,16 @@ def infer(
             debug=debug,
         )
     payload = {
-        "run_id": manifest.run_id,
-        "run_dir": manifest.run_dir,
-        "manifest_path": run.manifest_path,
-        "config_hash": manifest.config_hash,
-        "result": result,
+        "run_id": workflow.run_id,
+        "run_dir": workflow.run_dir,
+        "manifest_path": workflow.manifest_path,
+        "config_hash": workflow.config_hash,
+        "result": workflow.result,
     }
     _emit_stage_result(
         "infer",
         payload,
-        result,
+        workflow.result,
         output_format=resolved_output_format,
     )
 
@@ -1449,28 +1563,7 @@ def _run_apply(
 ) -> ProcessingResult:
     """검증된 plan으로 bookmarked PDF/Markdown만 만든다. typography 추론은 하지 않는다."""
 
-    output_dir.mkdir(parents=True, exist_ok=True)
-    with fitz.open(pdf) as document:
-        total_pages = document.page_count
-    apply_result = apply_plan(pdf, output_dir, plan, total_pages, config.markdown_split)
-    artifacts: dict[str, Path] = {}
-    if config.write_artifacts:
-        artifacts["bookmark_plan_validation"] = write_artifact(
-            output_dir, "bookmark_plan_validation", apply_result.validation
-        )
-    result = ProcessingResult(
-        status="processed" if apply_result.validation.valid else "failed",
-        input_pdf=pdf,
-        output_pdf=apply_result.output_pdf,
-        output_markdown_dir=apply_result.output_markdown_dir,
-        markdown_export=apply_result.markdown_export,
-        bookmark_count=len(plan),
-        confidence_summary=ConfidenceSummary(outline=1.0),
-        warnings=list(apply_result.validation.warnings),
-        artifact_paths=artifacts,
-    )
-    report_path = write_processing_report(result, output_dir)
-    return dataclass_replace(result, report_path=report_path)
+    return apply_plan_to_directory(pdf, output_dir, plan, config)
 
 
 @app.command()
@@ -1496,6 +1589,11 @@ def apply(
         False,
         "--flat-output",
         help="호환을 위해 immutable run directory 없이 기존 flat output을 사용한다.",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="plan과 PDF page 범위만 검증하고 run directory나 산출물을 만들지 않는다.",
     ),
     output_format: str = typer.Option(
         "human", "--format", help="final result 출력 형식이다: human, json."
@@ -1530,6 +1628,45 @@ def apply(
             output_format=resolved_output_format,
         )
 
+    if dry_run:
+        try:
+            preview = preview_apply_plan(pdf, plan_path, output_dir, resolved)
+        except (PlanError, RunError, FileNotFoundError) as error:
+            _exit_stage_input_error(
+                "apply",
+                error,
+                code="invalid_input",
+                output_format=resolved_output_format,
+            )
+        payload = {
+            "status": preview.status,
+            "dry_run": preview.dry_run,
+            "input_pdf": preview.input_pdf,
+            "input_sha256": preview.input_sha256,
+            "plan_path": preview.plan_path,
+            "plan_sha256": preview.plan_sha256,
+            "total_pages": preview.total_pages,
+            "bookmark_count": preview.bookmark_count,
+            "validation": preview.validation,
+            "planned_output_pdf": preview.planned_output_pdf,
+            "planned_output_markdown_dir": preview.planned_output_markdown_dir,
+        }
+        if not preview.validation.valid:
+            exit_command_error(
+                "apply",
+                ProcessingFailedError("bookmark plan 구조 검증에 실패했다."),
+                code="processing_failed",
+                exit_code=CLI_EXIT_PROCESSING_FAILED,
+                output_format=resolved_output_format,
+                details=payload,
+            )
+        emit_command_result(
+            "apply",
+            payload,
+            output_format=resolved_output_format,
+        )
+        return
+
     if flat_output:
         _validate_flat_input_pdf(
             "apply",
@@ -1554,21 +1691,15 @@ def apply(
         return
 
     try:
-        run = create_run_context(pdf, output_dir, resolved, repository_root=Path.cwd())
-    except RunError as error:
+        workflow = apply_plan_file(pdf, plan_path, output_dir, resolved)
+    except (PlanError, RunError) as error:
         _exit_stage_input_error(
             "apply",
             error,
             code="invalid_input",
             output_format=resolved_output_format,
         )
-    run.start()
-    try:
-        result = _run_apply(pdf, run.run_dir, plan, resolved.config)
-        run.record_plan_source(plan_path, file_sha256(plan_path))
-        manifest = run.complete(result)
     except Exception as error:
-        run.fail(error)
         _exit_stage_runtime_error(
             "apply",
             error,
@@ -1576,16 +1707,16 @@ def apply(
             debug=debug,
         )
     payload = {
-        "run_id": manifest.run_id,
-        "run_dir": manifest.run_dir,
-        "manifest_path": run.manifest_path,
-        "config_hash": manifest.config_hash,
-        "result": result,
+        "run_id": workflow.run_id,
+        "run_dir": workflow.run_dir,
+        "manifest_path": workflow.manifest_path,
+        "config_hash": workflow.config_hash,
+        "result": workflow.result,
     }
     _emit_stage_result(
         "apply",
         payload,
-        result,
+        workflow.result,
         output_format=resolved_output_format,
     )
 
@@ -1598,6 +1729,16 @@ def batch(
     ),
     recursive: bool = typer.Option(
         False, "--recursive", "-r", help="하위 디렉터리까지 찾는다."
+    ),
+    include_glob: list[str] = typer.Option(
+        [],
+        "--include-glob",
+        help="포함할 상대 POSIX 경로 glob이다. 여러 번 지정할 수 있다.",
+    ),
+    exclude_glob: list[str] = typer.Option(
+        [],
+        "--exclude-glob",
+        help="제외할 상대 POSIX 경로 glob이다. include보다 우선한다.",
     ),
     config_path: Path | None = typer.Option(
         None, "--config", help="읽을 versioned TOML processing config다."
@@ -1654,6 +1795,8 @@ def batch(
             output_dir,
             resolved,
             recursive=recursive,
+            include_globs=tuple(include_glob),
+            exclude_globs=tuple(exclude_glob),
             log=batch_logger,
         ).run()
     except (
@@ -1686,6 +1829,16 @@ def classify_scan_cmd(
     ),
     recursive: bool = typer.Option(
         False, "--recursive", "-r", help="하위 디렉터리까지 찾는다."
+    ),
+    include_glob: list[str] = typer.Option(
+        [],
+        "--include-glob",
+        help="포함할 상대 POSIX 경로 glob이다. 여러 번 지정할 수 있다.",
+    ),
+    exclude_glob: list[str] = typer.Option(
+        [],
+        "--exclude-glob",
+        help="제외할 상대 POSIX 경로 glob이다. include보다 우선한다.",
     ),
     dry_run: bool = typer.Option(
         False,
@@ -1743,6 +1896,8 @@ def classify_scan_cmd(
             dry_run=dry_run,
             write_report=write_report,
             max_sample_pages=max_sample_pages,
+            include_globs=tuple(include_glob),
+            exclude_globs=tuple(exclude_glob),
         )
         result = ScanBookmarkClassifier(config, logger=logger).run()
     except (
@@ -1775,6 +1930,9 @@ def classify_scan_cmd(
         "write_report": write_report,
         "report_csv_path": result.report_csv_path,
         "detail_jsonl_path": result.detail_jsonl_path,
+        "include_globs": result.include_globs,
+        "exclude_globs": result.exclude_globs,
+        "excluded_output_subtree": result.excluded_output_subtree,
     }
     emit_command_result(command, payload, output_format=resolved_output_format)
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import fitz
 from typer.testing import CliRunner
 
 from pdfbooktree.cli import app
@@ -91,6 +92,38 @@ def test_ocr_overlay_cli_parses_options(monkeypatch, tmp_path: Path) -> None:
     assert "book_ocr.pdf" in result.stdout
 
 
+def test_ocr_overlay_derives_artifact_dir_from_output(
+    monkeypatch, tmp_path: Path
+) -> None:
+    captured = {}
+
+    class FakeBuilder:
+        def __init__(self, config, logger=None):
+            captured["config"] = config
+
+        def run(self):
+            return _processed_result(captured["config"])
+
+    monkeypatch.setattr("pdfbooktree.cli.OcrOverlayBuilder", FakeBuilder)
+
+    output_pdf = tmp_path / "book_ocr.pdf"
+    result = CliRunner().invoke(
+        app,
+        [
+            "ocr-overlay",
+            str(tmp_path / "book.pdf"),
+            "--output",
+            str(output_pdf),
+            "--log-mode",
+            "none",
+            "--no-log-file",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert captured["config"].output_dir == tmp_path / "book_ocr_artifacts"
+
+
 def test_ocr_overlay_json_result_and_events_use_separate_streams(
     monkeypatch, tmp_path: Path
 ) -> None:
@@ -177,6 +210,35 @@ def test_ocr_overlay_missing_input_uses_json_input_error(tmp_path: Path) -> None
     assert error["command"] == "ocr-overlay"
     assert error["ok"] is False
     assert error["error"]["code"] == "invalid_input"
+
+
+def test_ocr_overlay_same_input_output_is_json_input_error(tmp_path: Path) -> None:
+    pdf = tmp_path / "book.pdf"
+    document = fitz.open()
+    document.new_page()
+    document.save(pdf)
+    document.close()
+    original = pdf.read_bytes()
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "ocr-overlay",
+            str(pdf),
+            "--output",
+            str(pdf),
+            "--force",
+            "--log-mode",
+            "none",
+            "--no-log-file",
+            "--format",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 2
+    assert json.loads(result.stderr)["error"]["code"] == "invalid_input"
+    assert pdf.read_bytes() == original
 
 
 def test_ocr_overlay_invalid_page_range_is_input_error(tmp_path: Path) -> None:

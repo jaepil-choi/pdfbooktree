@@ -152,7 +152,7 @@ def process_book(spec: dict[str, Any]) -> dict[str, Any]:
         else float((best_trial_stats or {}).get("coverage", 0.0))
     )
 
-    split_files = sorted(export.output_dir.glob("*.md"))
+    split_files = sorted((export.output_dir / "nodes").glob("*.md"))
     if len(split_files) != export.file_count:
         raise RuntimeError(
             f"{spec['title']} 실제 Markdown 수와 public result가 다르다: "

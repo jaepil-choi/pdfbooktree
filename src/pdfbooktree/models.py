@@ -181,7 +181,7 @@ class MarkdownFileStat:
 
 @dataclass(frozen=True)
 class MarkdownExportResult:
-    """길이 coverage 정책으로 export한 Markdown 묶음의 결과다."""
+    """graph 또는 길이 제약 방식으로 export한 Markdown 묶음의 결과다."""
 
     output_dir: Path
     chosen_level: int | None
@@ -193,6 +193,7 @@ class MarkdownExportResult:
     word_count_stats: dict[str, int | float | None] = field(default_factory=dict)
     overflow_files: list[MarkdownFileStat] = field(default_factory=list)
     manifest_path: Path | None = None
+    export_mode: Literal["tree_graph", "split"] = "split"
 
 
 @dataclass(frozen=True)
@@ -231,6 +232,47 @@ class ProcessingResult:
     artifact_paths: dict[str, Path] = field(default_factory=dict)
     report_path: Path | None = None
     existing_outline_quality: OutlineQualityAssessment | None = None
+
+    def _artifact_path(self, name: str) -> Path | None:
+        """알려진 artifact key를 typed optional 경로로 반환한다."""
+
+        return self.artifact_paths.get(name)
+
+    @property
+    def bookmark_plan_path(self) -> Path | None:
+        """이 실행이 선택하거나 적용한 canonical bookmark plan 경로다."""
+
+        return self._artifact_path("bookmark_plan")
+
+    @property
+    def bookmark_validation_path(self) -> Path | None:
+        """bookmark plan 구조 검증 artifact 경로다."""
+
+        return self._artifact_path("bookmark_plan_validation")
+
+    @property
+    def review_summary_path(self) -> Path | None:
+        """bookmark review summary artifact 경로다."""
+
+        return self._artifact_path("bookmark_review_summary")
+
+    @property
+    def review_items_path(self) -> Path | None:
+        """bookmark item review JSONL artifact 경로다."""
+
+        return self._artifact_path("bookmark_review_items")
+
+    @property
+    def markdown_manifest_path(self) -> Path | None:
+        """Markdown graph manifest 경로다."""
+
+        return self._artifact_path("markdown_manifest")
+
+    @property
+    def existing_outline_quality_path(self) -> Path | None:
+        """기존 outline 품질 평가 artifact 경로다."""
+
+        return self._artifact_path("existing_outline_quality")
 
 
 @dataclass(frozen=True)

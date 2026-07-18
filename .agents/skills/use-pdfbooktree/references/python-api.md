@@ -19,8 +19,15 @@
 일반 기능은 package root에서 import하라.
 
 ```python
-from pdfbooktree import Processor, ProcessingConfig
+from pdfbooktree import (
+    __version__,
+    ProcessingConfig,
+    package_version,
+    process_pdf,
+)
 ```
+
+`__version__`과 `package_version()`은 설치 package metadata version을 반환한다.
 
 OCR, scan 분류, 낮은 수준 typography 기능은 각각의 공개 subpackage에서 import하라.
 
@@ -63,45 +70,86 @@ print(result.status, result.skill_dir, result.files)
 
 ## 단일 PDF 고수준 처리
 
-`Processor(input_pdf, output_dir, config=None).run() -> ProcessingResult`를 사용해 기존 outline 정책부터 PDF/Markdown/report 생성까지 한 번에 실행하라.
+CLI와 같은 immutable run, resolved config와 manifest lifecycle이 필요하면 다음
+고수준 workflow를 사용하라.
+
+- `process_pdf(input_pdf, output_root, config=None, log=None) -> ProcessingRunResult`
+- `infer_pdf(input_pdf, output_root, config=None, log=None) -> ProcessingRunResult`
+- `preview_apply_plan(input_pdf, plan_path, output_root, config=None) -> ApplyPreview`
+- `apply_plan_file(input_pdf, plan_path, output_root, config=None) -> ProcessingRunResult`
 
 ```python
 from pathlib import Path
 
 from pdfbooktree import (
-    MarkdownSplitConfig,
-    OutlineQualityConfig,
-    ProcessingConfig,
-    Processor,
+    apply_plan_file,
+    infer_pdf,
+    preview_apply_plan,
 )
 
 pdf = Path("book.pdf")
-config = ProcessingConfig(
-    outline_quality=OutlineQualityConfig(replace_when_low_quality=True),
-    markdown_split=MarkdownSplitConfig(
-        max_words=10_000,
-        max_words_coverage=0.95,
-    ),
-)
-result = Processor(pdf, Path("output"), config).run()
+inferred = infer_pdf(pdf, Path("runs"))
+plan = inferred.result.bookmark_plan_path
+assert plan is not None
 
-if result.status == "failed":
-    raise RuntimeError(result.warnings)
-print(result.output_pdf, result.output_markdown_dir, result.bookmark_count)
+preview = preview_apply_plan(pdf, plan, Path("runs"))
+assert preview.validation.valid
+applied = apply_plan_file(pdf, plan, Path("runs"))
+print(applied.run_id, applied.manifest_path, applied.result.output_pdf)
 ```
 
-`ProcessingResult`에서 `status`, `input_pdf`, `output_pdf`, `output_markdown_dir`, `markdown_export`, `bookmark_count`, `confidence_summary`, `warnings`, `artifact_paths`, `report_path`, `existing_outline_quality`를 검사하라. 기존 outline 재사용 경로에서는 `output_pdf`가 `None`일 수 있다.
+`ProcessingRunResult`는 `command`, `run_id`, `run_dir`, `manifest_path`,
+`config_hash`, 최종 `manifest`, 실제 `result`를 제공한다. plain
+`ProcessingConfig` 입력은 `sources=[{"kind": "python_api"}]`와 안정된 hash로
+정규화되며 `ResolvedConfig` 입력은 기존 source/hash를 보존한다.
 
-`ProcessingConfig.ocr_policy`는 현재 `Processor`에 OCR 전처리를 연결하지 않는다. OCR overlay를 먼저 별도 실행하라.
+`ApplyPreview`는 input/plan path와 SHA-256, page/bookmark 수, validation, 예상
+PDF/Markdown 경로를 반환하며 output root나 run directory를 만들지 않는다.
+`apply_plan_file()`은 외부 plan path/hash를 manifest `plan_source`에 기록하고
+동일 내용을 run root `bookmark_plan.json`에 복사한다.
+
+flat directory에 직접 쓰는 호환 흐름이 필요할 때만
+`Processor(input_pdf, output_dir, config=None, log=None).run()`을 사용하라.
+
+`ProcessingResult`에서 `status`, `input_pdf`, `output_pdf`,
+`output_markdown_dir`, `markdown_export`, `bookmark_count`,
+`confidence_summary`, `warnings`, `artifact_paths`, `report_path`,
+`existing_outline_quality`를 검사하라. 다음 typed property는 기존 mapping key의
+`Path`를 반환하고 artifact가 없으면 `None`이다.
+
+- `bookmark_plan_path`
+- `bookmark_validation_path`
+- `review_summary_path`
+- `review_items_path`
+- `markdown_manifest_path`
+- `existing_outline_quality_path`
+
+모든 non-dry-run `process`, `infer`, `apply` run은 선택·적용한 plan을 run root
+`bookmark_plan.json`에 보존한다. 기존 outline 재사용도 예외가 아니다. 기존
+outline 근거용 `existing_outline_plan.json`은 별도 artifact로 유지한다.
+
+기존 outline 재사용 경로에서는 `output_pdf`가 `None`일 수 있다.
+
+기본 tree에서도 `markdown_export`는 `None`이 아니며 `export_mode="tree_graph"`, `output_dir`, `file_count`, `manifest_path`를 제공한다. graph manifest는 `artifact_paths["markdown_manifest"]`에도 연결된다.
+
+`MarkdownSplitConfig`를 사용한 결과도 같은 `toc.md`, `bookmark_plan.json`, `nodes/`, `markdown_manifest.json` graph 계약을 쓴다. 이때 `markdown_export.export_mode="split"`, manifest의 `content_mode="bounded"`이며 선택된 boundary는 원래 plan order 기반 node ID를 유지한다. `inspect_plan_artifact()` 결과의 `markdown_manifest_path`와 `markdown_manifest`에서 validation, coverage, 선택 level과 fallback 여부를 node 파일 없이 확인할 수 있다.
+
+`ProcessingConfig.ocr_policy`는 현재 `never`만 지원한다. `auto|always`는
+`ConfigError`로 조기 거부된다. OCR overlay를 먼저 별도 실행하고 생성된 PDF를
+`process_pdf()` 또는 단계형 API에 전달하라. 실제 OCR API에는
+`python -m pip install "pdfbooktree[ocr]"`가 필요하고 extra가 없으면
+`OptionalDependencyError`가 `extra`, `missing_packages`, `install_command`를
+보존한다.
 
 ## 분석·추론·적용 단계
 
 다음 공개 함수를 단계별로 조합하라.
 
-- `analyze_pdf(input_pdf: Path, config: TypographyConfig | None = None) -> PdfAnalysis`: PDF의 raw `TypographyLine`과 총 page 수를 추출한다.
+- `analyze_pdf(input_pdf: Path, config: TypographyConfig | None = None, *, log=None) -> PdfAnalysis`: PDF의 raw `TypographyLine`과 총 page 수를 추출하고 optional page progress를 전달한다.
 - `infer_bookmarks(analysis: PdfAnalysis, config: TypographyConfig | None = None) -> BookmarkInferenceResult`: margin 제거, tiering, geometry, heading, BPE, position fallback, normalize, validation을 실행한다.
-- `write_inference_artifacts(output_dir, inference, quality=None) -> dict[str, Path]`: 검토용 JSON/JSONL artifact를 저장한다.
-- `apply_plan(input_pdf, output_dir, plan, total_pages, markdown_split=None) -> ApplyResult`: plan을 다시 검증한 뒤 bookmarked PDF와 Markdown을 만든다.
+- `write_inference_artifacts(output_dir, inference, quality=None, *, input_pdf=None, total_pages=None, existing_outline=None) -> dict[str, Path]`: 원시 추론 근거와 `bookmark_review_summary.json`, `bookmark_review_items.jsonl`을 저장한다.
+- `apply_plan(input_pdf, output_dir, plan, total_pages, markdown_split=None, markdown_content_mode="direct") -> ApplyResult`: plan을 다시 검증한 뒤 bookmarked PDF와 Markdown을 만든다.
+- `validate_plan(input_pdf, plan) -> BookmarkPlanValidation`: PDF page 수를 직접 읽고 외부 plan을 쓰기 없이 검증한다.
 - `confidence_summary_for_inference(inference) -> ConfidenceSummary`: 단계 신뢰도 요약을 만든다.
 
 ```python
@@ -121,7 +169,12 @@ config = TypographyConfig(position_fallback_enabled=True)
 
 analysis = analyze_pdf(pdf, config)
 inference = infer_bookmarks(analysis, config)
-artifacts = write_inference_artifacts(output, inference)
+artifacts = write_inference_artifacts(
+    output,
+    inference,
+    input_pdf=pdf,
+    total_pages=analysis.total_pages,
+)
 
 if not inference.validation.valid:
     raise RuntimeError(inference.validation.warnings)
@@ -135,7 +188,7 @@ print(artifacts["bookmark_plan"], applied.output_pdf)
 
 공개 config dataclass를 조합하라.
 
-- `ProcessingConfig`: 기존 bookmark, artifact, OCR policy, typography, Markdown split, outline 품질 설정을 묶는다.
+- `ProcessingConfig`: 기존 bookmark, artifact, typography, Markdown content mode/split, outline 품질 설정을 묶는다. `ocr_policy`는 현재 `never`만 지원하고 OCR은 별도 전처리한다. `markdown_content_mode` 기본값은 `direct`이며 기존 subtree 본문 포함은 `inclusive`다.
 - `TypographyConfig`: heading 후보, body font coverage, tier/BPE, margin, position fallback 값을 제어한다.
 - `MarkdownSplitConfig(max_words=10000, max_words_coverage=0.95, prefer="coarsest")`: 길이 coverage 기반 Markdown split을 활성화한다.
 - `OutlineQualityConfig(min_item_count=4, max_item_to_page_ratio=0.9, flag_numeric_only_titles=True, replace_when_low_quality=False)`: 기존 outline 품질과 교체 policy를 정한다.
@@ -167,7 +220,7 @@ CLI와 같은 읽기 전용 조사 함수를 사용하라.
 - `inspect_text(pdf_path, pages: list[int]) -> dict`
 - `inspect_bookmarks(pdf_path) -> dict`
 - `inspect_ocr_artifact(artifact_dir) -> dict`
-- `inspect_plan_artifact(output_dir) -> dict`
+- `inspect_plan_artifact(output_dir, include_items=False, limit=20, item_id=None, page_range=None, level=None, source=None, attention_only=False) -> dict`: plan/review summary와 Markdown manifest를 반환하고 요청할 때만 제한된 review item을 filter한다.
 - `inspect_compare_plans(plan_a, plan_b, page_tolerance=None, title_similarity_threshold=None) -> dict`
 
 두 in-memory plan을 비교하려면 `compare_bookmark_plans(before, after, page_tolerance=0, title_similarity_threshold=0.7) -> PlanDiffResult`를 사용하라. gold/predicted 품질 지표가 필요하면 `match_bookmark_plans(gold, predicted, page_tolerance=1, title_similarity_threshold=0.7) -> PlanMatchResult`를 사용하라.
@@ -176,7 +229,7 @@ CLI와 같은 읽기 전용 조사 함수를 사용하라.
 
 ## Batch와 실행 manifest
 
-`BatchProcessor(input_dir, output_dir, config=None, recursive=False, log=None).run() -> BatchResult`로 directory를 처리하라. `config`에는 `ProcessingConfig` 또는 `ResolvedConfig`를 전달할 수 있다.
+`BatchProcessor(input_dir, output_dir, config=None, recursive=False, log=None, *, include_globs=(), exclude_globs=()).run() -> BatchResult`로 directory를 처리하라. `config`에는 `ProcessingConfig` 또는 `ResolvedConfig`를 전달할 수 있다. glob은 상대 POSIX 경로에 case-insensitive로 적용되고 output subtree는 자동 제외된다.
 
 ```python
 from pathlib import Path
@@ -229,7 +282,7 @@ print(result.status, result.processed_pages, result.cache_hit_count)
 
 `OcrOverlayConfig`의 핵심 field는 `input_pdf`, `output_pdf`, `output_dir`, `engine`, `engine_options`, `render_dpi`, `pages`, `force`, `confirm_bookmark_ocr_overwrite`, `cache_policy`, `stats_word_level`이다.
 
-디렉터리에는 `OcrOverlayBatchConfig`와 `OcrOverlayBatchRunner.run() -> OcrOverlayBatchResult`를 사용하라. batch config는 추가로 `recursive`, `dry_run`, `min_page_count`, `max_sample_pages`를 제공한다. runner는 `log_mode`, `enable_log_file`, `command`를 받을 수 있다.
+디렉터리에는 `OcrOverlayBatchConfig`와 `OcrOverlayBatchRunner.run() -> OcrOverlayBatchResult`를 사용하라. batch config는 추가로 `recursive`, `dry_run`, `min_page_count`, `max_sample_pages`, `include_globs`, `exclude_globs`를 제공한다. runner는 `log_mode`, `enable_log_file`, `command`를 받을 수 있다.
 
 ```python
 from pathlib import Path
@@ -253,7 +306,7 @@ print(result.target_count, result.dry_run_count, result.skipped_count)
 
 ## Scan 분류 API
 
-`ClassifyBatchConfig`와 `ScanBookmarkClassifier.run() -> ClassifyBatchResult`를 사용하라.
+`ClassifyBatchConfig`와 `ScanBookmarkClassifier.run() -> ClassifyBatchResult`를 사용하라. directory selection에는 `include_globs`와 `exclude_globs`를 사용할 수 있다.
 
 ```python
 from pathlib import Path
@@ -296,6 +349,7 @@ root package는 다음 model 계열을 공개한다.
 - 분석/추론: `PdfAnalysis`, `TypographyLine`, `Tier`, `TierSet`, `HeadingCandidate`, `BookmarkInferenceResult`, `ConfidenceSummary`.
 - 적용/Markdown: `ApplyResult`, `MarkdownExportResult`, `MarkdownFileStat`, `ProcessingResult`.
 - batch/run: `BatchItemResult`, `BatchResult`, `RunManifest`, `RunContext`, `InputIdentity`, `ToolIdentity`, `BatchRunManifest`, `BatchRunContext`, `BatchRunSummary`, `BatchItemRunReference`.
+- progress: `ProcessingLogEvent`, `ProcessingLogger`, `ProcessingLogMode`, `build_processing_logger`, `default_processing_log_mode`.
 - 비교/평가: `PlanDiffEntry`, `PlanDiffResult`, `MatchedPair`, `MatchMetrics`, `PlanMatchResult`.
 - CLI envelope: `CommandResultEnvelope`, `CommandErrorEnvelope`, `CommandError`.
 

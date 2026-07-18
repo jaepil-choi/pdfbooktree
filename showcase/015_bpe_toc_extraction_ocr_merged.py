@@ -30,7 +30,12 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from pdfbooktree import ProcessingConfig, Processor, inspect_bookmarks, inspect_plan_artifact
+from pdfbooktree import (
+    ProcessingConfig,
+    Processor,
+    inspect_bookmarks,
+    inspect_plan_artifact,
+)
 
 try:  # 콘솔에서 한글이 깨지지 않게
     sys.stdout.reconfigure(encoding="utf-8")
@@ -54,7 +59,10 @@ SHOWCASE_ID = "015_bpe_toc_extraction_ocr_merged"
 def render_tree(bookmarks: list[dict[str, Any]]) -> str:
     """실제 export된 PDF bookmark 목록을 들여쓰기 트리 텍스트로 만든다."""
 
-    lines = ["# 통계학원론(김동욱) BPE bookmark tree (Processor 공개 인터페이스 결과)", ""]
+    lines = [
+        "# 통계학원론(김동욱) BPE bookmark tree (Processor 공개 인터페이스 결과)",
+        "",
+    ]
     for bookmark in bookmarks:
         indent = "  " * max(bookmark["level"] - 1, 0)
         lines.append(

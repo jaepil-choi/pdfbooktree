@@ -6,6 +6,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 from statistics import median
+from typing import Callable
 
 import fitz
 
@@ -39,6 +40,7 @@ class _Span:
 def extract_typography_lines(
     pdf_path: Path,
     config: TypographyConfig | None = None,
+    page_callback: Callable[[int, int], None] | None = None,
 ) -> list[TypographyLine]:
     """PDF 전체를 읽어 visual line 목록을 만든다."""
 
@@ -54,6 +56,8 @@ def extract_typography_lines(
                 line = _build_line(page_index + 1, page.rect, group)
                 if line is not None:
                     lines.append(line)
+            if page_callback is not None:
+                page_callback(page_index + 1, document.page_count)
     return lines
 
 

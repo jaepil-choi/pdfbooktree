@@ -211,3 +211,34 @@ def test_batch_records_command_exception_in_failed_batch_manifest(
     }
     assert len(manifest["item_runs"]) == 1
     assert manifest["item_runs"][0]["manifest_path"] is not None
+
+
+def test_batch_discovery_records_filters_and_excludes_output_subtree(
+    tmp_path: Path,
+) -> None:
+    input_dir = tmp_path / "pdfs"
+    (input_dir / "nested").mkdir(parents=True)
+    _write_pdf(input_dir / "ROOT.PDF", "Root")
+    _write_pdf(input_dir / "nested" / "keep.pdf", "Keep")
+    _write_pdf(input_dir / "nested" / "skip.pdf", "Skip")
+    output_dir = input_dir / "runs"
+    output_dir.mkdir()
+    _write_pdf(output_dir / "old.PDF", "Old output")
+
+    result = BatchProcessor(
+        input_dir,
+        output_dir,
+        recursive=True,
+        include_globs=("*.pdf", "nested/*.pdf"),
+        exclude_globs=("nested/skip.pdf",),
+    ).run()
+
+    manifest = json.loads(result.batch_manifest_path.read_text(encoding="utf-8"))
+    assert result.total_pdf_count == 2
+    assert {Path(path).name for path in manifest["discovered_pdf_paths"]} == {
+        "ROOT.PDF",
+        "keep.pdf",
+    }
+    assert manifest["include_globs"] == ["*.pdf", "nested/*.pdf"]
+    assert manifest["exclude_globs"] == ["nested/skip.pdf"]
+    assert Path(manifest["excluded_output_subtree"]) == output_dir.resolve()

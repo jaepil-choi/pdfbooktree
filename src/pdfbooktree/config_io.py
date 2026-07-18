@@ -28,7 +28,12 @@ _TOP_LEVEL_KEYS = {
     "outline_quality",
     "markdown",
 }
-_PROCESSING_FIELDS = ("skip_existing_bookmarks", "write_artifacts", "ocr_policy")
+_PROCESSING_FIELDS = (
+    "skip_existing_bookmarks",
+    "write_artifacts",
+    "ocr_policy",
+    "markdown_content_mode",
+)
 _ALWAYS_PRESENT_SECTIONS = ("processing", "typography", "outline_quality")
 _SECTION_CLASSES = {
     "processing": ProcessingConfig,
@@ -90,6 +95,23 @@ def resolve_processing_config(
         config_hash=stable_json_hash(resolved_data),
         sources=tuple(sources),
         source_path=source_path,
+    )
+
+
+def resolve_config_input(
+    config: ProcessingConfig | ResolvedConfig | None,
+) -> ResolvedConfig:
+    """Python API config 입력을 재현 가능한 resolved config로 정규화한다."""
+
+    if isinstance(config, ResolvedConfig):
+        return config
+    processing_config = config or ProcessingConfig()
+    data = processing_config_to_data(processing_config)
+    return ResolvedConfig(
+        config=processing_config,
+        data=data,
+        config_hash=stable_json_hash(data),
+        sources=({"kind": "python_api"},),
     )
 
 

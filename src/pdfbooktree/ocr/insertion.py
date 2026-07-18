@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import tempfile
 from pathlib import Path
 
 import fitz
@@ -46,27 +48,41 @@ def write_overlay_pdf(
 ) -> None:
     """원본 PDF의 기존 text object를 제거하고 새 invisible OCR layer를 삽입한다."""
 
-    if output_pdf.exists():
-        output_pdf.unlink()
+    source_pdf = source_pdf.resolve()
+    output_pdf = output_pdf.resolve()
+    if source_pdf == output_pdf:
+        raise ValueError(f"입력 PDF와 출력 PDF는 같은 파일일 수 없다: {source_pdf}")
     temp_dir.mkdir(parents=True, exist_ok=True)
     stripped_pdf = temp_dir / "source_text_stripped.pdf"
 
     target_pages = {page.pdf_page for page in insertable_pages}
     _strip_text_objects(source_pdf, stripped_pdf, target_pages)
     document = fitz.open(stripped_pdf)
+    output_pdf.parent.mkdir(parents=True, exist_ok=True)
+    handle, temporary_name = tempfile.mkstemp(
+        prefix=f".{output_pdf.stem}.",
+        suffix=".pdf",
+        dir=output_pdf.parent,
+    )
+    os.close(handle)
+    temporary_pdf = Path(temporary_name)
+    temporary_pdf.unlink()
     try:
         _insert_invisible_lines(document, insertable_pages)
-        output_pdf.parent.mkdir(parents=True, exist_ok=True)
         document.save(
-            output_pdf,
+            temporary_pdf,
             garbage=4,
             deflate=True,
             deflate_fonts=True,
             use_objstms=1,
             compression_effort=100,
         )
-    finally:
         document.close()
+        os.replace(temporary_pdf, output_pdf)
+    finally:
+        if not document.is_closed:
+            document.close()
+        temporary_pdf.unlink(missing_ok=True)
 
 
 def _strip_text_objects(

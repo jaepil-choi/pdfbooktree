@@ -121,6 +121,35 @@ def test_config_validate는_잘못된_key를_nonzero로_거절한다(
     assert "알 수 없는 config key" in envelope["error"]["message"]
 
 
+def test_config_validate는_지원하지_않는_ocr_policy를_exit_2로_거절한다(
+    tmp_path: Path,
+) -> None:
+    path = tmp_path / "book.toml"
+    path.write_text(
+        (
+            f"schema_version = {CONFIG_SCHEMA_VERSION}\n"
+            "[processing]\n"
+            'ocr_policy = "auto"\n'
+        ),
+        encoding="utf-8",
+    )
+
+    result = CliRunner().invoke(
+        app,
+        ["config", "validate", str(path), "--format", "json"],
+    )
+
+    assert result.exit_code == 2
+    assert result.stdout == ""
+    envelope = json.loads(result.stderr)
+    assert envelope["command"] == "config.validate"
+    assert envelope["ok"] is False
+    assert envelope["error"]["code"] == "invalid_config"
+    assert envelope["error"]["type"] == "ConfigError"
+    assert "현재 never만 지원" in envelope["error"]["message"]
+    assert "ocr-overlay" in envelope["error"]["message"]
+
+
 def test_config_help에서_하위_command를_발견할_수_있다() -> None:
     result = CliRunner().invoke(app, ["config", "--help"])
 

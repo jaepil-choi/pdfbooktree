@@ -8,16 +8,20 @@ import numpy as np
 
 from pdfbooktree.config import MarkdownSplitConfig
 from pdfbooktree.export.fallback import choose_deepest_available_level
+from pdfbooktree.export.markdown_graph import (
+    MARKDOWN_MANIFEST_SCHEMA_VERSION,
+    MarkdownContentMode,
+    MarkdownSplitGraphDocument,
+    export_markdown_graph,
+    export_markdown_split_graph,
+)
 from pdfbooktree.models import (
     BookmarkPlanItem,
-    BookmarkTreeNode,
     MarkdownExportResult,
-    MarkdownFileStat,
 )
-from pdfbooktree.outline.tree import build_outline_tree
-from pdfbooktree.pdf.text import extract_page_texts, extract_selected_page_texts
+from pdfbooktree.pdf.text import extract_page_texts
 from pdfbooktree.utils.jsonio import write_json
-from pdfbooktree.utils.paths import build_markdown_dir_path, sanitize_title_for_path
+from pdfbooktree.utils.paths import build_markdown_dir_path
 from pdfbooktree.utils.text_normalize import normalize_text
 
 
@@ -32,18 +36,17 @@ def export_markdown_tree(
     output_dir: Path,
     plan: list[BookmarkPlanItem],
     total_pages: int,
-) -> Path:
-    """bookmark plan을 directory tree와 toc 파일로 export한다."""
+    content_mode: MarkdownContentMode = "direct",
+) -> MarkdownExportResult:
+    """bookmark plan을 progressive disclosure Markdown graph로 export한다."""
 
-    root_dir = plan_markdown_dir_path(input_pdf, output_dir)
-    root_dir.mkdir(parents=True, exist_ok=True)
-    roots = build_outline_tree(plan, total_pages)
-    write_json(root_dir / "toc.json", plan)
-    (root_dir / "toc.md").write_text(_render_toc_markdown(plan), encoding="utf-8")
-    page_texts = _load_page_texts(input_pdf, plan, total_pages)
-    for index, root in enumerate(roots, start=1):
-        _write_node(root, root_dir, index, page_texts)
-    return root_dir
+    return export_markdown_graph(
+        input_pdf,
+        output_dir,
+        plan,
+        total_pages,
+        content_mode,
+    )
 
 
 def export_markdown_split(
@@ -84,10 +87,15 @@ def export_markdown_split(
     if fallback is not None:
         chosen_level = fallback.chosen_level
     if chosen_level is None:
-        manifest_path = root_dir / "manifest.json"
+        manifest_path = root_dir / "markdown_manifest.json"
         write_json(
             manifest_path,
             {
+                "schema_version": MARKDOWN_MANIFEST_SCHEMA_VERSION,
+                "export_mode": "split",
+                "content_mode": "bounded",
+                "node_count": 0,
+                "root_count": 0,
                 "constraint_satisfied": False,
                 "fallback_used": False,
                 "fallback_reason": (fallback.reason if fallback is not None else None),
@@ -110,55 +118,39 @@ def export_markdown_split(
             manifest_path=manifest_path,
         )
     documents = trials[chosen_level]
-    file_stats: list[MarkdownFileStat] = []
-    for index, document in enumerate(documents, start=1):
-        title = sanitize_title_for_path(document.boundary.title, max_length=60)
-        path = (
-            root_dir
-            / f"{index:03d}_L{document.boundary.level}_p{document.start_page}_{title}.md"
+    split_documents = [
+        MarkdownSplitGraphDocument(
+            item=document.boundary,
+            order=document.plan_index + 1,
+            content_start_page=document.content_start_page,
+            content_end_page=document.content_end_page,
+            content_markdown=document.markdown,
+            word_count=document.word_count,
+            contained_plan_node_ids=[
+                f"n{index + 1:04d}"
+                for index in range(document.plan_index, document.end_index)
+            ],
         )
-        path.write_text(document.markdown, encoding="utf-8")
-        file_stats.append(
-            MarkdownFileStat(
-                path=path,
-                title=document.boundary.title,
-                level=document.boundary.level,
-                start_pdf_page=document.start_page,
-                end_pdf_page=document.end_page,
-                word_count=document.word_count,
-            )
-        )
-    statistics = _statistics(documents, config.max_words)
-    overflow = [stat for stat in file_stats if stat.word_count > config.max_words]
-    manifest_path = root_dir / "manifest.json"
-    write_json(
-        manifest_path,
-        {
-            "constraint_satisfied": constraint_satisfied,
-            "fallback_used": fallback.used if fallback is not None else False,
-            "fallback_reason": fallback.reason if fallback is not None else None,
-            "chosen_level": chosen_level,
-            "max_words": config.max_words,
-            "max_words_coverage": config.max_words_coverage,
-            "statistics": statistics,
-            "levels": {
-                str(level): _statistics(documents, config.max_words)
-                for level, documents in trials.items()
-            },
-            "files": file_stats,
-        },
-    )
-    return MarkdownExportResult(
-        output_dir=root_dir,
+        for document in documents
+    ]
+    return export_markdown_split_graph(
+        input_pdf,
+        output_dir,
+        plan,
+        total_pages,
+        page_texts,
+        split_documents,
         chosen_level=chosen_level,
         constraint_satisfied=constraint_satisfied,
-        file_count=len(file_stats),
-        total_word_count=sum(stat.word_count for stat in file_stats),
         fallback_used=fallback.used if fallback is not None else False,
         fallback_reason=fallback.reason if fallback is not None else None,
-        word_count_stats=statistics,
-        overflow_files=overflow,
-        manifest_path=manifest_path,
+        max_words=config.max_words,
+        max_words_coverage=config.max_words_coverage,
+        word_count_stats=_statistics(documents, config.max_words),
+        level_statistics={
+            str(level): _statistics(level_documents, config.max_words)
+            for level, level_documents in trials.items()
+        },
     )
 
 
@@ -166,18 +158,32 @@ class _RenderedMarkdown:
     def __init__(
         self,
         boundary: BookmarkPlanItem,
-        start_page: int,
-        end_page: int,
+        plan_index: int,
+        end_index: int,
+        content_start_page: int | None,
+        content_end_page: int | None,
         markdown: str,
+        word_count: int,
     ) -> None:
         self.boundary = boundary
-        self.start_page = start_page
-        self.end_page = end_page
+        self.plan_index = plan_index
+        self.end_index = end_index
+        self.content_start_page = content_start_page
+        self.content_end_page = content_end_page
         self.markdown = markdown
+        self._word_count = word_count
+
+    @property
+    def start_page(self) -> int:
+        return self.boundary.pdf_page
+
+    @property
+    def end_page(self) -> int:
+        return self.content_end_page or self.boundary.pdf_page
 
     @property
     def word_count(self) -> int:
-        return len(self.markdown.split())
+        return self._word_count
 
 
 def _render_split_documents(
@@ -196,28 +202,49 @@ def _render_split_documents(
         next_page = (
             plan[end_index].pdf_page if end_index < len(plan) else total_pages + 1
         )
-        end_page = max(boundary.pdf_page, next_page - 1)
+        content_start_page = (
+            boundary.pdf_page if next_page > boundary.pdf_page else None
+        )
+        content_end_page = next_page - 1 if content_start_page is not None else None
         lines: list[str] = []
         emitted: set[int] = set()
+        word_count = 0
         for ancestor_index in _ancestor_indices(plan, start_index):
             ancestor = plan[ancestor_index]
-            lines.extend([_heading(ancestor), ""])
+            heading = _heading(ancestor)
+            lines.extend([heading, ""])
+            word_count += len(heading.split())
             emitted.add(ancestor_index)
-        for page in range(boundary.pdf_page, next_page):
-            for index, item in enumerate(
-                plan[start_index:end_index], start=start_index
-            ):
-                if item.pdf_page == page and index not in emitted:
-                    lines.extend([_heading(item), ""])
-                    emitted.add(index)
-            if text := page_texts.get(page, ""):
-                lines.extend([text, ""])
+        if content_start_page is not None and content_end_page is not None:
+            for page in range(content_start_page, content_end_page + 1):
+                for index, item in enumerate(
+                    plan[start_index:end_index], start=start_index
+                ):
+                    if item.pdf_page == page and index not in emitted:
+                        heading = _heading(item)
+                        lines.extend([heading, ""])
+                        word_count += len(heading.split())
+                        emitted.add(index)
+                if text := page_texts.get(page, ""):
+                    lines.extend([f"<!-- pdf_page {page} -->", "", text, ""])
+                    word_count += len(text.split())
+        # 다음 boundary와 같은 page에 있는 하위 heading은 현재 segment에 속하지만
+        # page 본문은 다음 segment가 소유한다. 본문을 복제하지 않고 heading만 보존한다.
+        for index, item in enumerate(plan[start_index:end_index], start=start_index):
+            if index not in emitted:
+                heading = _heading(item)
+                lines.extend([heading, ""])
+                word_count += len(heading.split())
+                emitted.add(index)
         rendered.append(
             _RenderedMarkdown(
                 boundary=boundary,
-                start_page=boundary.pdf_page,
-                end_page=end_page,
-                markdown="\n".join(lines).rstrip() + "\n",
+                plan_index=start_index,
+                end_index=end_index,
+                content_start_page=content_start_page,
+                content_end_page=content_end_page,
+                markdown=("\n".join(lines).rstrip() + "\n" if lines else ""),
+                word_count=word_count,
             )
         )
     return rendered
@@ -264,57 +291,3 @@ def _statistics(
         "coverage": round(_coverage(documents, max_words), 4),
         "overflow_file_count": sum(count > max_words for count in counts),
     }
-
-
-def _render_toc_markdown(plan: list[BookmarkPlanItem]) -> str:
-    lines = ["# Table of Contents", ""]
-    for item in plan:
-        indent = "  " * max(item.level - 1, 0)
-        lines.append(f"{indent}- {item.title} (PDF page {item.pdf_page})")
-    return "\n".join(lines) + "\n"
-
-
-def _load_page_texts(
-    input_pdf: Path, plan: list[BookmarkPlanItem], total_pages: int
-) -> dict[int, str]:
-    needed: set[int] = set()
-    for index, item in enumerate(plan):
-        end = plan[index + 1].pdf_page - 1 if index + 1 < len(plan) else total_pages
-        for page in range(item.pdf_page, max(item.pdf_page, end) + 1):
-            needed.add(page)
-    return {
-        page.pdf_page: page.text
-        for page in extract_selected_page_texts(input_pdf, sorted(needed))
-    }
-
-
-def _write_node(
-    node: BookmarkTreeNode, parent_dir: Path, index: int, page_texts: dict[int, str]
-) -> None:
-    dir_name = f"{index:02d}_{sanitize_title_for_path(node.title)}"
-    node_dir = parent_dir / dir_name
-    node_dir.mkdir(parents=True, exist_ok=True)
-    body = _render_node_body(node, page_texts)
-    (node_dir / "index.md").write_text(body, encoding="utf-8")
-    for child_index, child in enumerate(node.children, start=1):
-        _write_node(child, node_dir, child_index, page_texts)
-
-
-def _render_node_body(node: BookmarkTreeNode, page_texts: dict[int, str]) -> str:
-    lines = [
-        f"# {node.title}",
-        "",
-        "---",
-        f"title: {node.title}",
-        f"level: {node.level}",
-        f"pdf_start_page: {node.start_pdf_page}",
-        f"pdf_end_page: {node.end_pdf_page}",
-        "---",
-        "",
-    ]
-    end = node.end_pdf_page or node.start_pdf_page
-    for pdf_page in range(node.start_pdf_page, end + 1):
-        text = page_texts.get(pdf_page, "").strip()
-        if text:
-            lines.extend([f"<!-- pdf_page {pdf_page} -->", "", text, ""])
-    return "\n".join(lines)

@@ -30,6 +30,7 @@ from pdfbooktree.pdf.bookmarks import (
 from pdfbooktree.pdf.scan_classification import classify_scan
 from pdfbooktree.pdf.scan_signals import DEFAULT_MAX_SAMPLE_PAGES
 from pdfbooktree.utils.jsonio import to_jsonable
+from pdfbooktree.utils.pdf_discovery import discover_pdfs
 
 
 CSV_FIELDS = [
@@ -62,6 +63,8 @@ class ClassifyBatchConfig:
     dry_run: bool = False
     write_report: bool = True
     max_sample_pages: int = DEFAULT_MAX_SAMPLE_PAGES
+    include_globs: tuple[str, ...] = ()
+    exclude_globs: tuple[str, ...] = ()
 
 
 class ScanBookmarkClassifier:
@@ -78,7 +81,14 @@ class ScanBookmarkClassifier:
     def run(self) -> ClassifyBatchResult:
         """input_dir 아래 PDF를 전부 분류하고 report를 저장한다."""
 
-        pdf_paths = self._find_pdfs()
+        discovery = discover_pdfs(
+            self.input_dir,
+            self.output_dir,
+            recursive=self.config.recursive,
+            include_globs=self.config.include_globs,
+            exclude_globs=self.config.exclude_globs,
+        )
+        pdf_paths = list(discovery.paths)
         started_at = time.monotonic()
 
         report_csv_path: Path | None = None
@@ -151,6 +161,9 @@ class ScanBookmarkClassifier:
             report_csv_path=report_csv_path,
             detail_jsonl_path=detail_jsonl_path,
             results=results,
+            include_globs=discovery.include_globs,
+            exclude_globs=discovery.exclude_globs,
+            excluded_output_subtree=discovery.excluded_output_subtree,
         )
 
         if self.config.write_report:
@@ -160,7 +173,7 @@ class ScanBookmarkClassifier:
 
     def _classify_one(self, path: Path) -> ClassifyFileResult:
         started_at = time.monotonic()
-        relative_path = str(path.relative_to(self.input_dir))
+        relative_path = path.relative_to(self.input_dir).as_posix()
         try:
             scan = classify_scan(path, self.config.max_sample_pages)
             bookmarks = extract_existing_bookmarks(path)
@@ -214,10 +227,6 @@ class ScanBookmarkClassifier:
                 elapsed_sec=time.monotonic() - started_at,
             )
 
-    def _find_pdfs(self) -> list[Path]:
-        pattern = "**/*.pdf" if self.config.recursive else "*.pdf"
-        return sorted(self.input_dir.glob(pattern))
-
     def _write_summary(self, batch_result: ClassifyBatchResult) -> None:
         summary_path = self.output_dir / "classification_summary.json"
         summary_path.write_text(
@@ -229,6 +238,13 @@ class ScanBookmarkClassifier:
                         "native_count": batch_result.native_count,
                         "target_count": batch_result.target_count,
                         "error_count": batch_result.error_count,
+                        "include_globs": list(batch_result.include_globs),
+                        "exclude_globs": list(batch_result.exclude_globs),
+                        "excluded_output_subtree": (
+                            str(batch_result.excluded_output_subtree)
+                            if batch_result.excluded_output_subtree is not None
+                            else None
+                        ),
                         "elapsed_sec": batch_result.elapsed_sec,
                     }
                 ),

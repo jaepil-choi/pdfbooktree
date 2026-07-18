@@ -2,7 +2,7 @@
 
 ## 1. 문서 목적
 
-- 기준일: 2026-07-16
+- 기준일: 2026-07-17
 - 목적: `pdfbooktree`의 agent-friendly interface refactoring에서 원래 계획, 현재 완료 범위, 남은 작업과 다음 구현 순서를 한곳에 기록한다.
 - 상세 평가 근거: `docs/review/pkg-evaluation-20260715.md`
 - Phase 1 구현 커밋: `ea4d4fd` (`feat: add reproducible config and run interface`)
@@ -29,13 +29,25 @@
 - Phase 7 2차 증분 구현 노트: `docs/vibe/implementations/059_ea3082d3183e.md`
 - Phase 7 3차 증분(batch run manifest) 구현 커밋: `0c7ce00` (`feat: add batch run manifest`)
 - Phase 7 3차 증분 구현 노트: `docs/vibe/implementations/060_0c7ce009c489.md`
+- OCR batch 최소 page 수 구현 커밋: `722e9c9` (`feat: add ocr batch min page count`)
+- OCR batch 최소 page 수 구현 노트: `docs/vibe/implementations/061_722e9c98bea5.md`
+- project skill installer 구현 커밋: `dc72096` (`feat: add project skill installer`)
+- project skill installer 구현 노트: `docs/vibe/implementations/062_dc7209667ebb.md`
+- OCR batch 준비 progress 구현 커밋: `4b3c3cf` (`feat: expose OCR batch preparation progress`)
+- OCR batch 준비 progress 구현 노트: `docs/vibe/implementations/063_4b3c3cf157a7.md`
+- Markdown progressive graph 구현 커밋: `5ffeed1` (`feat: export markdown as progressive graph`)
+- Markdown progressive graph 구현 노트: `docs/vibe/implementations/064_5ffeed171c63.md`
+- length-limited Markdown graph 구현 커밋: `32c9ea1` (`feat: export length-limited markdown as graph`)
+- length-limited Markdown graph 구현 노트: `docs/vibe/implementations/065_32c9ea154ab0.md`
+- Phase 5 2차 증분 구현 커밋: `fd90662` (`feat: add bookmark review evidence workflow`)
+- Phase 5 2차 증분 구현 노트: `docs/vibe/implementations/066_fd9066243611.md`
 
 이 handoff의 핵심 판단은 기존 bookmark engine algorithm을 다시 설계하지 않고, 이미 검증된 production pipeline을 agent가 단계별로 실행·검토·비교할 수 있는 public interface로 재구성하는 것이다.
 
 목표 lifecycle은 다음과 같다.
 
 ```text
-inspect -> infer -> evaluate -> sweep/compare -> apply
+inspect -> infer -> review/evaluate -> sweep/compare -> apply
 ```
 
 기존 `process`와 `batch`는 이 단계들을 조립하는 convenience workflow로 유지한다.
@@ -49,9 +61,9 @@ inspect -> infer -> evaluate -> sweep/compare -> apply
 | Phase 2 | core pipeline을 analyze/infer/apply로 분리 | 완료 (2026-07-16) | `pipeline.py`(analyze_pdf/infer_bookmarks/apply_plan/resolve_existing_outline_action), `infer`/`apply` CLI, 로드맵에 없던 existing-outline quality policy까지 추가. 구현 노트 047~049 참고. |
 | Phase 3 | 공통 result/error/event 계약 | practical complete (2026-07-16) | `process`/`infer`/`apply`, config, inspect, 단일 OCR, classify, `ocr-overlay-batch`에 schema v1 계약을 적용했다. Typer parser-level error는 `--format` 파싱 전 시점이라 공통 envelope에 넣지 않기로 결정했다. `batch`도 Phase 7 1차 증분에서 같은 계약으로 전환됐다. |
 | Phase 4 | evaluator를 production으로 승격 | 1차 증분 완료 (2026-07-16) | `src/pdfbooktree/evaluation.py`로 fuzzy matcher와 matched/missed/extra detail을 승격했다. external reference loader, 3단계 reference quality, structural quality signal은 미착수. |
-| Phase 5 | inspect/compare 개선 | 1차 증분 완료 (2026-07-16) | `inspect compare`로 두 plan의 added/removed/moved/level/source diff를 구현했다. `inspect summary`, plan filter/limit/suspicious item, metric/structural signal delta는 미착수. |
+| Phase 5 | inspect/compare 개선 | 2차 증분 완료 (2026-07-17) | `inspect compare`와 review summary/items artifact를 구현했다. `inspect plan`은 item ID/page/level/source/attention/limit 필터를 제공한다. metric/structural signal delta와 compare output directory 자동 탐색은 미착수다. |
 | Phase 6 | cache-aware sweep | 미착수 | analysis cache, matrix parser, ranking이 없다. |
-| Phase 7 | process/batch/OCR 통합과 문서화 | 3차 증분 완료 (2026-07-16) | `batch` 공통 계약, item별 immutable run manifest, batch 전체 durable manifest와 summary-to-item 연결까지 완료했다. `process`는 이미 Phase 2에서 analyze/infer/apply 조립기로 전환됐다. `ocr_policy` 계약 정리와 README/artifact/exit-code 문서화가 남았다. |
+| Phase 7 | process/batch/OCR 통합과 문서화 | 완료 (2026-07-17) | `batch` 공통 계약과 durable manifest, OCR batch 최소 page/progress, project skill installer, README 문서화를 완료했다. `processing.ocr_policy`는 실행 가능한 `never`만 schema에 노출하고 `auto|always`를 config 단계에서 거부한다. |
 
 ## 3. Phase 0 진행 상태
 
@@ -320,7 +332,7 @@ Phase 2 완료 조건:
 
 ### Phase 5. Inspect와 compare
 
-완료된 범위(`7ac5f61`, 노트 057):
+완료된 범위(`7ac5f61`, 노트 057; `fd90662`, 노트 066):
 
 - 두 run/plan의 added/removed/moved/level/source diff -
   `compare_bookmark_plans()`(evaluation.py)가 `match_bookmark_plans()`를
@@ -340,16 +352,27 @@ Phase 2 완료 조건:
   `bookmark_plan.json` 두 개를 비교했다. `position_fallback_enabled=False`
   가 정확히 fallback이 찾은 17개 항목만 `removed`로 만들었다(added=0,
   unchanged=154) - config 옵션의 실제 효과와 compare 기능을 함께 검증했다.
+- `infer`가 `bookmark_review_summary.json`과
+  `bookmark_review_items.jsonl`을 생성하고 run manifest가 두 artifact를
+  역할별로 연결한다.
+- review summary는 level/source 분포, page 밀도, title/text 통계와 attention
+  signal을 제공한다. item detail은 plan item, canonical/alternative candidate,
+  geometry·typography, 제한된 주변 text와 원문 artifact 참조를 보존한다.
+- `inspect plan`에 `--summary`, `--items`, `--limit`, `--item-id`,
+  `--page-range`, `--level`, `--source`, `--attention-only`를 추가했다.
+  인자 없는 기존 plan inspection과 JSON envelope 계약은 유지한다.
+- showcase 029가 native, scanned-indexed, OCR PDF에서 summary → attention item →
+  candidate evidence → 원문 page의 점진적 검토 흐름을 검증했다.
 
 남은 범위:
 
-- `inspect summary`
-- plan item filter, limit, suspicious item, JSONL
 - metric과 structural signal delta - Phase 4의 structural quality signal이
   선행돼야 한다.
 - 두 output_dir을 받아 `bookmark_plan.json`을 자동으로 찾는 편의 기능
   (`inspect plan`처럼) - 이번 1차 증분은 plan 파일 경로 두 개를 직접
   받는 인터페이스로 좁혔다.
+- agent가 review item을 수정한 plan으로 저장한 뒤 `apply`까지 수행하는 실제
+  end-to-end showcase.
 
 ### Phase 6. Cache-aware sweep
 
@@ -372,11 +395,17 @@ Phase 2 완료 조건:
 - batch 실행 자체에 `output_root/_batch_runs/<batch_run_id>/batch_manifest.json`을
   만들고, config/input selection, lifecycle, summary, item run과 실제 output을
   연결했다(3차 증분, 노트 060).
+- OCR batch가 최소 page 수를 적용하고 준비 단계 progress를 event로 노출한다
+  (노트 061, 063).
+- project-local `use-pdfbooktree` skill installer와 패키지 번들 템플릿을 제공한다
+  (노트 062).
+- README에 `infer -> review -> apply` quick start, artifact 역할, 단일/item/batch
+  run directory, stdout/stderr와 exit-code 계약을 문서화했다.
 
 남은 범위:
 
-- `ocr_policy`를 실제로 연결하거나 public contract에서 unsupported 상태로 정리
-- README quick start, Python/CLI 예제, artifact 구조와 stdout/stderr/exit code 문서화
+- 없음. 자동 OCR 연결은 credential·비용·cache·overwrite 정책을 포함한 별도
+  기능으로 다시 설계하기 전까지 public contract에 포함하지 않는다.
 
 ## 8. 다음 작업자 체크리스트 (완료: 2026-07-16, §13 참고)
 
@@ -692,7 +721,7 @@ OCR 통합과 문서화) 중 하나로 넘어가는 것이 다음 자연스러�
   `uv run ruff format --check src tests` 통과. showcase 025가 실제 책 한 권으로
   succeeded batch manifest와 item run/실제 Markdown output 연결을 확인했다.
 
-### 15.3 다음 작업 우선순위
+### 15.3 당시 다음 작업 우선순위
 
 1. README quick start와 artifact/exit-code 문서화 - 현재 public interface와
    durable run 구조가 안정됐으므로 CLI/Python 시작 예제, stdout/stderr, 단일 run,
@@ -705,3 +734,199 @@ OCR 통합과 문서화) 중 하나로 넘어가는 것이 다음 자연스러�
    구현한 뒤 sweep matrix, resume/jobs, ranking을 후속 증분으로 나눈다.
 4. Phase 4/5 잔여 항목은 실제 external gold나 structural ranking 소비자가 생기기
    전까지 보류한다.
+
+위 목록 중 README·artifact 문서화와 Phase 5 review evidence는 2026-07-17에
+완료됐다. 최신 상태와 우선순위는 §16을 따른다.
+
+## 16. 2026-07-17 갱신: Markdown graph와 bookmark review evidence
+
+### 16.1 Markdown progressive disclosure graph
+
+- 실험 커밋: `000ebcb` (`exp: validate markdown graph contract`)
+- tree 구현 커밋: `5ffeed1` (`feat: export markdown as progressive graph`)
+- tree implementation note 커밋: `7d52343` (노트 064)
+- split 실험 커밋: `3f83ee6` (`exp: validate markdown split graph contract`)
+- split 구현 커밋: `32c9ea1` (`feat: export length-limited markdown as graph`)
+- split implementation note 커밋: `ff5ecc7` (노트 065)
+- 실제 데이터 showcase 커밋: `1d748ce` (showcase 028)
+- 계약 문서 커밋: `14aa122`
+- tree와 length-limited split을 공통 `MarkdownExportResult`와
+  `markdown_manifest.json` 계약으로 통합했다. 두 mode 모두 첫 줄 YAML front
+  matter, 전역 node ID와 고유 파일명, parent/children/previous/next wiki link,
+  source/confidence/evidence reference, page coverage와 graph validation을 제공한다.
+- 기본 tree 본문은 `content_mode=direct`, split은 `content_mode=bounded`라
+  descendant 또는 split boundary 사이의 page text를 중복 저장하지 않는다.
+  호환이 필요한 tree 호출만 명시적 `inclusive` mode를 사용할 수 있다.
+- run manifest와 `inspect plan`이 Markdown manifest, export mode, validation,
+  coverage와 warning을 연결하므로 node 파일 전체를 먼저 읽지 않아도 된다.
+- 실제 Shreve PDF showcase에서 tree 238개와 split 36개 node를 생성해 YAML,
+  dangling link, 관계 대칭, root 도달성, page 중복, evidence 보존을 검증했다.
+- 코드 계약은 구현됐지만 실제 Obsidian GUI에서 vault graph/backlink를 확인하는
+  수동 acceptance와 Windows/Linux wheel 교차 검증은 아직 남아 있다.
+
+### 16.2 Phase 5 2차 증분: bookmark review evidence
+
+- 실험 커밋: `be8cb85` (`exp: validate bookmark review evidence contract`)
+- 구현 커밋: `fd90662` (`feat: add bookmark review evidence workflow`)
+- implementation note 커밋: `ca9ae83` (노트 066)
+- 실제 데이터 showcase 커밋: `f13ebc2` (showcase 029)
+- `infer`가 `bookmark_review_summary.json`과
+  `bookmark_review_items.jsonl`을 항상 생성한다. summary는 전체 품질을 자동
+  판정하지 않고 검토 우선순위를 고르는 집계만 제공한다.
+- item detail은 plan의 source/confidence/evidence를 유지하면서 후보 좌표·글꼴,
+  대체 후보, 주변 타이포그래피, 제한된 원문 preview와 원본 artifact 참조를
+  제공한다. 동일 source/page/title 후보는 첫 후보를 canonical로 사용하고 나머지
+  참조를 버리지 않는다.
+- `inspect plan`의 summary/items/item-id/page-range/level/source/attention/limit
+  조합으로 필요한 근거만 점진적으로 읽을 수 있다. 기존 no-option inspection은
+  호환성을 유지한다.
+- native Hull, scanned-indexed Shreve, OCR 수리통계 PDF에서 candidate mapping과
+  원문 page 도달을 검증했다. 전체 테스트는 285개가 통과했다.
+- 아직 남은 검토 기능은 수정한 plan을 저장해 `apply`하는 실제 end-to-end
+  showcase다. metric이나 calibration되지 않은 종합 score는 릴리스 목표가 아니다.
+
+### 16.3 현재 public surface 판단
+
+- 기본 agent 흐름은 `inspect -> infer -> review -> apply`로 구체화됐다. 비교가
+  필요하면 `inspect compare`, 반복 실행이 필요하면 `process`/`batch`를 사용한다.
+- repo-local `use-pdfbooktree` skill과 package bundle template은 같은 review·graph
+  계약을 설명한다. README도 quick start, artifact 탐색, stdout/stderr와 exit-code
+  의미를 포함한다.
+- Phase 5의 summary/filter/JSONL 공백은 해소됐다. structural quality signal과
+  metric delta는 실제 ranking 소비자가 없으므로 자동 점수화와 함께 보류한다.
+- 저장소 전체 Ruff는 기존 experiment/reference 파일의 lint 18건과 format 91건이
+  남아 있어 아직 release acceptance를 통과하지 않는다. 변경 파일 검사는 통과했다.
+
+### 16.4 당시 다음 작업 우선순위
+
+1. `processing.ocr_policy` 계약을 닫는다. `auto|always`를 실제 overlay workflow에
+   연결하려면 credential, 비용, cache와 overwrite confirmation을 함께 설계해야
+   한다. 그 범위를 이번 릴리스에 넣지 않으면 config validation에서 조기 거부하는
+   것이 더 작은 안전한 단위다.
+2. Markdown graph의 release acceptance를 닫는다. 실제 Obsidian vault에서 graph와
+   backlink를 확인하고, `docs/review/to-do-before-release.md`의 구현·검증 항목을
+   코드와 showcase 근거에 맞춰 최종 audit한다.
+3. 배포 baseline을 완성한다. LICENSE/PyPI metadata, `uv build`, 깨끗한 wheel 설치,
+   package skill 포함 여부, CLI smoke test와 전체 Ruff lint/format을 순서대로 처리한다.
+4. review item을 수정한 plan으로 저장하고 `apply`하는 실제 end-to-end showcase를
+   추가한다. 새 public API보다 현재 JSON 계약으로 충분한지 먼저 확인한다.
+5. Phase 6 analysis cache는 위 0.1.0 blocker 이후 시작한다. 첫 수직 단위는
+   input/extraction config hash 기반 `PdfAnalysis` cache read/write와 manifest
+   hit/miss 기록으로 제한한다. sweep matrix와 자동 best-plan 선택은 후속이다.
+
+위 목록의 1번 `processing.ocr_policy` 계약은 §17에서 완료했다. 최신 우선순위는
+§17.3을 따른다.
+
+## 17. 2026-07-17 갱신: unsupported OCR policy fail-fast
+
+### 17.1 결정과 구현
+
+- 실험 커밋: `582244f` (`exp: validate supported OCR policy contract`)
+- 구현 커밋: `0d96330` (`fix: reject unsupported OCR policies`)
+- implementation note 커밋: `37f07c4` (노트 067)
+- 실제 데이터 showcase 커밋: `d46787a` (showcase 030)
+- 실험 `107_ocr_policy_supported_contract.py`가 기존 `auto|always`가 direct
+  `ProcessingConfig`, data loader와 `--set` 세 경로에서 모두 허용되지만 실제
+  OCR은 실행하지 않는 불일치를 재현했다.
+- `ProcessingConfig.ocr_policy`의 public type과 JSON Schema enum을
+  `Literal[\"never\"]`로 축소했다. `auto|always`와 그 밖의 값은 별도
+  `ocr-overlay`/`ocr-overlay-batch` workflow를 안내하는 `ConfigError`로 거부한다.
+- `config validate`, `process`, `infer`, `batch`는 공통 resolver를 사용하므로
+  unsupported 값은 PDF 분석, output directory 생성과 외부 OCR API 호출 전에
+  exit 2로 종료된다.
+- 도달할 수 없게 된 `Processor.run()`의 늦은 warning 분기를 제거했다. 기본
+  `never` 실행 결과와 config schema version 1은 유지한다. 미출시 v1에서 실제로
+  동작하지 않던 값을 제거하는 contract correction이므로 schema version은 올리지
+  않았다.
+- README, repo-local `use-pdfbooktree` skill과 package bundle의 CLI/Python/config
+  계약을 함께 갱신했다.
+
+### 17.2 실제 데이터 검증
+
+- showcase 030은 실제 Hull PDF 881쪽을 `process` CLI에 전달하면서
+  `processing.ocr_policy=always`를 지정했다.
+- config schema는 `enum=[\"never\"]`만 반환했고, TOML의 `auto`와 process
+  `--set`의 `always`는 모두 `ConfigError`, exit 2, stderr JSON envelope로
+  종료됐다.
+- process output directory는 생성되지 않았다. synthetic PDF, mock OCR이나 외부
+  API 호출 없이 실제 public config/CLI의 fail-fast 경계를 확인했다.
+- `uv run --no-sync pytest -q`는 291개가 통과했고, 이번 변경 Python 파일의
+  Ruff lint/format 검사는 통과했다. 저장소 전체 Ruff baseline의 기존 lint 18건과
+  format 91건은 별도 release blocker로 남아 있다.
+
+### 17.3 다음 작업 우선순위
+
+1. Markdown graph release acceptance를 닫는다. 실제 Obsidian vault에서 graph와
+   backlink를 확인하고 release TODO의 구현·검증 항목을 코드와 showcase 근거에
+   맞춰 audit한다.
+2. LICENSE/PyPI metadata, `uv build`, 깨끗한 wheel 설치, package skill 포함 여부,
+   CLI smoke test와 전체 Ruff lint/format으로 배포 baseline을 완성한다.
+3. review item을 수정한 plan으로 저장하고 `apply`하는 실제 end-to-end showcase를
+   추가한다.
+4. 위 0.1.0 blocker 이후 Phase 6 `PdfAnalysis` cache read/write와 manifest
+   hit/miss 기록을 첫 수직 단위로 시작한다.
+
+## 18. 2026-07-17 갱신: release TODO codebase 동기화
+
+- `docs/review/to-do-before-release.md`의 Markdown graph와 bookmark review
+  체크리스트를 현재 production code, 전체 테스트와 showcase 028~030 근거에 맞춰
+  갱신했다.
+- tree/split graph의 표준 YAML, 고유 node path, parent/children/previous/next
+  relation, TOC 도달성, direct/bounded page 비중복, source/confidence/evidence
+  보존과 manifest 연결은 구현 및 자동 검증이 끝났다.
+- 실제 Obsidian GUI 수동 확인은 release acceptance에서 제외한다. Obsidian-compatible
+  wiki link의 target과 양방향 relation은 graph validator와 실제 PDF showcase로
+  검증한다.
+- `uv run --no-sync pytest -q`는 293개가 통과한다. 장시간 OCR overlay가 project
+  `.venv`의 실행 파일을 사용하고 있으므로 OCR 작업이 끝날 때까지 저장소 검증은
+  `--no-sync`를 사용하고 해당 프로세스를 종료하거나 environment sync를 시도하지
+  않는다.
+- 다음 우선순위는 LICENSE/PyPI metadata, CLI `--version`, build와 clean wheel
+  install smoke test, package skill 포함 검사와 전체 Ruff baseline으로 구성된 배포
+  준비다. LICENSE 종류는 저장소 소유자의 명시적 선택이 필요하다.
+
+## 19. 2026-07-17 갱신: 배포 baseline 1차 증분
+
+- 실험 108에서 기존 source의 sdist/wheel 생성과 package skill 파일 5개 포함,
+  실제 2-page MIT OCW PDF inspect 성공을 확인했다. 동시에 LICENSE expression,
+  project URLs, keywords/classifiers와 `pdfbooktree --version` 누락을 재현했다.
+- `pyproject.toml`에 GitHub project URLs, keywords와 alpha 상태 classifiers를
+  추가했다. LICENSE field는 저장소 소유자의 종류 선택 전까지 넣지 않았다.
+- CLI에 설치 metadata를 읽는 `pdfbooktree --version`을 추가하고 별도 계약 테스트를
+  만들었다.
+- README에 PyPI 설치 명령, 지원/비지원 경계, Windows 검증 상태, OCR
+  `UPSTAGE_API_KEY`와 외부 비용, generated graph를 vault로 사용하는 방법을
+  추가했다.
+- `scripts/smoke-test-wheel.ps1`은 project `.venv`와 독립된 Python 3.12 clean venv를
+  만들고 wheel 설치, `--help`/`--version`, config schema, 실제 PDF inspect/process,
+  Markdown manifest와 package skill 파일 5개를 검증한다.
+- showcase 031에서 위 smoke를 실제 16,726-byte, 2-page MIT OCW PDF로 실행했다.
+  clean wheel의 `process`가 bookmark 1개와 Markdown manifest를 만들었고 모든
+  validation이 통과했다.
+- release Ruff scope는 production/public surface와 유지 대상 도구인
+  `src/`, `tests/`, `scripts/`, `showcase/` 등을 포함하고 역사적 PoC
+  `experiments/`와 외부 비교 자료 `references/`를 제외한다. 이 scope의
+  `ruff check .`와 `ruff format --check .`은 145개 파일을 대상으로 통과했고,
+  전체 `uv run --no-sync pytest -q`는 293개가 통과했다.
+- MIT `LICENSE`를 추가하고 `pyproject.toml`에 `license = "MIT"`와
+  `license-files = ["LICENSE"]`를 선언했다. clean wheel metadata에서
+  `License-Expression=MIT`, `License-File=LICENSE`를 확인했다.
+- 다음 배포 blocker는 Linux smoke/CI다. review item 수정 → `apply` showcase는
+  그 다음 독립 작업이다.
+
+## 20. 2026-07-17 갱신: cross-platform CI 준비
+
+- `.github/workflows/ci.yml`에 `windows-latest`와 `ubuntu-latest` matrix를
+  추가했다. 두 OS 모두 Python 3.12 locked sync, 전체 pytest, release Ruff
+  lint/format과 clean-wheel smoke를 실행한다.
+- uv 공식 GitHub Actions 가이드에 따라 `actions/checkout@v7`과 commit SHA로
+  고정한 `astral-sh/setup-uv` v8.1.0을 사용하고 uv version은 `0.11.28`로
+  고정했다.
+- `scripts/smoke_test_wheel.py`는 OS별 venv executable 경로를 해석하고 wheel
+  metadata, CLI help/version/config, package skill 설치를 공통 검증한다. 실제
+  PDF 경로를 주면 inspect/process와 Markdown manifest까지 추가 검증한다.
+- Windows local 실행은 실제 16,726-byte MIT OCW PDF 2쪽을 processed 상태로
+  만들고 bookmark 1개, MIT license file과 package skill 5개를 확인했다.
+- 전체 `uv run --no-sync pytest -q` 293개, release Ruff 146개 파일과 CI YAML
+  matrix parse가 통과했다. Linux 완료 표시는 workflow를 GitHub remote에서 실제
+  실행한 뒤에만 갱신한다.

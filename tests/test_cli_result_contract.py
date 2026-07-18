@@ -256,13 +256,13 @@ def test_process_runtime_error는_manifest를_남기고_traceback을_숨긴다(
     tmp_path: Path,
 ) -> None:
     class FailingProcessor:
-        def __init__(self, pdf, output_dir, config):
+        def __init__(self, pdf, output_dir, config, log=None):
             pass
 
         def run(self):
             raise RuntimeError("pipeline failed")
 
-    monkeypatch.setattr("pdfbooktree.cli.Processor", FailingProcessor)
+    monkeypatch.setattr("pdfbooktree.workflows.Processor", FailingProcessor)
     pdf = tmp_path / "book.pdf"
     output_root = tmp_path / "runs"
     _make_pdf(pdf)
@@ -302,13 +302,13 @@ def test_process_debug는_manifest를_남기고_원래_예외를_노출한다(
     tmp_path: Path,
 ) -> None:
     class FailingProcessor:
-        def __init__(self, pdf, output_dir, config):
+        def __init__(self, pdf, output_dir, config, log=None):
             pass
 
         def run(self):
             raise RuntimeError("debug pipeline failed")
 
-    monkeypatch.setattr("pdfbooktree.cli.Processor", FailingProcessor)
+    monkeypatch.setattr("pdfbooktree.workflows.Processor", FailingProcessor)
     pdf = tmp_path / "book.pdf"
     output_root = tmp_path / "runs"
     _make_pdf(pdf)

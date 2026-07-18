@@ -59,6 +59,9 @@ class BatchRunManifest:
     input_dir: Path
     output_root: Path
     recursive: bool
+    include_globs: tuple[str, ...]
+    exclude_globs: tuple[str, ...]
+    excluded_output_subtree: Path | None
     discovered_pdf_count: int
     discovered_pdf_paths: tuple[Path, ...]
     selection_hash: str
@@ -138,6 +141,9 @@ def create_batch_run_context(
     *,
     recursive: bool,
     pdf_paths: list[Path],
+    include_globs: tuple[str, ...] = (),
+    exclude_globs: tuple[str, ...] = (),
+    excluded_output_subtree: Path | None = None,
     repository_root: Path | str | None = None,
 ) -> BatchRunContext:
     """입력 선택/config로 충돌하지 않는 immutable batch run을 만든다."""
@@ -151,6 +157,9 @@ def create_batch_run_context(
         {
             "input_dir": input_path,
             "recursive": recursive,
+            "include_globs": include_globs,
+            "exclude_globs": exclude_globs,
+            "excluded_output_subtree": excluded_output_subtree,
             "discovered_pdf_paths": discovered_paths,
         }
     )
@@ -175,6 +184,9 @@ def create_batch_run_context(
         input_dir=input_path,
         output_root=output_path,
         recursive=recursive,
+        include_globs=include_globs,
+        exclude_globs=exclude_globs,
+        excluded_output_subtree=excluded_output_subtree,
         discovered_pdf_count=len(discovered_paths),
         discovered_pdf_paths=discovered_paths,
         selection_hash=selection_hash,
