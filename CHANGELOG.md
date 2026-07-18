@@ -5,6 +5,12 @@
 ## Unreleased
 
 - GitHub Actions의 Windows/Linux matrix를 원격에서 실제 확인한 뒤 릴리스한다.
+- CI의 Rich ANSI help 출력에서도 `--version` 공개 option 계약을 안정적으로
+  검증한다.
+- 공개 결과 직렬화용 `to_jsonable()`, `to_json()`과 `JsonValue` 계약을 추가했다.
+- root와 공개 subpackage의 `__all__`을 지원 API surface로 명시하고, Python API
+  reference를 README·PyPI metadata·설치 가능한 project skill에 연결했다.
+- v0.1.0의 OCR provider가 Upstage Document Parse 전용임을 명시했다.
 
 ## 0.1.0
 

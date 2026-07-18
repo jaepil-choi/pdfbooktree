@@ -12,6 +12,7 @@
 - [OCR API](#ocr-api)
 - [Scan 분류 API](#scan-분류-api)
 - [낮은 수준 typography API](#낮은-수준-typography-api)
+- [결과 직렬화](#결과-직렬화)
 - [공개 결과 모델과 오류](#공개-결과-모델과-오류)
 
 ## 공개 import 기준
@@ -37,7 +38,18 @@ from pdfbooktree.classify import ClassifyBatchConfig, ScanBookmarkClassifier
 from pdfbooktree.typography import build_geometry_context
 ```
 
-현재 공개 symbol은 각 `__init__.py`의 `__all__`을 기준으로 확인하라.
+root와 공개 subpackage의 `__all__`에 포함된 symbol은 의도적으로 지원하는 공개
+API다. root가 고수준 workflow뿐 아니라 단계형 API, 결과 모델과 lifecycle
+타입까지 다시 export하는 것은 편의 facade 계약이다. 공개 API 여부를 module
+깊이나 이름만으로 추측하지 말고 다음 `__all__`을 기준으로 판단하라.
+
+- `pdfbooktree.__all__`
+- `pdfbooktree.ocr.__all__`
+- `pdfbooktree.classify.__all__`
+- `pdfbooktree.typography.__all__`
+
+그 밖의 직접 module import와 underscore-prefixed helper에는 호환성을 기대하지
+마라.
 
 ```powershell
 uv run python -c "import pdfbooktree; print(*pdfbooktree.__all__, sep='`n')"
@@ -262,6 +274,11 @@ print(result.batch_run_id, result.batch_manifest_path, result.failed_count)
 
 단일 PDF에는 `OcrOverlayConfig`와 `OcrOverlayBuilder.run() -> OcrOverlayResult`를 사용하라.
 
+**v0.1.0은 Upstage Document Parse 전용이다.** `engine="upstage"`만 지원하며
+custom OCR provider 등록·주입 API는 없다. 다른 engine 이름은 실행 시
+`ValueError`로 거부된다. provider 확장성을 추측해 private registry나 engine
+Protocol을 import하지 마라.
+
 ```python
 from pathlib import Path
 
@@ -340,6 +357,39 @@ custom 분석 또는 실험에서만 `pdfbooktree.typography`를 직접 사용�
 - `FontCoverageProfile`, `GeometryContext`, `PositionFallbackCandidate`
 
 일반 사용에서는 `analyze_pdf()`와 `infer_bookmarks()`가 이 순서와 불변식을 관리하게 하라.
+
+## 결과 직렬화
+
+공개 dataclass 결과, manifest와 중첩 모델을 JSON API, message queue 또는 저장소로
+전달할 때 root의 두 함수를 사용하라.
+
+- `to_jsonable(value) -> JsonValue`: Python JSON 호환 값으로 변환한다.
+- `to_json(value, *, ensure_ascii=False, indent=None) -> str`: 표준 JSON 문자열로
+  직렬화한다.
+
+```python
+import json
+
+from pdfbooktree import process_pdf, to_json, to_jsonable
+
+result = process_pdf("book.pdf", "runs")
+payload = to_jsonable(result)
+assert json.loads(to_json(result)) == payload
+```
+
+변환 규칙은 다음과 같다.
+
+- dataclass → field 이름을 key로 갖는 object
+- `Path` → 문자열
+- tuple/list → array
+- dict key → 문자열
+- `Enum` → 해당 value를 같은 규칙으로 재귀 변환
+- `None`, boolean, int, finite float, string → 같은 JSON scalar
+
+지원하지 않는 객체는 `TypeError`, `NaN`과 Infinity는 `ValueError`로 거부한다.
+조용한 `str()` fallback은 없으므로 계약 밖의 값을 놓치지 않는다. 결과 schema가
+필요하면 변환된 top-level field와 함께 해당 model 및 manifest의
+`schema_version` 계약을 사용하라.
 
 ## 공개 결과 모델과 오류
 

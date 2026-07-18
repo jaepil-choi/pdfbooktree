@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 from datetime import datetime
@@ -14,12 +15,21 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 
 
+def utf8_environment() -> dict[str, str]:
+    """clean subprocess가 OS locale과 무관하게 UTF-8 stream을 사용하게 한다."""
+
+    environment = os.environ.copy()
+    environment["PYTHONUTF8"] = "1"
+    return environment
+
+
 def run(command: list[str], *, cwd: Path = ROOT) -> subprocess.CompletedProcess[str]:
     """명령을 실행하고 실패하면 stdout/stderr를 포함해 중단한다."""
 
     completed = subprocess.run(
         command,
         cwd=cwd,
+        env=utf8_environment(),
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -145,6 +155,30 @@ print(json.dumps({
     if ocr_requirements != {"httpx", "pikepdf", "python-dotenv"}:
         raise RuntimeError(f"OCR extra metadata가 예상과 다르다: {ocr_requirements!r}")
 
+    serialization_code = """
+from pathlib import Path
+
+from pdfbooktree import BookmarkPlanItem, to_json
+
+item = BookmarkPlanItem(title="제1장", level=1, pdf_page=1)
+print(to_json({"item": item, "path": Path("book.pdf")}, ensure_ascii=False))
+"""
+    serialization_payload = run_json([str(python_exe), "-c", serialization_code])
+    if serialization_payload != {
+        "item": {
+            "title": "제1장",
+            "level": 1,
+            "pdf_page": 1,
+            "source": "typography",
+            "confidence": 0.0,
+            "evidence": [],
+        },
+        "path": "book.pdf",
+    }:
+        raise RuntimeError(
+            f"설치 wheel의 공개 직렬화 계약이 예상과 다르다: {serialization_payload!r}"
+        )
+
     version = run([str(cli_exe), "--version"]).stdout.strip()
     if version != "pdfbooktree 0.1.0":
         raise RuntimeError(f"예상하지 못한 version 출력이다: {version!r}")
@@ -197,6 +231,23 @@ print(json.dumps({
     skill_file_count = sum(path.is_file() for path in skill_root.rglob("*"))
     if skill_file_count != 5:
         raise RuntimeError(f"package skill 파일 수가 5가 아니다: {skill_file_count}")
+    api_reference_path = skill_root / "references" / "python-api.md"
+    api_reference = api_reference_path.read_text(encoding="utf-8")
+    required_api_reference_contracts = (
+        "pdfbooktree.__all__",
+        "to_jsonable(value) -> JsonValue",
+        "v0.1.0은 Upstage Document Parse 전용",
+    )
+    missing_api_reference_contracts = [
+        contract
+        for contract in required_api_reference_contracts
+        if contract not in api_reference
+    ]
+    if missing_api_reference_contracts:
+        raise RuntimeError(
+            "설치 skill의 Python API reference 계약이 누락됐다: "
+            f"{missing_api_reference_contracts!r}"
+        )
 
     if args.sample_pdf is not None:
         sample_pdf = args.sample_pdf
@@ -242,6 +293,7 @@ document.close()
             "json",
         ],
         cwd=ROOT,
+        env=utf8_environment(),
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -395,7 +447,11 @@ print(json.dumps({
         "core_ocr_batch_dry_run": ocr_dry_run_payload["ok"],
         "core_live_ocr_error_code": missing_ocr_payload["error"]["code"],
         "ocr_extra_imports": "passed",
+        "serialization_contract": "passed",
         "installed_skill_file_count": skill_file_count,
+        "installed_skill_api_reference": str(
+            api_reference_path.relative_to(project_dir)
+        ),
         "sample": sample_result,
         "build_log_tail": build.stderr.splitlines()[-10:],
         "run_dir": str(run_dir),

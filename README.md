@@ -167,10 +167,11 @@ validation에서 exit 2로 거부한다. OCR이 필요하면 위 `ocr-overlay-ba
 전달한다. 이렇게 해야 credential, API 비용, cache와 기존 bookmark overwrite를
 명시적으로 통제할 수 있다.
 
-내장 OCR provider는 Upstage Document Parse다. live OCR 전에 API key를 환경
-변수로 설정해야 하며 외부 API 호출 비용이 발생할 수 있다. core 설치에서는
-도움말과 dry-run까지만 사용할 수 있고, live overlay는 `[ocr]` extra가 없으면
-`OptionalDependencyError`와 설치 명령을 반환한다.
+**v0.1.0의 OCR provider는 Upstage Document Parse 전용이다.** custom provider
+등록·주입 API는 제공하지 않으며 `engine="upstage"`만 지원한다. live OCR 전에
+API key를 환경 변수로 설정해야 하며 외부 API 호출 비용이 발생할 수 있다. core
+설치에서는 도움말과 dry-run까지만 사용할 수 있고, live overlay는 `[ocr]` extra가
+없으면 `OptionalDependencyError`와 설치 명령을 반환한다.
 
 ```powershell
 $env:UPSTAGE_API_KEY = "<upstage-api-key>"
@@ -218,6 +219,10 @@ pdfbooktree infer "book.pdf" --set typography.position_fallback_enabled=false
 
 CLI와 같은 immutable run·manifest 계약이 필요하면 고수준 workflow API를
 사용한다. `preview_apply_plan()`은 어떤 파일도 만들지 않는다.
+전체 공개 import, 함수 signature, 결과 모델과 artifact 계약은
+[Python API reference](https://github.com/jaepil-choi/pdfbooktree/blob/master/.agents/skills/use-pdfbooktree/references/python-api.md)를
+기준으로 한다. 이 reference는 wheel의 project skill에도 함께 들어가므로
+`pdfbooktree skill install`로 설치한 agent가 같은 계약을 읽는다.
 
 ```python
 from pathlib import Path
@@ -237,6 +242,17 @@ preview = preview_apply_plan(pdf, plan, Path("runs"))
 assert preview.validation.valid
 applied = apply_plan_file(pdf, plan, Path("runs"))
 print(__version__, applied.run_dir, applied.result.markdown_manifest_path)
+```
+
+공개 결과를 API 응답이나 저장소로 전달할 때는 `to_jsonable()` 또는
+`to_json()`을 사용한다. dataclass는 object, `Path`는 문자열, tuple은 array로
+변환되며 지원하지 않는 객체는 오류로 거부한다.
+
+```python
+from pdfbooktree import process_pdf, to_json
+
+result = process_pdf("book.pdf", "runs")
+payload = to_json(result, ensure_ascii=False, indent=2)
 ```
 
 한 번에 처리하려면 `process_pdf()`를 사용한다. `Processor`, `analyze_pdf()`,

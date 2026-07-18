@@ -41,7 +41,7 @@ dependencies = [
 Homepage = "https://github.com/jaepil-choi/pdfbooktree"
 Repository = "https://github.com/jaepil-choi/pdfbooktree"
 Issues = "https://github.com/jaepil-choi/pdfbooktree/issues"
-Documentation = "https://github.com/jaepil-choi/pdfbooktree#readme"
+Documentation = "https://github.com/jaepil-choi/pdfbooktree/blob/master/.agents/skills/use-pdfbooktree/references/python-api.md"
 
 [project.scripts]
 pdfbooktree = "pdfbooktree.cli:main"

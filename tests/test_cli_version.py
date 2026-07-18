@@ -1,6 +1,7 @@
 """최상위 CLI version 계약을 검증한다."""
 
 from typer.testing import CliRunner
+from rich.text import Text
 
 from pdfbooktree.cli import app
 
@@ -28,4 +29,4 @@ def test_cli_help에_version_option이_노출된다() -> None:
     result = runner.invoke(app, ["--help"])
 
     assert result.exit_code == 0
-    assert "--version" in result.stdout
+    assert "--version" in Text.from_ansi(result.stdout).plain

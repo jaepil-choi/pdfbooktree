@@ -37,7 +37,7 @@ description: 이 저장소의 pdfbooktree Python API와 CLI를 사용해 PDF 책
 
 ## OCR 안전 규칙
 
-- 현재 내장 OCR engine은 Upstage Document Parse다. 기본 환경 변수 `UPSTAGE_API_KEY`가 필요하며 `.env`도 검색한다.
+- v0.1.0의 내장 OCR engine은 Upstage Document Parse 전용이다. `engine="upstage"`만 지원하고 custom provider 등록·주입 API는 제공하지 않는다. 기본 환경 변수 `UPSTAGE_API_KEY`가 필요하며 `.env`도 검색한다.
 - live OCR에는 `pdfbooktree[ocr]` 설치가 필요하다. core 설치에서도 OCR command help와 `ocr-overlay-batch --dry-run`은 사용할 수 있다.
 - `ocr-overlay`는 입력과 별도의 output PDF를 만들도록 구성하라. 기존 output을 덮어쓸 때만 `--force`를 사용하라.
 - `ocr-overlay --output-dir`을 생략하면 output PDF 옆의 `<output-stem>_artifacts`를 사용한다. input/output 동일 경로는 `--force`와 무관하게 거부된다.
@@ -84,6 +84,7 @@ description: 이 저장소의 pdfbooktree Python API와 CLI를 사용해 PDF 책
 - immutable run이 필요한 한 파일 고수준 처리에는 `process_pdf`, `infer_pdf`, `preview_apply_plan`, `apply_plan_file`; flat/저수준 조합에는 `Processor`, `analyze_pdf`, `infer_bookmarks`, `write_inference_artifacts`, `apply_plan`; directory 처리에는 `BatchProcessor`를 사용하라.
 - `validate_plan(input_pdf, plan)`으로 외부 plan을 쓰기 없이 검증하라. 긴 `Processor`/`analyze_pdf` 작업은 optional processing logger로 관찰할 수 있다.
 - OCR은 `pdfbooktree.ocr`, 분류는 `pdfbooktree.classify`, 낮은 수준 typography geometry 기능은 `pdfbooktree.typography`에서 import하라.
+- 공개 결과를 JSON API나 저장소로 전달할 때는 root의 `to_jsonable()` 또는 `to_json()`을 사용하라. dataclass, `Path`, tuple의 변환 계약과 오류 조건은 Python API reference를 따르라.
 - 공개 import는 각 package의 `__all__`을 기준으로 삼고 private helper에 의존하지 마라.
 
 ## 저장소 근거 확인

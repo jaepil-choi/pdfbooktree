@@ -8,6 +8,7 @@ import pdfbooktree
 
 
 def test_public_import_contract() -> None:
+    assert {"JsonValue", "to_json", "to_jsonable"} <= set(pdfbooktree.__all__)
     assert pdfbooktree.__version__ == metadata.version("pdfbooktree")
     assert pdfbooktree.package_version() == pdfbooktree.__version__
     assert resources.files("pdfbooktree").joinpath("py.typed").is_file()
@@ -18,6 +19,8 @@ def test_public_import_contract() -> None:
     assert pdfbooktree.infer_pdf is not None
     assert pdfbooktree.preview_apply_plan is not None
     assert pdfbooktree.apply_plan_file is not None
+    assert pdfbooktree.to_json is not None
+    assert pdfbooktree.to_jsonable is not None
     assert pdfbooktree.Processor is not None
     assert pdfbooktree.BatchProcessor is not None
     assert pdfbooktree.ProcessingConfig is not None

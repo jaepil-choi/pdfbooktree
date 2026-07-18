@@ -101,6 +101,7 @@ from pdfbooktree.run import (
     ToolIdentity,
     create_run_context,
 )
+from pdfbooktree.serialization import JsonValue, to_json, to_jsonable
 from pdfbooktree.workflows import (
     ApplyPreview,
     ProcessingRunResult,
@@ -148,6 +149,7 @@ __all__ = [
     "infer_bookmarks",
     "infer_pdf",
     "install_project_skill",
+    "JsonValue",
     "match_bookmark_plans",
     "MatchedPair",
     "MatchMetrics",
@@ -196,6 +198,8 @@ __all__ = [
     "create_batch_run_context",
     "Tier",
     "TierSet",
+    "to_json",
+    "to_jsonable",
     "TypographyConfig",
     "TypographyLine",
     "write_inference_artifacts",

@@ -428,10 +428,14 @@ API 비용, cache, 기존 bookmark 보호와 원본 비파괴 정책을 함께 �
 
 ### 8.2 배포 검증
 
+- [x] production release는 항상 `master`의 검증된 commit에서 만든다.
+- [ ] `develop`의 green commit을 원격 `master`에 반영하고 release tag를
+      `master`의 해당 commit에 생성한다.
 - [x] `uv build`로 sdist와 wheel을 생성한다.
 - [x] 깨끗한 virtual environment에 wheel을 설치한다.
 - [x] `pdfbooktree --help`, `--version`, config와 inspect smoke test를 실행한다.
-- [x] package에 skill template 전체가 포함됐는지 검사한다.
+- [x] package에 skill template 전체가 포함되고 설치된 Python API reference가
+      공개 import, 직렬화와 Upstage-only 계약을 포함하는지 검사한다.
 - [x] source checkout이 아닌 설치 wheel에서 작은 실제 PDF를 처리한다.
 - [x] core-only clean 환경에서 OCR dependency가 설치되지 않고 일반
       process/inspect/classify, OCR help와 batch dry-run이 동작하는지 확인한다.
@@ -455,6 +459,11 @@ Windows에서는 같은 Python smoke script로 실제 PDF process까지 통과�
 - [x] Markdown graph를 Obsidian vault로 여는 예시를 추가한다.
 - [x] generated file tree와 각 artifact의 역할을 예시로 보여준다.
 - [x] CHANGELOG, CONTRIBUTING, SECURITY 문서를 추가한다.
+- [x] 루트와 공개 subpackage의 `__all__`을 지원 API surface로 명시한다.
+- [x] Python 결과용 `to_jsonable()`과 `to_json()` 직렬화 계약을 제공한다.
+- [x] 전체 Python API reference를 project skill과 wheel에 함께 배포한다.
+- [x] v0.1.0 OCR provider가 Upstage 전용이고 custom provider 등록 API가 없음을
+      명시한다.
 
 ## 9. 구현 순서
 
@@ -497,6 +506,8 @@ note 흐름을 따른다. 실험과 showcase는 해당 디렉터리의 기록 JS
 - [x] 실제 수정 plan의 dry-run과 apply showcase가 통과한다.
 - [x] `__version__`, PEP 561, 고수준 Python workflow와 canonical run-owned
       `bookmark_plan.json` 계약을 제공한다.
+- [x] 공개 결과 직렬화와 설치 skill의 Python API reference 계약을 제공한다.
+- [ ] `master`의 검증된 commit에 release tag를 생성한다.
 - [ ] GitHub Actions의 Windows/Linux matrix가 실제로 통과한다.
 - [x] `uv run pytest -q`가 통과한다.
 - [x] release Ruff scope의 lint와 format check가 통과한다.
