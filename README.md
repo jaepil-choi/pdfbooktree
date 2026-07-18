@@ -44,6 +44,13 @@ pdfbooktree --help
 pdfbooktree --version
 ```
 
+OCR overlay까지 사용하려면 OCR 전용 extra를 설치한다. 일반 PDF 처리, inspect,
+scan 분류와 `ocr-overlay-batch --dry-run`에는 이 extra가 필요하지 않다.
+
+```powershell
+python -m pip install "pdfbooktree[ocr]"
+```
+
 source checkout에서 개발할 때만 `python -m pip install .`을 사용한다.
 
 Codex가 현재 project에서 `pdfbooktree`의 전체 CLI와 Python API 사용법을 알 수 있도록 package에 번들된 project scope skill을 설치할 수 있다.
@@ -72,7 +79,8 @@ pdfbooktree apply $pdf --plan "<infer run_dir>\bookmark_plan.json" `
 ```
 
 The input must have an extractable text layer. For scanned PDFs, run
-`ocr-overlay` first. The built-in Upstage provider requires
+`python -m pip install "pdfbooktree[ocr]"`, then run `ocr-overlay` first. The
+built-in Upstage provider requires
 `UPSTAGE_API_KEY` and may incur external API charges. `--format json` writes
 one final envelope to stdout; `--log-mode json` writes progress events as
 JSONL to stderr. Exit codes are `0` for success, `1` for runtime errors, `2`
@@ -160,7 +168,9 @@ validation에서 exit 2로 거부한다. OCR이 필요하면 위 `ocr-overlay-ba
 명시적으로 통제할 수 있다.
 
 내장 OCR provider는 Upstage Document Parse다. live OCR 전에 API key를 환경
-변수로 설정해야 하며 외부 API 호출 비용이 발생할 수 있다.
+변수로 설정해야 하며 외부 API 호출 비용이 발생할 수 있다. core 설치에서는
+도움말과 dry-run까지만 사용할 수 있고, live overlay는 `[ocr]` extra가 없으면
+`OptionalDependencyError`와 설치 명령을 반환한다.
 
 ```powershell
 $env:UPSTAGE_API_KEY = "<upstage-api-key>"
@@ -206,24 +216,32 @@ pdfbooktree infer "book.pdf" --set typography.position_fallback_enabled=false
 
 ## Python API
 
+CLI와 같은 immutable run·manifest 계약이 필요하면 고수준 workflow API를
+사용한다. `preview_apply_plan()`은 어떤 파일도 만들지 않는다.
+
 ```python
 from pathlib import Path
 from pdfbooktree import (
-    TypographyConfig,
-    analyze_pdf,
-    apply_plan,
-    infer_bookmarks,
-    validate_plan,
+    __version__,
+    apply_plan_file,
+    infer_pdf,
+    preview_apply_plan,
 )
 
 pdf = Path("book.pdf")
-config = TypographyConfig()
-analysis = analyze_pdf(pdf, config)
-inference = infer_bookmarks(analysis, config)
-validation = validate_plan(pdf, inference.plan)
-assert validation.valid
-result = apply_plan(pdf, Path("output"), inference.plan, analysis.total_pages)
+inferred = infer_pdf(pdf, Path("runs"))
+plan = inferred.result.bookmark_plan_path
+assert plan is not None
+
+preview = preview_apply_plan(pdf, plan, Path("runs"))
+assert preview.validation.valid
+applied = apply_plan_file(pdf, plan, Path("runs"))
+print(__version__, applied.run_dir, applied.result.markdown_manifest_path)
 ```
+
+한 번에 처리하려면 `process_pdf()`를 사용한다. `Processor`, `analyze_pdf()`,
+`infer_bookmarks()`, `apply_plan()`은 명시적 flat output이나 중간 모델 조합이
+필요한 저수준 API로 유지한다.
 
 ## 출력 계약
 
@@ -231,4 +249,6 @@ result = apply_plan(pdf, Path("output"), inference.plan, analysis.total_pages)
 - `--format json`의 최종 결과는 stdout 한 줄이다.
 - `--log-mode json`의 진행 상황은 stderr JSONL로 출력한다.
 - 실행마다 확정된 설정과 실행 기록을 남겨 입력, 설정, 결과와 오류를 추적할 수 있다.
+- non-dry-run `process`, `infer`, `apply` run은 적용한 plan의 immutable snapshot을
+  run root의 `bookmark_plan.json`으로 보존한다.
 - 종료 코드는 성공 `0`, 실행 오류 `1`, 입력·설정·북마크 계획 오류 `2`, 처리 검증 실패 `3`이다.

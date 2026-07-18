@@ -45,9 +45,10 @@ artifact, agent review 흐름, 성능과 배포 경험을 기준으로 한다.
 - bookmark review 구현은 `tests/test_bookmark_review.py`,
   `tests/test_inspection.py`와 실제 native/OCR PDF를 사용한 showcase 029에서
   summary → attention item → item detail → 원문 page 흐름을 검증했다.
-- `uv run --no-sync pytest -q`는 323개 테스트가 통과한다. 장시간 실행 중인
-  OCR overlay가 project `.venv`의 `pdfbooktree.exe`를 사용하고 있으므로 해당
-  작업이 끝날 때까지 이 저장소의 검증은 `--no-sync`를 사용한다.
+- OCR overlay 장시간 작업이 종료되어 project environment를 다시 sync했다. 현재
+  개발·검증 명령은 `uv run ...`을 사용하고 OCR 구현 전체가 필요하면 먼저
+  `uv sync --extra ocr --dev`를 실행한다. 2026-07-18 기준 전체 334개 테스트와
+  release Ruff lint/format 검증이 통과한다.
 - 별도 Python 3.12 clean venv에 새 wheel을 설치하고 `--help`, `--version`,
   config schema, Unicode·Windows 예약 이름·특수문자 outline을 가진 생성 2-page
   PDF의 inspect/process, YAML/wiki graph validation과 package skill 파일 5개
@@ -406,8 +407,8 @@ API 비용, cache, 기존 bookmark 보호와 원본 비파괴 정책을 함께 �
 - [ ] terminal 폭이 좁아도 option 이름이 잘리지 않는 plain help를 제공한다.
 - [ ] encrypted PDF를 위한 password 입력 방식을 검토한다.
 - [x] batch include/exclude glob을 제공한다.
-- [ ] Python result에서 review summary, Markdown manifest와 node mapping에 바로
-      접근할 수 있게 한다.
+- [x] Python result에서 plan, validation, review summary/items, Markdown manifest와
+      기존 outline quality 경로에 typed property로 바로 접근할 수 있게 한다.
 - [ ] 예외 메시지에 다음 확인 명령과 관련 artifact 경로를 포함한다.
 
 ## 8. P0: PyPI 배포 준비
@@ -421,6 +422,9 @@ API 비용, cache, 기존 bookmark 보호와 원본 비파괴 정책을 함께 �
 - [x] README 설치 예시를 `pip install pdfbooktree` 기준으로 바꾼다.
 - [x] 지원 Python과 운영체제를 명시한다.
 - [x] OCR 기능에는 Upstage credential과 외부 비용이 필요하다는 점을 명시한다.
+- [x] OCR 전용 dependency를 `pdfbooktree[ocr]` extra로 분리하고 `tqdm`은 core에
+      유지한다.
+- [x] `Typing :: Typed`와 `py.typed`를 wheel/sdist에 포함한다.
 
 ### 8.2 배포 검증
 
@@ -429,9 +433,13 @@ API 비용, cache, 기존 bookmark 보호와 원본 비파괴 정책을 함께 �
 - [x] `pdfbooktree --help`, `--version`, config와 inspect smoke test를 실행한다.
 - [x] package에 skill template 전체가 포함됐는지 검사한다.
 - [x] source checkout이 아닌 설치 wheel에서 작은 실제 PDF를 처리한다.
+- [x] core-only clean 환경에서 OCR dependency가 설치되지 않고 일반
+      process/inspect/classify, OCR help와 batch dry-run이 동작하는지 확인한다.
+- [x] live OCR은 output 생성 전에 `missing_optional_dependency`와 `[ocr]` 설치
+      명령으로 실패한다.
 - [ ] Windows와 Linux에서 파일명, YAML, wiki link를 검증한다.
-- [x] `uv run --no-sync pytest`, `uv run --no-sync ruff check`,
-      `uv run --no-sync ruff format --check`를 통과한다.
+- [x] `uv run pytest`, `uv run ruff check`,
+      `uv run ruff format --check`를 통과한다.
 
 `.github/workflows/ci.yml`은 `windows-latest`와 `ubuntu-latest` matrix에서 locked
 dependency 설치, 전체 pytest/Ruff와 cross-platform clean-wheel smoke를 실행한다.
@@ -487,7 +495,9 @@ note 흐름을 따른다. 실험과 showcase는 해당 디렉터리의 기록 JS
 - [x] OCR output 원본 보존, plan dry-run과 batch output subtree 제외가 검증됐다.
 - [x] process/infer progress JSONL과 stdout 결과가 분리된다.
 - [x] 실제 수정 plan의 dry-run과 apply showcase가 통과한다.
+- [x] `__version__`, PEP 561, 고수준 Python workflow와 canonical run-owned
+      `bookmark_plan.json` 계약을 제공한다.
 - [ ] GitHub Actions의 Windows/Linux matrix가 실제로 통과한다.
-- [x] `uv run --no-sync pytest -q`가 통과한다.
+- [x] `uv run pytest -q`가 통과한다.
 - [x] release Ruff scope의 lint와 format check가 통과한다.
 - [x] 실제 PDF showcase 결과가 기록됐다.

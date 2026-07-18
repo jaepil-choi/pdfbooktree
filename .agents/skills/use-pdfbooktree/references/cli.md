@@ -15,6 +15,10 @@
 
 저장소 루트에서 `uv run pdfbooktree`를 사용하라. 모든 명령에 `--debug`가 있으며, 예상하지 못한 오류를 traceback으로 조사할 때만 켜라. agent나 script가 결과를 소비하면 `--format json`을 사용하라.
 
+설치 package의 일반 기능은 `python -m pip install pdfbooktree`로 충분하다. 실제
+OCR overlay를 실행할 환경에만 `python -m pip install "pdfbooktree[ocr]"`를
+사용하라. core 설치에서도 전체 help와 `ocr-overlay-batch --dry-run`은 동작한다.
+
 현재 명령 목록과 option을 확인하려면 다음을 실행하라.
 
 ```powershell
@@ -191,6 +195,8 @@ uv run pdfbooktree ocr-overlay <PDF> `
 
 기본 engine은 `UPSTAGE_API_KEY`를 읽는다. 지원 engine option에는 `model`, `output_formats`, `coordinates`, `words`, `base_url`, `api_key_env`, `timeout`, `max_retries`, `retry_initial_wait_sec`가 있다. option 값은 `--engine-option key=value`로 여러 번 전달하라.
 `--output-dir`을 생략하면 output PDF 옆의 `<output-stem>_artifacts`를 사용한다. input/output 동일 경로는 `--force`여도 거부한다.
+`[ocr]` extra가 없으면 output이나 artifact를 만들기 전에 exit `1`,
+`missing_optional_dependency`와 설치 명령으로 실패한다.
 
 ### `ocr-overlay-batch`
 
