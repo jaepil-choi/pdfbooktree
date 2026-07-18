@@ -166,8 +166,8 @@ class OcrOverlayBatchRunner:
         command: str = "ocr-overlay-batch",
     ) -> None:
         self.config = config
-        self.input_dir = Path(config.input_dir)
-        self.output_dir = Path(config.output_dir)
+        self.input_dir = Path(config.input_dir).resolve()
+        self.output_dir = Path(config.output_dir).resolve()
         self.output_pdf_root = self.output_dir / "pdfs"
         self.artifact_root = self.output_dir / "artifacts"
         self.log_mode = log_mode

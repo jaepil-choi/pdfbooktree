@@ -111,6 +111,37 @@ def test_ocr_overlay_batch_recursively_processes_only_targets(
     assert summary["processed_count"] == 1
 
 
+def test_ocr_overlay_batch_accepts_relative_root_paths(
+    monkeypatch, tmp_path: Path
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    input_dir = Path("300STUDY")
+    _write_scanned_pdf(input_dir / "sub" / "scan.pdf")
+
+    runner = OcrOverlayBatchRunner(
+        OcrOverlayBatchConfig(
+            input_dir=input_dir,
+            output_dir=Path("out"),
+            recursive=True,
+            dry_run=True,
+        )
+    )
+    result = runner.run()
+
+    assert runner.input_dir == (tmp_path / "300STUDY").resolve()
+    assert runner.output_dir == (tmp_path / "out").resolve()
+    assert result.total_pdf_count == 1
+    assert result.results[0].relative_path == "sub/scan.pdf"
+    assert (
+        result.results[0].input_pdf
+        == (tmp_path / "300STUDY" / "sub" / "scan.pdf").resolve()
+    )
+    assert (
+        result.report_csv_path
+        == (tmp_path / "out" / "ocr_overlay_batch_report.csv").resolve()
+    )
+
+
 def test_ocr_overlay_batch_dry_run_does_not_call_builder(
     monkeypatch, tmp_path: Path
 ) -> None:
