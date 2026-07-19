@@ -6,7 +6,15 @@
 
 ## Unreleased
 
-0.1.0 이후 변경은 이곳에 기록한다.
+0.1.1 이후 변경은 이곳에 기록한다.
+
+## 0.1.1 - 2026-07-19
+
+### 문서
+
+- 프로젝트 소개와 README를 짧고 자연스러운 사용 안내로 다시 썼다.
+- 공개 문서에서 내부 평가 데이터, 커밋 식별자와 showcase 기록을 제거했다.
+- 내부 검토 문서는 `develop`에만 두고 공개 `master` 릴리스에서는 제외한다.
 
 ## 0.1.0 - 2026-07-19
 
@@ -46,7 +54,6 @@
 - recursive batch가 output subtree와 대문자 `.PDF`를 안전하게 처리한다.
 - 실패 결과가 존재하지 않는 output 경로를 성공 artifact처럼 반환하지 않는다.
 - PDF 본문의 `[[...]]` 문자열을 생성된 wiki link로 오인하지 않는다.
-- Alpha/review-assisted 포지셔닝, 400권 weak-reference 평가 한계, OCR page PNG 외부
-  전송·비용·credential·cache 민감성, encrypted PDF와 semantic 복원 한계를
-  한국어와 영어로 명시한다.
+- 자동 생성 목차의 검토 필요성, OCR 외부 전송과 비용, 암호화 PDF와 복잡한
+  문서 구조의 제한을 한국어와 영어로 안내한다.
 - v0.1.0의 OCR provider가 Upstage Document Parse 전용임을 명시한다.

@@ -1,4 +1,4 @@
-"""0.1.0 공개 문서, metadata와 release workflow 계약을 검증한다."""
+"""공개 문서, metadata와 release workflow 계약을 검증한다."""
 
 from __future__ import annotations
 
@@ -59,7 +59,11 @@ def test_package_metadata는_final_version과지원_python_documentation_url을_
     with (ROOT / "pyproject.toml").open("rb") as file:
         project = tomllib.load(file)["project"]
 
-    assert project["version"] == "0.1.0"
+    assert project["version"] == "0.1.1"
+    assert (
+        project["description"]
+        == "Add bookmarks to PDF books and export their structure as Markdown."
+    )
     assert project["requires-python"] == ">=3.12"
     assert {
         "License :: OSI Approved :: MIT License",
@@ -72,21 +76,31 @@ def test_package_metadata는_final_version과지원_python_documentation_url을_
     assert project["urls"]["Documentation"].endswith("/docs/reference.md")
 
 
-def test_공개문서는한영대응과release위험을_명시한다() -> None:
+def test_공개문서는한영대응과사용조건을_명시한다() -> None:
     for path in PUBLIC_DOCUMENTS:
         assert path.is_file(), path
 
     korean = (ROOT / "README.md").read_text(encoding="utf-8")
     english = (ROOT / "README.en.md").read_text(encoding="utf-8")
+    assert "목차 초안" in korean
+    assert "API 키" in korean
+    assert "암호 입력" in korean
+    assert "infer" in korean and "apply" in korean
+    assert "draft outline" in english
+    assert "API keys" in english
+    assert "Password-protected PDFs" in english
+    assert "infer" in english and "apply" in english
+
+    forbidden_public_details = (
+        "06f214f",
+        "300STUDY",
+        "0.4089",
+        "showcase 031",
+        "품질 근거",
+        "Quality evidence",
+    )
     for text in (korean, english):
-        assert "Alpha" in text
-        assert "400" in text
-        assert "0.4089" in text
-        assert "PNG" in text
-        assert ".env" in text
-        assert "encrypted PDF" in text
-        assert "infer" in text and "apply" in text
-    assert korean.index("## 기존 outline 정책") < korean.index("## 라이선스")
+        assert all(detail not in text for detail in forbidden_public_details)
 
 
 def test_공개문서의상대Markdown_link는_존재한다() -> None:
@@ -148,6 +162,7 @@ def test_CI는6개matrix와단일_package_artifact를_집계한다() -> None:
         ("v0.1.0rc1", "testpypi", "0.1.0rc1"),
         ("v0.1.0rc12", "testpypi", "0.1.0rc12"),
         ("v0.1.0", "pypi", "0.1.0"),
+        ("v0.1.1", "pypi", "0.1.1"),
     ],
 )
 def test_release_tag형식(tag: str, channel: str, version: str) -> None:
@@ -170,10 +185,10 @@ def test_release_tag잘못된형식은거부한다(tag: str, channel: str) -> No
 
 def test_release_note와checksum_helper(tmp_path: Path) -> None:
     notes = EXTRACT_RELEASE_NOTES.release_section(
-        "# Changelog\n\n## 0.1.0 - 2026-07-19\n\n- release\n\n## 0.0.1\n",
-        "0.1.0",
+        "# Changelog\n\n## 0.1.1 - 2026-07-19\n\n- release\n\n## 0.1.0\n",
+        "0.1.1",
     )
-    assert notes == "## 0.1.0\n\n- release\n"
+    assert notes == "## 0.1.1\n\n- release\n"
 
     artifact = tmp_path / "artifact.whl"
     artifact.write_bytes(b"pdfbooktree")

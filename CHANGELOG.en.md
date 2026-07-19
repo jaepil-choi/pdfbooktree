@@ -6,7 +6,17 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
-Changes after 0.1.0 are recorded here.
+Changes after 0.1.1 are recorded here.
+
+## 0.1.1 - 2026-07-19
+
+### Documentation
+
+- Rewrote the project description and README as a shorter, task-oriented guide.
+- Removed internal evaluation data, commit identifiers, and showcase records
+  from the public documentation.
+- Kept internal review documents on `develop` and excluded them from the public
+  `master` release.
 
 ## 0.1.0 - 2026-07-19
 
@@ -57,8 +67,6 @@ Changes after 0.1.0 are recorded here.
   `.PDF`.
 - Failed results do not expose nonexistent planned output paths as artifacts.
 - Source text containing `[[...]]` is not mistaken for generated wiki links.
-- Korean and English docs state the Alpha/review-assisted positioning, limits
-  of the 400-book weak-reference evaluation, external OCR page-PNG transfer,
-  cost, credential and cache sensitivity, encrypted-PDF limitations, and lack
-  of semantic reconstruction.
+- Korean and English docs cover outline review, external OCR transfer and cost,
+  encrypted-PDF limitations, and complex document structures.
 - The built-in v0.1.0 OCR provider is explicitly Upstage Document Parse only.
