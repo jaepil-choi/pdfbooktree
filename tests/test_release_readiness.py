@@ -53,11 +53,13 @@ VALIDATE_RELEASE = _load_script("validate_release")
 WRITE_CHECKSUMS = _load_script("write_checksums")
 
 
-def test_package_metadata는_rc와지원_python_documentation_url을_명시한다() -> None:
+def test_package_metadata는_final_version과지원_python_documentation_url을_명시한다() -> (
+    None
+):
     with (ROOT / "pyproject.toml").open("rb") as file:
         project = tomllib.load(file)["project"]
 
-    assert project["version"] == "0.1.0rc1"
+    assert project["version"] == "0.1.0"
     assert project["requires-python"] == ">=3.12"
     assert {
         "License :: OSI Approved :: MIT License",

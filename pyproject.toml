@@ -1,6 +1,6 @@
 [project]
 name = "pdfbooktree"
-version = "0.1.0rc1"
+version = "0.1.0"
 description = "Build reviewed PDF bookmarks and Markdown graphs from typography."
 readme = "README.md"
 license = "MIT"
