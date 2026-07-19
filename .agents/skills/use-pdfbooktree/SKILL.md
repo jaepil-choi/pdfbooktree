@@ -27,6 +27,7 @@ description: 이 저장소의 pdfbooktree Python API와 CLI를 사용해 PDF 책
 8. 결과를 기계적으로 소비하려면 `--format json`을 사용하고 exit code와 stderr를 함께 검사하라.
 
 상세 명령과 예시는 [CLI 레퍼런스](references/cli.md)를 읽고, Python 통합이 필요하면 [Python API 레퍼런스](references/python-api.md)를 읽으라. 출력 파일·설정·로그 계약을 다룰 때는 [계약과 artifact](references/contracts.md)를 읽으라.
+영문 문서가 필요하면 [CLI reference](references/cli.en.md), [Python API reference](references/python-api.en.md), [contracts and artifacts](references/contracts.en.md)를 사용하라.
 
 ## 기존 outline 정책
 

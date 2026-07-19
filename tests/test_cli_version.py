@@ -1,7 +1,6 @@
-"""최상위 CLI version 계약을 검증한다."""
+"""최상위 CLI version과 plain help 계약을 검증한다."""
 
 from typer.testing import CliRunner
-from rich.text import Text
 
 from pdfbooktree.cli import app
 
@@ -29,4 +28,25 @@ def test_cli_help에_version_option이_노출된다() -> None:
     result = runner.invoke(app, ["--help"])
 
     assert result.exit_code == 0
-    assert "--version" in Text.from_ansi(result.stdout).plain
+    assert "--version" in result.stdout
+
+
+def test_process_help는_80열에서도_전체_option_이름을_노출한다() -> None:
+    """좁은 terminal에서도 공개 option 이름을 축약하지 않아야 한다."""
+
+    result = runner.invoke(
+        app,
+        ["process", "--help"],
+        terminal_width=80,
+    )
+
+    assert result.exit_code == 0
+    assert "…" not in result.stdout
+    for option in (
+        "--heading-candidate-mode",
+        "--body-font-text-coverage",
+        "--position-fallback",
+        "--position-fallback-tolerance",
+        "--position-fallback-min-isolation-ratio",
+    ):
+        assert option in result.stdout

@@ -47,7 +47,7 @@ def test_install_project_skill은_project_scope에_전체_tree를_설치한다(
     assert result.skill_name == PROJECT_SKILL_NAME
     assert result.project_dir == project.resolve()
     assert result.skill_dir == project.resolve() / PROJECT_SKILL_RELATIVE_PATH
-    assert result.file_count == len(result.files) == 5
+    assert result.file_count == len(result.files) == 8
     assert set(result.files) == set(_tree_bytes(REPO_SKILL_DIR))
     assert _tree_bytes(result.skill_dir) == _tree_bytes(REPO_SKILL_DIR)
 
