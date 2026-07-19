@@ -85,10 +85,20 @@ from pdfbooktree.workflows import (
 app = typer.Typer(
     help="PDF 책의 typography hierarchy로 bookmark와 Markdown tree를 만든다.",
     no_args_is_help=True,
+    rich_markup_mode=None,
 )
-inspect_app = typer.Typer(help="PDF와 처리 artifact를 읽기 전용으로 조사한다.")
-config_app = typer.Typer(help="versioned processing config를 생성하고 검증한다.")
-skill_app = typer.Typer(help="pdfbooktree 사용 skill을 project scope에 설치한다.")
+inspect_app = typer.Typer(
+    help="PDF와 처리 artifact를 읽기 전용으로 조사한다.",
+    rich_markup_mode=None,
+)
+config_app = typer.Typer(
+    help="versioned processing config를 생성하고 검증한다.",
+    rich_markup_mode=None,
+)
+skill_app = typer.Typer(
+    help="pdfbooktree 사용 skill을 project scope에 설치한다.",
+    rich_markup_mode=None,
+)
 app.add_typer(inspect_app, name="inspect")
 app.add_typer(config_app, name="config")
 app.add_typer(skill_app, name="skill")

@@ -268,8 +268,8 @@ uv run pdfbooktree config validate .\pdfbooktree.toml `
   --set outline_quality.replace_when_low_quality=true --format json
 ```
 
-`--version`은 설치된 package metadata의 version을 `pdfbooktree 0.1.0` 형식으로
-출력하고 exit `0`으로 종료한다.
+`--version`은 설치된 package metadata의 version을
+`pdfbooktree <version>` 형식으로 출력하고 exit `0`으로 종료한다.
 
 `processing.ocr_policy`는 현재 `never`만 지원한다. `auto|always`는
 `config validate`, `process`, `infer`, `batch`의 config 해석 단계에서

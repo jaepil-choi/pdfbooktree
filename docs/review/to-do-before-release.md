@@ -404,7 +404,7 @@ API 비용, cache, 기존 bookmark 보호와 원본 비파괴 정책을 함께 �
 - [x] `pdfbooktree --version`을 제공한다.
 - [ ] `pdfbooktree doctor`로 PDF library, optional OCR credential과 output 쓰기 권한을
       확인한다.
-- [ ] terminal 폭이 좁아도 option 이름이 잘리지 않는 plain help를 제공한다.
+- [x] terminal 폭이 좁아도 option 이름이 잘리지 않는 plain help를 제공한다.
 - [ ] encrypted PDF를 위한 password 입력 방식을 검토한다.
 - [x] batch include/exclude glob을 제공한다.
 - [x] Python result에서 plan, validation, review summary/items, Markdown manifest와
@@ -445,10 +445,22 @@ API 비용, cache, 기존 bookmark 보호와 원본 비파괴 정책을 함께 �
 - [x] `uv run pytest`, `uv run ruff check`,
       `uv run ruff format --check`를 통과한다.
 
-`.github/workflows/ci.yml`은 `windows-latest`와 `ubuntu-latest` matrix에서 locked
-dependency 설치, 전체 pytest/Ruff와 cross-platform clean-wheel smoke를 실행한다.
-Windows에서는 같은 Python smoke script로 실제 PDF process까지 통과했다. Linux
-항목은 workflow를 remote에서 실제 실행해 성공한 뒤 완료 처리한다.
+`.github/workflows/ci.yml`은 Windows/Linux × Python 3.12/3.13/3.14에서 전체
+pytest를 실행하고, Ubuntu 3.12에서 Ruff와 sdist/wheel 단일 build·`twine check`를
+실행한다. package job의 동일 wheel artifact를 6개 clean environment에서 설치해
+core/OCR extra, Unicode·예약 이름 graph, outline 없는 9-page inference와
+dry-run/apply를 검증한다. 최종 `ci-green`은 모든 job을 집계한다. 실제 remote
+workflow가 모두 성공하기 전까지 Windows/Linux 완료 checkbox와 release tag는
+열린 상태로 유지한다.
+
+2026-07-19 release-readiness 변경:
+
+- 80열 plain help 계약 실험 112와 자동 테스트를 추가했다.
+- TestPyPI RC와 production PyPI Trusted Publishing workflow를 추가했다.
+- 한·영 README, CLI/Python API/artifact reference, 기여·보안·변경 기록과 공개
+  문서 색인을 추가했다.
+- GitHub environment reviewer, branch protection, PyPI/TestPyPI pending publisher는
+  외부 설정이므로 `RELEASING.md`에 기록하고 별도 승인 뒤 설정한다.
 
 ### 8.3 공개 문서
 

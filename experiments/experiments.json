@@ -19069,6 +19069,27 @@
       },
       "finding": "infer/apply는 각각 immutable run과 canonical bookmark_plan.json을 만들고 preview는 파일을 만들지 않았다. apply manifest는 외부 infer snapshot 경로와 SHA-256을 plan_source로 보존했다.",
       "ran_at": "2026-07-18T15:01:35+09:00"
+    },
+    {
+      "id": "112_release_help_contract",
+      "purpose": "0.1.0 CLI가 80열 terminal에서도 공개 option 이름을 축약하지 않는 help 계약을 검증한다.",
+      "inputs": [
+        "현재 Typer Rich process help",
+        "Typer rich_markup_mode=None plain help 후보",
+        "80열 terminal width"
+      ],
+      "outputs": "experiments\\outputs\\112_release_help_contract\\result.json",
+      "method": "같은 CliRunner에서 현재 Rich help와 plain help 후보를 차례로 렌더링하고 긴 공개 option 5개의 전체 이름과 ellipsis 유무를 비교했다.",
+      "summary": {
+        "terminal_width": 80,
+        "baseline_missing_option_count": 5,
+        "baseline_ellipsis_present": true,
+        "plain_candidate_missing_option_count": 0,
+        "plain_candidate_ellipsis_present": false,
+        "validation_passed": true
+      },
+      "finding": "Rich help는 80열에서 긴 option 이름 5개를 축약하지만 Typer의 공식 plain help 경로는 모든 이름을 손실 없이 표시한다.",
+      "ran_at": "2026-07-19T13:47:18+09:00"
     }
   ]
 }

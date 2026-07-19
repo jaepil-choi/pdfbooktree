@@ -1,0 +1,137 @@
+name: Publish to TestPyPI
+
+on:
+  push:
+    tags:
+      - "v*.*.*rc*"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build and attest release candidate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+
+    steps:
+      - name: Checkout tag
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.11.28"
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Fetch current master
+        run: git fetch --no-tags origin master
+
+      - name: Build sdist and wheel once
+        run: uv build --python 3.12 --out-dir dist/packages
+
+      - name: Validate tag, master and wheel metadata
+        shell: pwsh
+        run: |
+          $wheel = (Get-ChildItem dist/packages -Filter *.whl -File).FullName
+          if ($wheel.Count -ne 1) {
+            throw "Expected exactly one wheel."
+          }
+          uv run --python 3.12 python scripts/validate_release.py `
+            --tag "${{ github.ref_name }}" `
+            --channel testpypi `
+            --master-ref origin/master `
+            --wheel $wheel
+
+      - name: Check distribution metadata
+        run: uv run --python 3.12 --with twine twine check dist/packages/*
+
+      - name: Write SHA-256 checksums
+        run: >-
+          uv run --python 3.12 python scripts/write_checksums.py
+          dist/packages --output dist/SHA256SUMS
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661 # v3
+        with:
+          subject-path: dist/packages/*
+
+      - name: Upload release artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: testpypi-distributions
+          path: |
+            dist/packages/
+            dist/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    name: Publish release candidate
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/project/pdfbooktree/
+    permissions:
+      id-token: write
+
+    steps:
+      - name: Download release artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: testpypi-distributions
+          path: dist
+
+      - name: Publish with Trusted Publishing
+        uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b # release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/
+          packages-dir: dist/packages/
+          verbose: true
+
+  verify:
+    name: Verify TestPyPI install
+    needs: publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.11.28"
+
+      - name: Install release candidate in a fresh environment
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}".Substring(1)
+          uv venv --python 3.12 .release-venv
+          $python = Join-Path $PWD ".release-venv/bin/python"
+          $cli = Join-Path $PWD ".release-venv/bin/pdfbooktree"
+          $installed = $false
+          for ($attempt = 1; $attempt -le 10; $attempt++) {
+            uv pip install --python $python `
+              --index https://test.pypi.org/simple `
+              --default-index https://pypi.org/simple `
+              "pdfbooktree==$version"
+            if ($LASTEXITCODE -eq 0) {
+              $installed = $true
+              break
+            }
+            Start-Sleep -Seconds 15
+          }
+          if (-not $installed) {
+            throw "TestPyPI package did not become installable."
+          }
+          & $cli --version
+          & $cli --help
+          & $cli inspect --help

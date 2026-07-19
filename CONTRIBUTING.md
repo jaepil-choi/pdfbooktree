@@ -1,8 +1,11 @@
 # 기여 가이드
 
+[English](CONTRIBUTING.en.md)
+
 ## 개발 환경
 
-Python 3.12와 `uv`가 필요하다.
+Python 3.12 이상과 `uv`가 필요하다. CI는 Python 3.12, 3.13, 3.14를 Windows와
+Linux에서 검증한다.
 
 ```powershell
 uv sync --locked --dev --python 3.12
@@ -11,8 +14,9 @@ uv run ruff check .
 uv run ruff format --check .
 ```
 
-모든 Python 실행은 `uv run`을 사용한다. 코드 주석과 저장소 문서는 한글로
-작성하되 공개 사용자에게 필요한 영어 quick start는 함께 유지한다.
+모든 Python 실행은 `uv run`을 사용한다. 코드 주석과 내부 저장소 문서는 한글로
+작성한다. README, CLI, Python API, artifact, 기여, 보안, 변경 기록 같은 공개
+문서는 한국어와 영어의 대응 범위를 함께 유지한다.
 
 ## 변경 흐름
 

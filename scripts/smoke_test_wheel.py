@@ -13,6 +13,8 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
+_CLI_CONSOLE_PATH: str | None = None
+_CLI_COMMAND_PREFIX: tuple[str, ...] | None = None
 
 
 def utf8_environment() -> dict[str, str]:
@@ -26,6 +28,7 @@ def utf8_environment() -> dict[str, str]:
 def run(command: list[str], *, cwd: Path = ROOT) -> subprocess.CompletedProcess[str]:
     """명령을 실행하고 실패하면 stdout/stderr를 포함해 중단한다."""
 
+    command = resolved_cli_command(command)
     completed = subprocess.run(
         command,
         cwd=cwd,
@@ -42,6 +45,19 @@ def run(command: list[str], *, cwd: Path = ROOT) -> subprocess.CompletedProcess[
             f"stdout={completed.stdout[-2000:]!r}, stderr={completed.stderr[-2000:]!r}"
         )
     return completed
+
+
+def resolved_cli_command(command: list[str]) -> list[str]:
+    """선택한 방식으로 설치 package의 CLI entrypoint command를 만든다."""
+
+    if (
+        _CLI_CONSOLE_PATH is not None
+        and _CLI_COMMAND_PREFIX is not None
+        and command
+        and command[0] == _CLI_CONSOLE_PATH
+    ):
+        return [*_CLI_COMMAND_PREFIX, *command[1:]]
+    return command
 
 
 def run_json(command: list[str]) -> dict[str, Any]:
@@ -70,9 +86,35 @@ def parse_args() -> argparse.Namespace:
 
     parser = argparse.ArgumentParser()
     parser.add_argument(
+        "--python-version",
+        choices=("3.12", "3.13", "3.14"),
+        default="3.12",
+        help="clean install과 OCR extra를 검증할 Python minor version이다.",
+    )
+    parser.add_argument(
+        "--cli-launch-mode",
+        choices=("console-script", "python-entrypoint"),
+        default="console-script",
+        help=(
+            "기본값은 설치 console script를 직접 실행한다. "
+            "enterprise Application Control이 unsigned venv launcher를 차단하는 "
+            "로컬 환경에서만 python-entrypoint를 사용한다."
+        ),
+    )
+    parser.add_argument(
         "--output-root",
         type=Path,
         default=Path("experiments/outputs/cross-platform-wheel-smoke"),
+    )
+    parser.add_argument(
+        "--wheel",
+        type=Path,
+        help="지정하면 새로 build하지 않고 이 wheel을 clean install한다.",
+    )
+    parser.add_argument(
+        "--sdist",
+        type=Path,
+        help="--wheel과 함께 지정해 이미 build한 source distribution을 검증한다.",
     )
     parser.add_argument(
         "--sample-pdf",
@@ -86,6 +128,8 @@ def main() -> None:
     """wheel build부터 clean CLI와 실제 PDF graph 처리까지 검증한다."""
 
     args = parse_args()
+    if (args.wheel is None) != (args.sdist is None):
+        raise ValueError("--wheel과 --sdist는 함께 지정해야 한다.")
     output_root = args.output_root
     if not output_root.is_absolute():
         output_root = ROOT / output_root
@@ -95,22 +139,45 @@ def main() -> None:
     ocr_venv_dir = run_dir / "ocr-venv"
     project_dir = run_dir / "project"
     process_output_dir = run_dir / "process-output"
-    dist_dir.mkdir(parents=True, exist_ok=False)
+    inference_output_dir = run_dir / "inference-output"
     project_dir.mkdir(parents=True, exist_ok=False)
 
-    build = run(["uv", "build", "--out-dir", str(dist_dir)])
-    wheels = sorted(dist_dir.glob("*.whl"))
-    if len(wheels) != 1:
-        raise RuntimeError(f"wheel이 정확히 하나가 아니다: {wheels!r}")
-    wheel = wheels[0]
-    sdists = sorted(dist_dir.glob("*.tar.gz"))
-    if len(sdists) != 1:
-        raise RuntimeError(f"sdist가 정확히 하나가 아니다: {sdists!r}")
-    sdist = sdists[0]
+    if args.wheel is None:
+        dist_dir.mkdir(parents=True, exist_ok=False)
+        build = run(["uv", "build", "--out-dir", str(dist_dir)])
+        wheels = sorted(dist_dir.glob("*.whl"))
+        if len(wheels) != 1:
+            raise RuntimeError(f"wheel이 정확히 하나가 아니다: {wheels!r}")
+        wheel = wheels[0]
+        sdists = sorted(dist_dir.glob("*.tar.gz"))
+        if len(sdists) != 1:
+            raise RuntimeError(f"sdist가 정확히 하나가 아니다: {sdists!r}")
+        sdist = sdists[0]
+        build_log_tail = build.stderr.splitlines()[-10:]
+        distribution_source = "built"
+    else:
+        wheel = args.wheel
+        sdist = args.sdist
+        if not wheel.is_absolute():
+            wheel = ROOT / wheel
+        if not sdist.is_absolute():
+            sdist = ROOT / sdist
+        wheel = wheel.resolve(strict=True)
+        sdist = sdist.resolve(strict=True)
+        build_log_tail = []
+        distribution_source = "provided"
 
-    run(["uv", "venv", "--python", "3.12", str(venv_dir)])
+    run(["uv", "venv", "--python", args.python_version, str(venv_dir)])
     python_exe, cli_exe = clean_environment_paths(venv_dir)
     run(["uv", "pip", "install", "--python", str(python_exe), str(wheel)])
+    if args.cli_launch_mode == "python-entrypoint":
+        global _CLI_CONSOLE_PATH, _CLI_COMMAND_PREFIX
+        _CLI_CONSOLE_PATH = str(cli_exe)
+        _CLI_COMMAND_PREFIX = (
+            str(python_exe),
+            "-c",
+            "from pdfbooktree.cli import main; main()",
+        )
 
     metadata_code = """
 import json
@@ -139,8 +206,7 @@ print(json.dumps({
         raise RuntimeError("wheel License-Expression이 MIT가 아니다.")
     if "LICENSE" not in metadata_payload["license_files"]:
         raise RuntimeError("wheel metadata가 LICENSE 파일을 연결하지 않는다.")
-    if metadata_payload["version"] != "0.1.0":
-        raise RuntimeError("설치 wheel metadata version이 0.1.0이 아니다.")
+    package_version = str(metadata_payload["version"])
     if "Typing :: Typed" not in metadata_payload["classifiers"]:
         raise RuntimeError("wheel metadata에 Typing :: Typed classifier가 없다.")
     if not metadata_payload["py_typed"]:
@@ -180,7 +246,7 @@ print(to_json({"item": item, "path": Path("book.pdf")}, ensure_ascii=False))
         )
 
     version = run([str(cli_exe), "--version"]).stdout.strip()
-    if version != "pdfbooktree 0.1.0":
+    if version != f"pdfbooktree {package_version}":
         raise RuntimeError(f"예상하지 못한 version 출력이다: {version!r}")
     run([str(cli_exe), "--help"])
     run([str(cli_exe), "ocr-overlay", "--help"])
@@ -229,8 +295,8 @@ print(to_json({"item": item, "path": Path("book.pdf")}, ensure_ascii=False))
         raise RuntimeError("package skill 설치 결과가 실패다.")
     skill_root = project_dir / ".agents" / "skills" / "use-pdfbooktree"
     skill_file_count = sum(path.is_file() for path in skill_root.rglob("*"))
-    if skill_file_count != 5:
-        raise RuntimeError(f"package skill 파일 수가 5가 아니다: {skill_file_count}")
+    if skill_file_count != 8:
+        raise RuntimeError(f"package skill 파일 수가 8이 아니다: {skill_file_count}")
     api_reference_path = skill_root / "references" / "python-api.md"
     api_reference = api_reference_path.read_text(encoding="utf-8")
     required_api_reference_contracts = (
@@ -248,6 +314,16 @@ print(to_json({"item": item, "path": Path("book.pdf")}, ensure_ascii=False))
             "설치 skill의 Python API reference 계약이 누락됐다: "
             f"{missing_api_reference_contracts!r}"
         )
+    for english_reference_name in (
+        "cli.en.md",
+        "contracts.en.md",
+        "python-api.en.md",
+    ):
+        english_reference_path = skill_root / "references" / english_reference_name
+        if not english_reference_path.is_file():
+            raise RuntimeError(
+                f"설치 skill 영문 reference가 없다: {english_reference_name}"
+            )
 
     if args.sample_pdf is not None:
         sample_pdf = args.sample_pdf
@@ -278,20 +354,47 @@ document.close()
 """
         run([str(python_exe), "-c", generate_code, str(sample_pdf)])
 
+    inference_pdf = run_dir / "generated-typography-book.pdf"
+    generate_inference_code = """
+import fitz
+import sys
+
+path = sys.argv[1]
+document = fitz.open()
+for page_number in range(1, 10):
+    page = document.new_page(width=595.0, height=842.0)
+    if page_number in (1, 4, 7):
+        chapter = {1: 1, 4: 2, 7: 3}[page_number]
+        page.insert_text((72, 90), f"Chapter {chapter} Title", fontsize=28)
+        page.insert_text((72, 155), f"{chapter}.1 Section", fontsize=16)
+    page.insert_text((72, 200), f"Note {page_number}", fontsize=10)
+    for row in range(15):
+        page.insert_text(
+            (72, 260 + row * 15),
+            "This is ordinary body text for the chapter.",
+            fontsize=10,
+        )
+document.save(path)
+document.close()
+"""
+    run([str(python_exe), "-c", generate_inference_code, str(inference_pdf)])
+
     missing_ocr_output = run_dir / "must-not-exist-ocr.pdf"
     missing_ocr_artifacts = run_dir / "must-not-exist-ocr_artifacts"
     missing_ocr = subprocess.run(
-        [
-            str(cli_exe),
-            "ocr-overlay",
-            str(sample_pdf),
-            "--output",
-            str(missing_ocr_output),
-            "--output-dir",
-            str(missing_ocr_artifacts),
-            "--format",
-            "json",
-        ],
+        resolved_cli_command(
+            [
+                str(cli_exe),
+                "ocr-overlay",
+                str(sample_pdf),
+                "--output",
+                str(missing_ocr_output),
+                "--output-dir",
+                str(missing_ocr_artifacts),
+                "--format",
+                "json",
+            ]
+        ),
         cwd=ROOT,
         env=utf8_environment(),
         capture_output=True,
@@ -312,7 +415,7 @@ document.close()
     if missing_ocr_output.exists() or missing_ocr_artifacts.exists():
         raise RuntimeError("core-only live OCR 실패가 output을 만들었다.")
 
-    run(["uv", "venv", "--python", "3.12", str(ocr_venv_dir)])
+    run(["uv", "venv", "--python", args.python_version, str(ocr_venv_dir)])
     ocr_python_exe, _ = clean_environment_paths(ocr_venv_dir)
     run(
         [
@@ -432,9 +535,114 @@ print(json.dumps({
         "graph_validation": graph_validation["validation"],
     }
 
+    infer_payload = run_json(
+        [
+            str(cli_exe),
+            "infer",
+            str(inference_pdf),
+            "--output-dir",
+            str(inference_output_dir / "infer"),
+            "--set",
+            "typography.min_tier_count=1",
+            "--set",
+            "typography.max_heading_tier=2",
+            "--set",
+            "typography.position_min_repeated_pages=5",
+            "--log-mode",
+            "none",
+            "--format",
+            "json",
+        ]
+    )
+    infer_run = infer_payload["result"]
+    infer_result = infer_run["result"]
+    plan_path = Path(infer_result["artifact_paths"]["bookmark_plan"])
+    if infer_result["bookmark_count"] <= 0 or not plan_path.is_file():
+        raise RuntimeError(
+            "설치 wheel의 typography infer가 non-empty plan을 만들지 않았다."
+        )
+    infer_inspection = run_json(
+        [
+            str(cli_exe),
+            "inspect",
+            "plan",
+            infer_run["run_dir"],
+            "--summary",
+            "--format",
+            "json",
+        ]
+    )
+    if not infer_inspection.get("ok"):
+        raise RuntimeError("설치 wheel의 typography infer plan 조사가 실패했다.")
+
+    dry_run_root = inference_output_dir / "dry-run-must-not-exist"
+    dry_run_payload = run_json(
+        [
+            str(cli_exe),
+            "apply",
+            str(inference_pdf),
+            "--plan",
+            str(plan_path),
+            "--output-dir",
+            str(dry_run_root),
+            "--dry-run",
+            "--format",
+            "json",
+        ]
+    )
+    if not dry_run_payload["result"]["validation"]["valid"] or dry_run_root.exists():
+        raise RuntimeError("설치 wheel의 apply dry-run 무쓰기 계약이 실패했다.")
+
+    apply_payload = run_json(
+        [
+            str(cli_exe),
+            "apply",
+            str(inference_pdf),
+            "--plan",
+            str(plan_path),
+            "--output-dir",
+            str(inference_output_dir / "apply"),
+            "--format",
+            "json",
+        ]
+    )
+    apply_run = apply_payload["result"]
+    apply_result = apply_run["result"]
+    inference_manifest_path = Path(apply_result["artifact_paths"]["markdown_manifest"])
+    inference_graph_validation = run_json(
+        [
+            str(python_exe),
+            "-c",
+            validation_code,
+            str(inference_manifest_path),
+        ]
+    )
+    apply_manifest = json.loads(
+        Path(apply_run["manifest_path"]).read_text(encoding="utf-8")
+    )
+    if apply_manifest["plan_source"]["path"] != str(plan_path):
+        raise RuntimeError("설치 wheel의 apply manifest가 infer plan source를 잃었다.")
+    inference_result = {
+        "path": str(inference_pdf),
+        "infer_run_dir": infer_run["run_dir"],
+        "apply_run_dir": apply_run["run_dir"],
+        "bookmark_count": infer_result["bookmark_count"],
+        "plan": str(plan_path),
+        "dry_run_valid": dry_run_payload["result"]["validation"]["valid"],
+        "dry_run_created_no_files": not dry_run_root.exists(),
+        "output_pdf": apply_result["output_pdf"],
+        "markdown_manifest": str(inference_manifest_path),
+        "graph_validation": inference_graph_validation["validation"],
+    }
+    if not Path(apply_result["output_pdf"]).is_file():
+        raise RuntimeError("설치 wheel의 typography apply PDF가 생성되지 않았다.")
+
     result = {
         "status": "passed",
         "platform": sys.platform,
+        "python_version": args.python_version,
+        "cli_launch_mode": args.cli_launch_mode,
+        "distribution_source": distribution_source,
         "wheel": str(wheel),
         "sdist": str(sdist),
         "version": version,
@@ -453,7 +661,8 @@ print(json.dumps({
             api_reference_path.relative_to(project_dir)
         ),
         "sample": sample_result,
-        "build_log_tail": build.stderr.splitlines()[-10:],
+        "inference_sample": inference_result,
+        "build_log_tail": build_log_tail,
         "run_dir": str(run_dir),
         "ran_at": datetime.now().astimezone().isoformat(timespec="seconds"),
     }
