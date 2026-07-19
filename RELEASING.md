@@ -37,6 +37,20 @@ GitHub에는 같은 이름의 environment 두 개를 만든다.
 force push와 branch 삭제는 금지한다. GitHub 설정 변경은 저장소 파일 변경과
 별도의 승인 작업이다.
 
+`develop`은 실험, showcase와 내부 설계 이력을 포함하는 전체 개발 브랜치다.
+`master`는 설치 사용자에게 필요한 공개 release tree만 보존한다. release commit을
+만들 때 다음 내부 경로는 `develop`에 유지하되 `master` tree에서는 제외한다.
+
+- `experiments/`, `showcase/`, `references/`
+- `docs/vibe/`, `docs/thoughts/`, `docs/handoff/`, `docs/references/`
+- `docs/review/to-do-before-release.md`
+- `.claude/`, `AGENTS.md`, `CLAUDE.md`
+- 실험·구현 노트 전용 script
+
+루트 README, LICENSE, CHANGELOG, CONTRIBUTING, SECURITY, RELEASING 문서와
+`docs/reference.md`, 공개 평가 근거, package skill reference는 공개 계약이므로
+유지한다. tag는 이 선별 작업과 CI가 끝난 `master` HEAD에만 만든다.
+
 ### 2. Release candidate
 
 1. `develop`에서 version을 `0.1.0rc1`로 바꾸고 `uv lock`을 갱신한다.
@@ -104,6 +118,21 @@ Require the stable `ci-green` status check on both `develop` and `master`, requi
 branches to be current before merge, and block direct/force pushes and branch
 deletion on `master`. These external GitHub settings require separate explicit
 authorization.
+
+`develop` is the complete development branch and retains experiments, showcases,
+and internal design history. `master` is a curated public release tree. Keep the
+following paths on `develop` but remove them from the `master` tree when creating
+a release commit:
+
+- `experiments/`, `showcase/`, and `references/`
+- `docs/vibe/`, `docs/thoughts/`, `docs/handoff/`, and `docs/references/`
+- `docs/review/to-do-before-release.md`
+- `.claude/`, `AGENTS.md`, and `CLAUDE.md`
+- scripts used only for experiments or implementation notes
+
+Retain the root README, LICENSE, CHANGELOG, CONTRIBUTING, SECURITY, and RELEASING
+documents, `docs/reference.md`, public evaluation evidence, and package skill
+references. Create a release tag only from the curated, CI-green `master` HEAD.
 
 ### 2. Release candidates
 
