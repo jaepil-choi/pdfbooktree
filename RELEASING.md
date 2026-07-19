@@ -42,14 +42,14 @@ force push와 branch 삭제는 금지한다. GitHub 설정 변경은 저장소 �
 만들 때 다음 내부 경로는 `develop`에 유지하되 `master` tree에서는 제외한다.
 
 - `experiments/`, `showcase/`, `references/`
-- `docs/vibe/`, `docs/thoughts/`, `docs/handoff/`, `docs/references/`
-- `docs/review/to-do-before-release.md`
+- `docs/vibe/`, `docs/thoughts/`, `docs/handoff/`, `docs/references/`,
+  `docs/review/`
 - `.claude/`, `AGENTS.md`, `CLAUDE.md`
 - 실험·구현 노트 전용 script
 
 루트 README, LICENSE, CHANGELOG, CONTRIBUTING, SECURITY, RELEASING 문서와
-`docs/reference.md`, 공개 평가 근거, package skill reference는 공개 계약이므로
-유지한다. tag는 이 선별 작업과 CI가 끝난 `master` HEAD에만 만든다.
+`docs/reference.md`, package skill reference는 공개 계약이므로 유지한다. tag는
+이 선별 작업과 CI가 끝난 `master` HEAD에만 만든다.
 
 ### 2. Release candidate
 
@@ -125,14 +125,14 @@ following paths on `develop` but remove them from the `master` tree when creatin
 a release commit:
 
 - `experiments/`, `showcase/`, and `references/`
-- `docs/vibe/`, `docs/thoughts/`, `docs/handoff/`, and `docs/references/`
-- `docs/review/to-do-before-release.md`
+- `docs/vibe/`, `docs/thoughts/`, `docs/handoff/`, `docs/references/`, and
+  `docs/review/`
 - `.claude/`, `AGENTS.md`, and `CLAUDE.md`
 - scripts used only for experiments or implementation notes
 
 Retain the root README, LICENSE, CHANGELOG, CONTRIBUTING, SECURITY, and RELEASING
-documents, `docs/reference.md`, public evaluation evidence, and package skill
-references. Create a release tag only from the curated, CI-green `master` HEAD.
+documents, `docs/reference.md`, and package skill references. Create a release
+tag only from the curated, CI-green `master` HEAD.
 
 ### 2. Release candidates
 

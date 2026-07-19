@@ -1,7 +1,7 @@
 [project]
 name = "pdfbooktree"
-version = "0.1.0"
-description = "Build reviewed PDF bookmarks and Markdown graphs from typography."
+version = "0.1.1"
+description = "Add bookmarks to PDF books and export their structure as Markdown."
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
