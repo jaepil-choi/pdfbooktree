@@ -399,6 +399,17 @@
       "finding": "실제 2-page MIT OCW PDF에서 infer→preview→apply Python workflow가 bookmark 1개를 같은 canonical plan snapshot으로 처리했다.",
       "command": "uv run python showcase/033_python_workflow_api.py",
       "ran_at": "2026-07-18T15:05:07+09:00"
+    },
+    {
+      "id": "034_in_place_markdown_level_sync",
+      "purpose": "data/300STUDY_ocr_overlay의 실제 OCR PDF를 typography로 재추론하고, 기본 10K Markdown chosen level과 PDF bookmark 최대 level을 동기화하며, 별도 bookmarked PDF 없이 검증된 sibling temporary PDF로 원본을 atomic replace한다.",
+      "inputs": [
+        "data\\300STUDY_ocr_overlay\\pdfs\\NOW_READING\\books\\Patrick G. Riley - The One-Page Proposal_  How to Get Your Business Pitch onto One Persuasive Page[office book].pdf"
+      ],
+      "outputs": "showcase\\outputs\\034_in_place_markdown_level_sync\\result.json",
+      "finding": "full_plan=18, effective_plan=15, chosen_level=2, embedded_max_level=2, proof={'same_input_path_overwritten': True, 'pdf_sha256_changed': True, 'page_count_preserved': True, 'sample_text_preserved': True, 'markdown_chosen_level_matches_pdf_max_level': True, 'pdf_bookmark_count_matches_effective_plan': True, 'full_plan_preserved': True, 'overwrite_hashes_match': True, 'markdown_manifest_hash_matches_final_pdf': True, 'no_separate_bookmarked_pdf': True}",
+      "command": "uv run python showcase/034_in_place_markdown_level_sync.py",
+      "ran_at": "2026-07-26T21:34:06+09:00"
     }
   ]
 }
