@@ -94,7 +94,11 @@ default. Important option groups include:
   `--heading-candidate-mode`, `--body-font-text-coverage`,
   `--position-fallback`, `--position-fallback-tolerance`, and
   `--position-fallback-min-isolation-ratio`
-- Markdown limits: `--max-words`, `--max-words-coverage`
+- Markdown split defaults to 10,000 words and 0.95 coverage; override it with
+  `--max-words`, `--max-words-coverage`, or disable it with
+  `--set markdown.enabled=false`
+- `--in-place` atomically replaces the input PDF after validating a sibling
+  temporary PDF
 - final `--format` and progress `--log-mode`
 
 With a meaningful existing outline, the default policy reuses that outline for
@@ -111,7 +115,8 @@ bookmarked PDF or Markdown graph. Use the returned `run_dir` and
 Validates and applies an existing plan without repeating typography inference.
 `--dry-run` performs validation and returns predicted paths without creating
 them. The source plan is copied into the non-dry-run run as an immutable
-`bookmark_plan.json` snapshot and recorded by path and SHA-256.
+`bookmark_plan_full.json` snapshot and recorded by path and SHA-256. The
+effective plan filtered to the Markdown `chosen_level` is `bookmark_plan.json`.
 
 ### `batch`
 
@@ -119,6 +124,7 @@ Processes matching PDFs in deterministic order. `--recursive`,
 `--include-glob`, and `--exclude-glob` control selection. The output subtree is
 excluded automatically. A batch run manifest links item runs and failures.
 Analysis cache, resume, and parallel jobs are not available in v0.1.0.
+With `--in-place`, each successful item is atomically replaced independently.
 
 ## OCR and classification
 

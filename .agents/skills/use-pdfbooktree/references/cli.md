@@ -85,7 +85,7 @@ uv run pdfbooktree process $pdf -o .\runs `
   --format json
 ```
 
-길이 제한 Markdown split을 활성화하라.
+기본 길이 제한 Markdown split 값을 override하라.
 
 ```powershell
 uv run pdfbooktree process $pdf -o .\runs `
@@ -103,6 +103,7 @@ uv run pdfbooktree process $pdf -o .\runs `
 ```powershell
 uv run pdfbooktree process <PDF> [-o <OUTPUT_ROOT>] `
   [--config <CONFIG.toml>] [--set <KEY=VALUE>] [--flat-output] `
+  [--in-place] `
   [--log-mode auto|rich|plain|json|none] `
   [--format human|json]
 ```
@@ -115,7 +116,9 @@ uv run pdfbooktree process <PDF> [-o <OUTPUT_ROOT>] `
 - tier/BPE: `--min-tier-count`, `--max-heading-tier`, `--bpe-max-node-words`, `--bpe-level-pollution-ratio`.
 - margin: `--margin-band-ratio`, `--margin-min-consecutive-pages`.
 - Markdown tree: 기본은 `--set processing.markdown_content_mode=direct`이고 기존 subtree 본문 포함은 `inclusive`로 명시한다.
-- Markdown split: `--max-words`, `--max-words-coverage`.
+- Markdown split: 기본 `10,000`단어/`0.95` coverage이며 `--max-words`, `--max-words-coverage`로 override한다. `--set markdown.enabled=false`면 full tree graph를 사용한다.
+- PDF 적용 깊이: split의 `chosen_level` 이하 plan item만 PDF bookmark로 쓴다. full inference plan은 `bookmark_plan_full.json`, 실제 적용 plan은 `bookmark_plan.json`이다.
+- In-place: `--in-place`는 sibling temporary PDF를 검증한 뒤 입력 PDF를 atomic replace하고 `pdf_overwrite.json`에 전후 SHA-256을 기록한다.
 
 더 많은 설정은 `--set`으로 전달하고 `config explain`에서 key를 확인하라.
 기본 tree와 length-limited split은 모두 `toc.md`, `bookmark_plan.json`, `nodes/`, `markdown_manifest.json` graph를 만든다. split node는 선택된 level의 boundary만 export하되 원래 plan order 기반 `n####` identity와 source/confidence/evidence reference를 유지한다. run manifest의 `artifact_paths.markdown_manifest` 또는 `inspect plan` 결과를 먼저 읽으면 node 파일을 모두 열지 않고도 graph와 page coverage를 조사할 수 있다.
@@ -142,7 +145,7 @@ typography 추론을 실행한 run은 `bookmark_review_summary.json`과 `bookmar
 ```powershell
 uv run pdfbooktree apply <PDF> --plan <BOOKMARK_PLAN.json> `
   -o <OUTPUT_ROOT> [--config <CONFIG.toml>] [--set <KEY=VALUE>] `
-  [--flat-output] [--dry-run] [--format human|json]
+  [--flat-output] [--dry-run] [--in-place] [--format human|json]
 ```
 
 run manifest는 plan 경로와 SHA-256을 `plan_source`로 기록하고 생성된 graph manifest를 `artifact_paths.markdown_manifest`로 연결한다.
@@ -155,6 +158,7 @@ run manifest는 plan 경로와 SHA-256을 `plan_source`로 기록하고 생성�
 ```powershell
 uv run pdfbooktree batch <INPUT_DIR> -o <OUTPUT_ROOT> `
   [--recursive] [--config <CONFIG.toml>] [--set <KEY=VALUE>] `
+  [--in-place] `
   [--include-glob <PATTERN>] [--exclude-glob <PATTERN>] `
   [--log-mode auto|rich|plain|json|none] [--format human|json]
 ```

@@ -85,10 +85,10 @@ print(result.status, result.skill_dir, result.files)
 CLI와 같은 immutable run, resolved config와 manifest lifecycle이 필요하면 다음
 고수준 workflow를 사용하라.
 
-- `process_pdf(input_pdf, output_root, config=None, log=None) -> ProcessingRunResult`
+- `process_pdf(input_pdf, output_root, config=None, log=None, *, in_place=False) -> ProcessingRunResult`
 - `infer_pdf(input_pdf, output_root, config=None, log=None) -> ProcessingRunResult`
-- `preview_apply_plan(input_pdf, plan_path, output_root, config=None) -> ApplyPreview`
-- `apply_plan_file(input_pdf, plan_path, output_root, config=None) -> ProcessingRunResult`
+- `preview_apply_plan(input_pdf, plan_path, output_root, config=None, *, in_place=False) -> ApplyPreview`
+- `apply_plan_file(input_pdf, plan_path, output_root, config=None, *, in_place=False) -> ProcessingRunResult`
 
 ```python
 from pathlib import Path
@@ -160,7 +160,7 @@ outline 근거용 `existing_outline_plan.json`은 별도 artifact로 유지한�
 - `analyze_pdf(input_pdf: Path, config: TypographyConfig | None = None, *, log=None) -> PdfAnalysis`: PDF의 raw `TypographyLine`과 총 page 수를 추출하고 optional page progress를 전달한다.
 - `infer_bookmarks(analysis: PdfAnalysis, config: TypographyConfig | None = None) -> BookmarkInferenceResult`: margin 제거, tiering, geometry, heading, BPE, position fallback, normalize, validation을 실행한다.
 - `write_inference_artifacts(output_dir, inference, quality=None, *, input_pdf=None, total_pages=None, existing_outline=None) -> dict[str, Path]`: 원시 추론 근거와 `bookmark_review_summary.json`, `bookmark_review_items.jsonl`을 저장한다.
-- `apply_plan(input_pdf, output_dir, plan, total_pages, markdown_split=None, markdown_content_mode="direct") -> ApplyResult`: plan을 다시 검증한 뒤 bookmarked PDF와 Markdown을 만든다.
+- `apply_plan(input_pdf, output_dir, plan, total_pages, markdown_split=None, markdown_content_mode="direct", *, in_place=False) -> ApplyResult`: plan을 다시 검증하고 Markdown `chosen_level` 이하만 PDF outline에 적용한다. `in_place=True`면 검증된 sibling temporary PDF로 입력을 atomic 교체한다.
 - `validate_plan(input_pdf, plan) -> BookmarkPlanValidation`: PDF page 수를 직접 읽고 외부 plan을 쓰기 없이 검증한다.
 - `confidence_summary_for_inference(inference) -> ConfidenceSummary`: 단계 신뢰도 요약을 만든다.
 
@@ -202,7 +202,7 @@ print(artifacts["bookmark_plan"], applied.output_pdf)
 
 - `ProcessingConfig`: 기존 bookmark, artifact, typography, Markdown content mode/split, outline 품질 설정을 묶는다. `ocr_policy`는 현재 `never`만 지원하고 OCR은 별도 전처리한다. `markdown_content_mode` 기본값은 `direct`이며 기존 subtree 본문 포함은 `inclusive`다.
 - `TypographyConfig`: heading 후보, body font coverage, tier/BPE, margin, position fallback 값을 제어한다.
-- `MarkdownSplitConfig(max_words=10000, max_words_coverage=0.95, prefer="coarsest")`: 길이 coverage 기반 Markdown split을 활성화한다.
+- `MarkdownSplitConfig(enabled=True, max_words=10000, max_words_coverage=0.95, prefer="coarsest")`: 기본 활성화되는 길이 coverage 기반 Markdown split이다. `enabled=False`면 full tree graph를 사용한다.
 - `OutlineQualityConfig(min_item_count=4, max_item_to_page_ratio=0.9, flag_numeric_only_titles=True, replace_when_low_quality=False)`: 기존 outline 품질과 교체 policy를 정한다.
 
 TOML과 override가 필요하면 다음을 사용하라.

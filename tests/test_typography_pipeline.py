@@ -267,7 +267,7 @@ def test_processor_rescues_body_tier_chapter_marker_via_position_fallback(
     ).run()
 
     assert result.status == "processed"
-    plan = json.loads((output_dir / "bookmark_plan.json").read_text("utf-8"))
+    plan = json.loads((output_dir / "bookmark_plan_full.json").read_text("utf-8"))
     titles = {item["title"] for item in plan}
     chapter_titles = {f"Chapter {page}" for page in range(1, 8)}
     assert chapter_titles <= titles

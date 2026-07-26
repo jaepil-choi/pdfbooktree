@@ -204,6 +204,11 @@ class ApplyResult:
     output_pdf: Path | None = None
     output_markdown_dir: Path | None = None
     markdown_export: MarkdownExportResult | None = None
+    applied_plan: list[BookmarkPlanItem] = field(default_factory=list)
+    source_bookmark_count: int = 0
+    in_place: bool = False
+    original_pdf_sha256: str | None = None
+    final_pdf_sha256: str | None = None
 
 
 @dataclass(frozen=True)
@@ -294,6 +299,7 @@ class BatchResult:
     skipped_existing_bookmark_count: int
     failed_count: int
     bookmark_reference_candidate_count: int
+    overwritten_pdf_count: int = 0
     created_bookmarked_pdf_paths: list[Path] = field(default_factory=list)
     created_markdown_dirs: list[Path] = field(default_factory=list)
     results: list[BatchItemResult] = field(default_factory=list)

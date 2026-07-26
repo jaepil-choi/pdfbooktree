@@ -158,7 +158,8 @@ def test_config_template은_기존_파일을_보호하고_다시_읽을_수_있�
     resolved = resolve_processing_config(path)
 
     assert resolved.config.typography.heading_candidate_mode == "font"
-    assert "# [markdown]" in path.read_text(encoding="utf-8")
+    assert "[markdown]" in path.read_text(encoding="utf-8")
+    assert "enabled = true" in path.read_text(encoding="utf-8")
     with pytest.raises(ConfigError, match="이미 있다"):
         write_config_template(path)
 

@@ -63,13 +63,14 @@ typed property를 제공한다. 없는 artifact의 property는 `None`이다.
 
 ## 최종 PDF와 Markdown
 
-- typography plan을 적용한 PDF는 `<input-stem>_bookmarked.pdf`다.
-- 기본 Markdown tree는 `<input-stem>_markdown/` progressive graph이며 root에 `toc.md`, `bookmark_plan.json`, `markdown_manifest.json`, `nodes/`를 둔다.
+- 기본 Markdown은 10,000단어/0.95 coverage split이며 `<input-stem>_markdown_split/`에 생성된다. `markdown.enabled=false`일 때만 `<input-stem>_markdown/` full tree graph를 만든다.
+- split의 `chosen_level` 이하 plan item만 PDF outline에 적용한다. run root의 `bookmark_plan_full.json`은 전체 추론 plan, `bookmark_plan.json`은 실제 적용 plan이다.
+- 기본 copy mode의 PDF는 `<input-stem>_bookmarked.pdf`다. `--in-place`는 sibling temporary PDF를 완성·검증한 뒤 입력 PDF를 atomic replace하고 `pdf_overwrite.json`에 원본/최종 SHA-256을 기록한다.
 - 각 node는 `NNNN_L<level>_p<page>_<title>.md` 고유 파일이며 표준 YAML front matter와 parent/children/previous/next wiki link를 포함한다.
 - 기본 `processing.markdown_content_mode=direct`에서는 다음 bookmark 전까지의 page만 node 본문에 둔다. 같은 page의 여러 bookmark는 plan상 마지막 item이 page를 소유하고 앞선 item은 navigation-only node가 된다.
 - 기존 subtree 본문 중복이 필요할 때만 `processing.markdown_content_mode=inclusive`를 명시한다.
 - `markdown_manifest.json`에서 node mapping, source/confidence/evidence reference, assigned/unassigned/empty/duplicated page와 graph validation을 확인하라.
-- `MarkdownExportResult.export_mode=tree_graph`이며 `manifest_path`가 graph manifest를 가리킨다. run manifest도 이를 `artifact_paths.markdown_manifest`로 연결한다.
+- `markdown.enabled=false`일 때 `MarkdownExportResult.export_mode=tree_graph`이며 `manifest_path`가 graph manifest를 가리킨다.
 - length coverage split도 `<input-stem>_markdown_split/` 아래 `toc.md`, `bookmark_plan.json`, `markdown_manifest.json`, `nodes/`를 가진 graph다. 선택된 boundary 파일은 원래 plan의 global order를 유지한 `NNNN_L<level>_p<page>_<title>.md`이며 `export_mode=split`, `content_mode=bounded`를 사용한다.
 - split node의 `contained_plan_node_ids`로 해당 segment에 포함된 plan 범위를 확인하라. 같은 page의 연속 boundary는 마지막 export node만 본문을 소유하고 앞선 node는 navigation-only가 된다.
 - split manifest의 `chosen_level`, `constraint_satisfied`, `fallback_used`, `fallback_reason`, word-count statistics, overflow file과 graph validation을 함께 확인하라. word count는 본문과 plan heading을 포함하고 front matter, navigation, page marker는 제외한다.

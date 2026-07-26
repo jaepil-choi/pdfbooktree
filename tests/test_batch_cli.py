@@ -47,12 +47,14 @@ def test_batch_cli_parses_options(monkeypatch, tmp_path: Path) -> None:
             log=None,
             include_globs=(),
             exclude_globs=(),
+            in_place=False,
         ):
             captured["input_dir"] = input_dir
             captured["output_dir"] = output_dir
             captured["config"] = config
             captured["recursive"] = recursive
             captured["log"] = log
+            captured["in_place"] = in_place
 
         def run(self):
             return BatchResult(
@@ -79,6 +81,7 @@ def test_batch_cli_parses_options(monkeypatch, tmp_path: Path) -> None:
             "--output-dir",
             str(tmp_path / "out"),
             "--recursive",
+            "--in-place",
             "--log-mode",
             "plain",
         ],
@@ -89,6 +92,7 @@ def test_batch_cli_parses_options(monkeypatch, tmp_path: Path) -> None:
     assert captured["output_dir"] == tmp_path / "out"
     assert captured["recursive"] is True
     assert captured["log_mode"] == "plain"
+    assert captured["in_place"] is True
     assert isinstance(captured["config"], ResolvedConfig)
     assert captured["config"].config_hash
 

@@ -21,7 +21,18 @@ def test_default_processing_config는_기존_기본값을_유지한다() -> None
     assert config.markdown_content_mode == "direct"
     assert config.typography.heading_candidate_mode == "font"
     assert config.typography.position_fallback_enabled is True
-    assert config.markdown_split is None
+    assert config.markdown_split is not None
+    assert config.markdown_split.enabled is True
+    assert config.markdown_split.max_words == 10_000
+
+
+def test_markdown_split은_명시적으로_비활성화할_수_있다() -> None:
+    config = ProcessingConfig(
+        markdown_split=MarkdownSplitConfig(enabled=False),
+    )
+
+    assert config.markdown_split is not None
+    assert config.markdown_split.enabled is False
 
 
 @pytest.mark.parametrize(

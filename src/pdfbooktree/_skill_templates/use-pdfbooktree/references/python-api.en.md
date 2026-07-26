@@ -99,6 +99,8 @@ process_pdf(
     output_root,
     config=None,
     log=None,
+    *,
+    in_place=False,
 ) -> ProcessingRunResult
 ```
 
@@ -124,6 +126,8 @@ preview_apply_plan(
     plan_path,
     output_root,
     config=None,
+    *,
+    in_place=False,
 ) -> ApplyPreview
 ```
 
@@ -136,6 +140,8 @@ apply_plan_file(
     plan_path,
     output_root,
     config=None,
+    *,
+    in_place=False,
 ) -> ProcessingRunResult
 ```
 
@@ -152,8 +158,9 @@ by path and hash. Use `preview_apply_plan()` for the no-write validation path.
   validation, and review artifacts.
 - `validate_plan(input_pdf, plan) -> BookmarkPlanValidation` performs no writes.
 - `apply_plan(input_pdf, output_dir, plan, total_pages, markdown_split=None,
-  markdown_content_mode="direct") -> ApplyResult` writes a bookmarked PDF and
-  Markdown using an already validated plan.
+  markdown_content_mode="direct", *, in_place=False) -> ApplyResult` filters
+  the embedded outline to the Markdown `chosen_level`; in-place mode atomically
+  replaces the input after validating a sibling temporary PDF.
 - `Processor.run()` composes the lower-level functions for compatibility.
 
 All public pages are 1-based. Content correctness still requires review even

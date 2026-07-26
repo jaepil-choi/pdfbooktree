@@ -1,4 +1,4 @@
 interface:
   display_name: "pdfbooktree 사용"
   short_description: "PDF workflow, 공개 API와 artifact 계약 안내"
-  default_prompt: "$use-pdfbooktree를 사용해 Python API reference와 설치 version을 확인하고, PDF 조사부터 Upstage OCR, plan review, apply와 결과 직렬화까지 공개 계약에 따라 처리하세요."
+  default_prompt: "$use-pdfbooktree를 사용해 설치 version과 기본 10K Markdown chosen level, 적용 plan을 확인하고, 필요할 때 --in-place atomic overwrite로 PDF 조사부터 Upstage OCR, plan review, apply와 결과 직렬화까지 공개 계약에 따라 처리하세요."

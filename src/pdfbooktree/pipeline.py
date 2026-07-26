@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import json
 import time
 
 import fitz
@@ -49,6 +50,8 @@ from pdfbooktree.typography.margins import exclude_margin_artifacts
 from pdfbooktree.typography.position_fallback import select_body_tier_position_fallback
 from pdfbooktree.typography.tiers import compute_tier_set
 from pdfbooktree.utils.hashing import stable_json_hash
+from pdfbooktree.utils.hashing import file_sha256
+from pdfbooktree.utils.jsonio import write_json
 
 
 @dataclass(frozen=True)
@@ -210,6 +213,8 @@ def apply_plan(
     total_pages: int,
     markdown_split: MarkdownSplitConfig | None = None,
     markdown_content_mode: MarkdownContentMode = "direct",
+    *,
+    in_place: bool = False,
 ) -> ApplyResult:
     """plan을 재검증한 뒤에만 bookmarked PDF와 Markdown을 만든다.
 
@@ -218,14 +223,25 @@ def apply_plan(
 
     validation = validate_bookmark_plan(plan, total_pages)
     if not validation.valid:
-        return ApplyResult(validation=validation)
+        return ApplyResult(
+            validation=validation,
+            applied_plan=list(plan),
+            source_bookmark_count=len(plan),
+            in_place=in_place,
+        )
 
-    output_pdf = export_bookmarked_pdf(input_pdf, output_dir, plan)
-    if markdown_split is not None:
+    original_pdf_sha256 = file_sha256(input_pdf)
+    if markdown_split is not None and markdown_split.enabled:
         markdown_export = export_markdown_split(
             input_pdf, output_dir, plan, total_pages, markdown_split
         )
         output_markdown_dir = markdown_export.output_dir
+        chosen_level = markdown_export.chosen_level
+        applied_plan = (
+            [item for item in plan if item.level <= chosen_level]
+            if chosen_level is not None
+            else []
+        )
     else:
         markdown_export = export_markdown_tree(
             input_pdf,
@@ -235,12 +251,54 @@ def apply_plan(
             markdown_content_mode,
         )
         output_markdown_dir = markdown_export.output_dir
+        applied_plan = list(plan)
+    applied_validation = validate_bookmark_plan(applied_plan, total_pages)
+    if not applied_validation.valid:
+        return ApplyResult(
+            validation=applied_validation,
+            output_markdown_dir=output_markdown_dir,
+            markdown_export=markdown_export,
+            applied_plan=applied_plan,
+            source_bookmark_count=len(plan),
+            in_place=in_place,
+            original_pdf_sha256=original_pdf_sha256,
+        )
+    output_pdf = export_bookmarked_pdf(
+        input_pdf,
+        output_dir,
+        applied_plan,
+        in_place=in_place,
+    )
+    final_pdf_sha256 = file_sha256(output_pdf)
+    if in_place and markdown_export.manifest_path is not None:
+        _refresh_markdown_manifest_pdf_hash(
+            markdown_export.manifest_path,
+            final_pdf_sha256,
+        )
     return ApplyResult(
-        validation=validation,
+        validation=applied_validation,
         output_pdf=output_pdf,
         output_markdown_dir=output_markdown_dir,
         markdown_export=markdown_export,
+        applied_plan=applied_plan,
+        source_bookmark_count=len(plan),
+        in_place=in_place,
+        original_pdf_sha256=original_pdf_sha256,
+        final_pdf_sha256=final_pdf_sha256,
     )
+
+
+def _refresh_markdown_manifest_pdf_hash(
+    manifest_path: Path,
+    final_pdf_sha256: str,
+) -> None:
+    """in-place 교체 후 Markdown manifest의 input identity를 최종 PDF와 맞춘다."""
+
+    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    input_payload = payload.get("input")
+    if isinstance(input_payload, dict):
+        input_payload["sha256"] = final_pdf_sha256
+    write_json(manifest_path, payload)
 
 
 def confidence_summary_for_inference(

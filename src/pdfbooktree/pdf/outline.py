@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
+import tempfile
 
 import fitz
 
@@ -45,6 +47,61 @@ def write_outline_pdf(
         document.set_toc(toc)
         document.save(output_pdf)
     return output_pdf
+
+
+def replace_outline_pdf_atomic(
+    input_pdf: Path,
+    bookmark_plan: list[BookmarkPlanItem],
+) -> Path:
+    """완성·검증한 sibling temporary PDF로 입력 PDF를 atomic 교체한다."""
+
+    source = input_pdf.resolve()
+    if not source.is_file():
+        raise FileNotFoundError(f"입력 PDF가 없다: {source}")
+    handle, temporary_name = tempfile.mkstemp(
+        prefix=f".{source.stem}.bookmarks.",
+        suffix=".pdf",
+        dir=source.parent,
+    )
+    os.close(handle)
+    temporary = Path(temporary_name)
+    temporary.unlink()
+    try:
+        write_outline_pdf(source, temporary, bookmark_plan)
+        _validate_written_outline(source, temporary, bookmark_plan)
+        os.replace(temporary, source)
+    finally:
+        temporary.unlink(missing_ok=True)
+    return source
+
+
+def _validate_written_outline(
+    source_pdf: Path,
+    candidate_pdf: Path,
+    bookmark_plan: list[BookmarkPlanItem],
+) -> None:
+    """교체 전에 page 수와 실제 TOC가 계획과 같은지 확인한다."""
+
+    expected = [
+        [item.level, item.title, item.pdf_page]
+        for item in bookmark_plan
+        if item.pdf_page >= 1
+    ]
+    with fitz.open(source_pdf) as source, fitz.open(candidate_pdf) as candidate:
+        if candidate.page_count != source.page_count:
+            raise RuntimeError(
+                "in-place bookmark PDF page 수가 바뀌었다: "
+                f"source={source.page_count}, candidate={candidate.page_count}"
+            )
+        actual = [
+            [int(level), normalize_text(str(title)), int(pdf_page)]
+            for level, title, pdf_page, *_ in candidate.get_toc(simple=False)
+        ]
+    if actual != expected:
+        raise RuntimeError(
+            "in-place bookmark PDF outline 검증이 실패했다: "
+            f"expected={len(expected)}, actual={len(actual)}"
+        )
 
 
 def outline_to_plan(items: list[ExistingOutlineItem]) -> list[BookmarkPlanItem]:

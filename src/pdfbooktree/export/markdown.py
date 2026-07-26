@@ -31,6 +31,12 @@ def plan_markdown_dir_path(input_pdf: Path, output_dir: Path) -> Path:
     return build_markdown_dir_path(input_pdf, output_dir)
 
 
+def plan_markdown_split_dir_path(input_pdf: Path, output_dir: Path) -> Path:
+    """길이 제한 Markdown split 출력 디렉터리 경로를 만든다."""
+
+    return output_dir / f"{input_pdf.stem}_markdown_split"
+
+
 def export_markdown_tree(
     input_pdf: Path,
     output_dir: Path,
@@ -62,7 +68,7 @@ def export_markdown_split(
         raise ValueError("max_words는 1 이상이어야 한다")
     if not 0 < config.max_words_coverage <= 1:
         raise ValueError("max_words_coverage는 0보다 크고 1 이하여야 한다")
-    root_dir = output_dir / f"{input_pdf.stem}_markdown_split"
+    root_dir = plan_markdown_split_dir_path(input_pdf, output_dir)
     root_dir.mkdir(parents=True, exist_ok=True)
     page_texts = {
         page.pdf_page: normalize_text(page.text)

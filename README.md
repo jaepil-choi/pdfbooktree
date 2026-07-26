@@ -84,16 +84,19 @@ pdfbooktree batch .\books -o .\runs --recursive
 
 ## Markdown으로 내보내기
 
-각 장과 절은 별도 Markdown 파일이 된다. 파일에는 상위·하위 항목과 이전·다음
-항목으로 이동하는 링크가 들어간다. 생성된 Markdown 폴더를 Obsidian vault로
-열고 `toc.md`부터 보면 된다.
+기본값은 Markdown 파일의 95%가 10,000단어 이하가 되는 가장 얕은 bookmark
+level을 선택한다. PDF에도 그 `chosen_level`까지만 bookmark를 삽입한다.
+생성된 Markdown 폴더를 Obsidian vault로 열고 `toc.md`부터 보면 된다.
 
-파일이 너무 길어지는 것을 막으려면 길이를 제한할 수 있다.
+기본 길이 목표를 바꾸려면 다음처럼 지정한다.
 
 ```powershell
 pdfbooktree process "book.pdf" -o .\runs `
   --max-words 10000 --max-words-coverage 0.95
 ```
+
+전체 plan을 Markdown tree와 PDF bookmark에 적용하려면
+`--set markdown.enabled=false`를 사용한다.
 
 ## 스캔 PDF
 
@@ -105,6 +108,10 @@ $env:UPSTAGE_API_KEY = "<upstage-api-key>"
 pdfbooktree ocr-overlay "scan.pdf" -o ".\scan_ocr.pdf"
 pdfbooktree process ".\scan_ocr.pdf" -o .\runs
 ```
+
+별도 `_bookmarked.pdf`를 만들지 않고 OCR PDF 자체를 안전하게 교체하려면
+`--in-place`를 사용한다. sibling temporary PDF를 검증한 뒤 atomic replace하며,
+run의 `pdf_overwrite.json`에 전후 SHA-256을 남긴다.
 
 OCR을 실행하면 각 페이지 이미지가 Upstage로 전송되며 API 비용이 들 수 있다.
 민감한 문서는 조직의 보안 정책과 Upstage의 처리 조건을 먼저 확인해야 한다.

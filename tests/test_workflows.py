@@ -79,9 +79,10 @@ def test_infer_preview_apply는_같은_canonical_plan을_사용한다(
     assert applied.result.markdown_manifest_path is not None
     assert applied.result.bookmark_plan_path == applied.run_dir / "bookmark_plan.json"
     assert (
-        applied.result.bookmark_plan_path.read_bytes()
-        == inferred.result.bookmark_plan_path.read_bytes()
-    )
+        applied.run_dir / "bookmark_plan_full.json"
+    ).read_bytes() == inferred.result.bookmark_plan_path.read_bytes()
+    with fitz.open(applied.result.output_pdf) as document:
+        assert len(document.get_toc()) == applied.result.bookmark_count
     assert applied.manifest.plan_source == {
         "path": str(inferred.result.bookmark_plan_path),
         "sha256": preview.plan_sha256,

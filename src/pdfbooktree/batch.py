@@ -35,6 +35,7 @@ class BatchProcessor:
         *,
         include_globs: tuple[str, ...] = (),
         exclude_globs: tuple[str, ...] = (),
+        in_place: bool = False,
     ) -> None:
         self.input_dir = Path(input_dir)
         self.output_dir = Path(output_dir)
@@ -43,6 +44,7 @@ class BatchProcessor:
         self.recursive = recursive
         self.include_globs = include_globs
         self.exclude_globs = exclude_globs
+        self.in_place = in_place
         self.log = log or NullBatchLogger()
 
     def run(self) -> BatchResult:
@@ -141,6 +143,15 @@ class BatchProcessor:
                 for result in results
                 if result.output_pdf is None and result.status == "processed"
             ),
+            overwritten_pdf_count=sum(
+                1
+                for result in results
+                if (
+                    result.status == "processed"
+                    and result.output_pdf is not None
+                    and result.output_pdf.resolve() == result.input_pdf.resolve()
+                )
+            ),
             created_bookmarked_pdf_paths=[
                 result.output_pdf
                 for result in results
@@ -169,7 +180,13 @@ class BatchProcessor:
                 allow_unreadable_input=True,
             )
             run.start()
-            result = Processor(path, run.run_dir, self.config).run()
+            processor_kwargs = {"in_place": True} if self.in_place else {}
+            result = Processor(
+                path,
+                run.run_dir,
+                self.config,
+                **processor_kwargs,
+            ).run()
             run.complete(result)
             return _batch_item_result(result, run)
         except Exception as error:  # noqa: BLE001 - batch는 파일별 실패를 report에 남겨야 한다.

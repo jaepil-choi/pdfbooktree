@@ -65,8 +65,9 @@ description: 이 저장소의 pdfbooktree Python API와 CLI를 사용해 PDF 책
 - 단일 실험에는 `--set dotted.key=value`를 여러 번 사용하라.
 - 설정 병합 우선순위를 `defaults < TOML < 명시적 CLI option < --set`으로 이해하라.
 - 지원 key, 타입, 기본값, 범위는 `config explain [KEY]`에서 읽으라. 문서에 config 전체를 복제하지 마라.
-- 기본 Markdown tree는 `processing.markdown_content_mode=direct`인 progressive graph다. 기존처럼 parent에 descendant 본문까지 포함하려면 `inclusive`를 명시하라.
-- Markdown 길이 제한 export는 `[markdown]` 설정 또는 `--max-words`로 활성화하라. 제약을 만족하지 못하면 가장 깊은 사용 가능 level로 fallback할 수 있으므로 `markdown_manifest.json`의 `constraint_satisfied`, `fallback_used`, overflow 통계를 확인하라.
+- 기본 Markdown export는 `markdown.enabled=true`, `markdown.max_words=10000`, `markdown.max_words_coverage=0.95`인 길이 제한 split이다. `markdown.enabled=false`일 때만 `processing.markdown_content_mode=direct` tree graph를 사용한다.
+- split의 `chosen_level`까지의 plan item만 PDF bookmark로 적용한다. 제약을 만족하지 못하면 가장 깊은 사용 가능 level로 fallback할 수 있으므로 `markdown_manifest.json`의 `chosen_level`, `constraint_satisfied`, `fallback_used`, overflow 통계와 실제 `bookmark_plan.json` 최대 level을 함께 확인하라.
+- 기존 PDF 경로를 bookmark PDF로 교체하려면 `process`, `apply`, `batch`의 `--in-place`를 명시하라. 구현은 sibling temporary PDF를 완성·검증한 뒤 atomic replace하며, run의 `pdf_overwrite.json`에 원본/최종 SHA-256을 기록한다.
 
 ## 실행 결과 확인
 

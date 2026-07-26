@@ -43,10 +43,12 @@ INFERENCE_ARTIFACT_FILES = {
     "heading_candidates": "heading_candidates.json",
     "position_fallback_candidates": "position_fallback_candidates.json",
     "bookmark_plan": "bookmark_plan.json",
+    "bookmark_plan_full": "bookmark_plan_full.json",
     "bookmark_plan_validation": "bookmark_plan_validation.json",
+    "bookmark_plan_full_validation": "bookmark_plan_full_validation.json",
     "bookmark_review_summary": "bookmark_review_summary.json",
     "bookmark_review_items": "bookmark_review_items.jsonl",
-    "markdown_manifest": "book_markdown/markdown_manifest.json",
+    "markdown_manifest": "book_markdown_split/markdown_manifest.json",
 }
 
 EXISTING_OUTLINE_ARTIFACT_FILES = {
@@ -54,7 +56,7 @@ EXISTING_OUTLINE_ARTIFACT_FILES = {
     "existing_outline_plan": "existing_outline_plan.json",
     "bookmark_plan_validation": "bookmark_plan_validation.json",
     "existing_outline_quality": "existing_outline_quality.json",
-    "markdown_manifest": "bookmarked_markdown/markdown_manifest.json",
+    "markdown_manifest": "bookmarked_markdown_split/markdown_manifest.json",
 }
 
 
@@ -121,14 +123,14 @@ def test_processor_inference_result와_artifact_shape_golden(tmp_path: Path) -> 
     assert payload["status"] == "processed"
     assert payload["input_pdf"] == str(pdf)
     assert payload["output_pdf"] == str(output_dir / "book_bookmarked.pdf")
-    assert payload["output_markdown_dir"] == str(output_dir / "book_markdown")
-    assert payload["markdown_export"]["export_mode"] == "tree_graph"
+    assert payload["output_markdown_dir"] == str(output_dir / "book_markdown_split")
+    assert payload["markdown_export"]["export_mode"] == "split"
     assert payload["markdown_export"]["file_count"] == payload["bookmark_count"]
     assert payload["markdown_export"]["manifest_path"] == str(
-        output_dir / "book_markdown" / "markdown_manifest.json"
+        output_dir / "book_markdown_split" / "markdown_manifest.json"
     )
     assert payload["ocr_pdf"] is None
-    assert payload["bookmark_count"] == 15
+    assert payload["bookmark_count"] == 3
     assert payload["existing_outline_quality"] is None
     assert payload["report_path"] == str(output_dir / "book_report.json")
     assert payload["artifact_paths"] == {
@@ -204,7 +206,7 @@ def test_processor_inference_result와_artifact_shape_golden(tmp_path: Path) -> 
     }
 
     plan_payload = _read_json(output_dir / "bookmark_plan.json")
-    assert isinstance(plan_payload, list) and len(plan_payload) == 15
+    assert isinstance(plan_payload, list) and len(plan_payload) == 3
     assert set(plan_payload[0]) == {
         "title",
         "level",
@@ -214,6 +216,13 @@ def test_processor_inference_result와_artifact_shape_golden(tmp_path: Path) -> 
         "evidence",
     }
     assert _read_json(output_dir / "bookmark_plan_validation.json") == {
+        "valid": True,
+        "item_count": 3,
+        "warnings": [],
+    }
+    full_plan_payload = _read_json(output_dir / "bookmark_plan_full.json")
+    assert isinstance(full_plan_payload, list) and len(full_plan_payload) == 15
+    assert _read_json(output_dir / "bookmark_plan_full_validation.json") == {
         "valid": True,
         "item_count": 15,
         "warnings": [],
@@ -239,7 +248,9 @@ def test_processor_existing_outline_fast_path_contract_golden(tmp_path: Path) ->
     assert set(payload) == PROCESSING_RESULT_FIELDS
     assert payload["status"] == "processed"
     assert payload["output_pdf"] is None
-    assert payload["output_markdown_dir"] == str(output_dir / "bookmarked_markdown")
+    assert payload["output_markdown_dir"] == str(
+        output_dir / "bookmarked_markdown_split"
+    )
     assert payload["bookmark_count"] == 2
     assert payload["confidence_summary"] == {
         "line_extraction": None,
@@ -283,7 +294,7 @@ def test_processor_existing_outline_fast_path_contract_golden(tmp_path: Path) ->
         "warnings": [],
     }
     assert not (output_dir / "whole_book_lines.jsonl").exists()
-    assert (output_dir / "bookmarked_markdown" / "toc.md").exists()
+    assert (output_dir / "bookmarked_markdown_split" / "toc.md").exists()
     assert payload["report_path"] == str(output_dir / "bookmarked_report.json")
 
 
@@ -343,7 +354,7 @@ def test_process_cli_real_run_manifest_contract_golden(tmp_path: Path) -> None:
         for name, filename in EXISTING_OUTLINE_ARTIFACT_FILES.items()
     }
     assert manifest["output_paths"] == {
-        "output_markdown_dir": str(run_dir / "bookmarked_markdown")
+        "output_markdown_dir": str(run_dir / "bookmarked_markdown_split")
     }
     assert manifest["report_path"] == str(run_dir / "bookmarked_report.json")
     for path in manifest["artifact_paths"].values():

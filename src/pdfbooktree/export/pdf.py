@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from pdfbooktree.models import BookmarkPlanItem
-from pdfbooktree.pdf.outline import write_outline_pdf
+from pdfbooktree.pdf.outline import replace_outline_pdf_atomic, write_outline_pdf
 from pdfbooktree.utils.paths import build_bookmarked_pdf_path
 
 
@@ -16,9 +16,15 @@ def plan_bookmarked_pdf_path(input_pdf: Path, output_dir: Path) -> Path:
 
 
 def export_bookmarked_pdf(
-    input_pdf: Path, output_dir: Path, plan: list[BookmarkPlanItem]
+    input_pdf: Path,
+    output_dir: Path,
+    plan: list[BookmarkPlanItem],
+    *,
+    in_place: bool = False,
 ) -> Path:
     """bookmark plan을 삽입한 PDF 사본을 만든다."""
 
+    if in_place:
+        return replace_outline_pdf_atomic(input_pdf, plan)
     output_pdf = plan_bookmarked_pdf_path(input_pdf, output_dir)
     return write_outline_pdf(input_pdf, output_pdf, plan)

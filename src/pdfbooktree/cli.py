@@ -1242,6 +1242,11 @@ def process(
         "--flat-output",
         help="호환을 위해 immutable run directory 없이 기존 flat output을 사용한다.",
     ),
+    in_place: bool = typer.Option(
+        False,
+        "--in-place",
+        help="별도 bookmarked PDF를 만들지 않고 입력 PDF를 atomic 교체한다.",
+    ),
     skip_existing_bookmarks: bool = typer.Option(
         True,
         "--skip-existing-bookmarks/--no-skip-existing-bookmarks",
@@ -1395,7 +1400,14 @@ def process(
             "process", log_mode, output_format=resolved_output_format
         )
         try:
-            result = Processor(pdf, output_dir, resolved.config, log=logger).run()
+            processor_kwargs = {"in_place": True} if in_place else {}
+            result = Processor(
+                pdf,
+                output_dir,
+                resolved.config,
+                log=logger,
+                **processor_kwargs,
+            ).run()
         except Exception as error:
             _exit_stage_runtime_error(
                 "process",
@@ -1415,7 +1427,13 @@ def process(
         "process", log_mode, output_format=resolved_output_format
     )
     try:
-        workflow = process_pdf(pdf, output_dir, resolved, log=logger)
+        workflow = process_pdf(
+            pdf,
+            output_dir,
+            resolved,
+            log=logger,
+            in_place=in_place,
+        )
     except RunError as error:
         _exit_stage_input_error(
             "process",
@@ -1570,10 +1588,18 @@ def _run_apply(
     output_dir: Path,
     plan: list[BookmarkPlanItem],
     config: ProcessingConfig,
+    *,
+    in_place: bool = False,
 ) -> ProcessingResult:
     """검증된 plan으로 bookmarked PDF/Markdown만 만든다. typography 추론은 하지 않는다."""
 
-    return apply_plan_to_directory(pdf, output_dir, plan, config)
+    return apply_plan_to_directory(
+        pdf,
+        output_dir,
+        plan,
+        config,
+        in_place=in_place,
+    )
 
 
 @app.command()
@@ -1604,6 +1630,11 @@ def apply(
         False,
         "--dry-run",
         help="plan과 PDF page 범위만 검증하고 run directory나 산출물을 만들지 않는다.",
+    ),
+    in_place: bool = typer.Option(
+        False,
+        "--in-place",
+        help="별도 bookmarked PDF를 만들지 않고 입력 PDF를 atomic 교체한다.",
     ),
     output_format: str = typer.Option(
         "human", "--format", help="final result 출력 형식이다: human, json."
@@ -1640,7 +1671,13 @@ def apply(
 
     if dry_run:
         try:
-            preview = preview_apply_plan(pdf, plan_path, output_dir, resolved)
+            preview = preview_apply_plan(
+                pdf,
+                plan_path,
+                output_dir,
+                resolved,
+                in_place=in_place,
+            )
         except (PlanError, RunError, FileNotFoundError) as error:
             _exit_stage_input_error(
                 "apply",
@@ -1684,7 +1721,13 @@ def apply(
             output_format=resolved_output_format,
         )
         try:
-            result = _run_apply(pdf, output_dir, plan, resolved.config)
+            result = _run_apply(
+                pdf,
+                output_dir,
+                plan,
+                resolved.config,
+                in_place=in_place,
+            )
         except Exception as error:
             _exit_stage_runtime_error(
                 "apply",
@@ -1701,7 +1744,13 @@ def apply(
         return
 
     try:
-        workflow = apply_plan_file(pdf, plan_path, output_dir, resolved)
+        workflow = apply_plan_file(
+            pdf,
+            plan_path,
+            output_dir,
+            resolved,
+            in_place=in_place,
+        )
     except (PlanError, RunError) as error:
         _exit_stage_input_error(
             "apply",
@@ -1758,6 +1807,11 @@ def batch(
         "--set",
         help="최종 config override다. dotted.key=value 형식으로 여러 번 줄 수 있다.",
     ),
+    in_place: bool = typer.Option(
+        False,
+        "--in-place",
+        help="각 입력 PDF를 검증된 temporary PDF로 atomic 교체한다.",
+    ),
     log_mode: str = typer.Option(
         "auto",
         "--log-mode",
@@ -1800,6 +1854,7 @@ def batch(
         )
     try:
         batch_logger = build_batch_logger(cast(BatchLogMode, resolved_log_mode))
+        batch_kwargs = {"in_place": True} if in_place else {}
         result = BatchProcessor(
             input_dir,
             output_dir,
@@ -1808,6 +1863,7 @@ def batch(
             include_globs=tuple(include_glob),
             exclude_globs=tuple(exclude_glob),
             log=batch_logger,
+            **batch_kwargs,
         ).run()
     except (
         FileExistsError,

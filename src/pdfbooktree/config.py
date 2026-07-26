@@ -263,6 +263,10 @@ class TypographyConfig:
 class MarkdownSplitConfig:
     """계층 bookmark를 길이 제약 Markdown 파일로 나누는 공개 정책이다."""
 
+    enabled: bool = _setting(
+        True,
+        description="길이 coverage 기반 Markdown split을 사용할지 정한다.",
+    )
     max_words: int = _setting(
         10_000,
         description="하나의 Markdown 파일에 허용할 목표 최대 단어 수다.",
@@ -281,6 +285,8 @@ class MarkdownSplitConfig:
     )
 
     def __post_init__(self) -> None:
+        if not isinstance(self.enabled, bool):
+            raise ConfigError("markdown.enabled는 bool이어야 한다.")
         _require_number("markdown.max_words", self.max_words, minimum=1)
         _require_number(
             "markdown.max_words_coverage",
@@ -379,8 +385,13 @@ class ProcessingConfig:
         metadata={"description": "typography 기반 bookmark 추론 설정이다."},
     )
     markdown_split: MarkdownSplitConfig | None = field(
-        default=None,
-        metadata={"description": "지정하면 coverage 기반 Markdown split을 사용한다."},
+        default_factory=MarkdownSplitConfig,
+        metadata={
+            "description": (
+                "기본 10,000단어 coverage 기반 Markdown split 설정이다. "
+                "None 또는 enabled=false면 전체 tree graph를 사용한다."
+            )
+        },
     )
     outline_quality: OutlineQualityConfig = field(
         default_factory=OutlineQualityConfig,

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import is_dataclass
+import json
 from pathlib import Path
 
 import fitz
@@ -11,6 +12,7 @@ from pdfbooktree.config import MarkdownSplitConfig, TypographyConfig
 from pdfbooktree.models import BookmarkPlanItem, PdfAnalysis, TypographyLine
 from pdfbooktree.outline.validate import validate_bookmark_plan
 from pdfbooktree.pipeline import analyze_pdf, apply_plan, infer_bookmarks, validate_plan
+from pdfbooktree.utils.hashing import file_sha256
 
 PAGE_WIDTH = 595.0
 PAGE_HEIGHT = 842.0
@@ -235,6 +237,93 @@ def test_apply_plan_uses_markdown_split_when_configured(tmp_path: Path) -> None:
 
     assert result.markdown_export is not None
     assert result.output_markdown_dir == result.markdown_export.output_dir
+
+
+def test_apply_plan_syncs_in_place_outline_to_markdown_chosen_level(
+    tmp_path: Path,
+) -> None:
+    pdf = tmp_path / "ocr-overlay.pdf"
+    document = fitz.open()
+    try:
+        for _ in range(3):
+            page = document.new_page()
+            page.insert_text((72, 72), "one two three four five", fontsize=12)
+        document.save(pdf)
+    finally:
+        document.close()
+    original_hash = file_sha256(pdf)
+    plan = [
+        BookmarkPlanItem(title="Chapter", level=1, pdf_page=1),
+        BookmarkPlanItem(title="Section", level=2, pdf_page=2),
+        BookmarkPlanItem(title="Topic", level=3, pdf_page=3),
+    ]
+
+    result = apply_plan(
+        pdf,
+        tmp_path / "runs",
+        plan,
+        total_pages=3,
+        markdown_split=MarkdownSplitConfig(
+            max_words=16,
+            max_words_coverage=1.0,
+        ),
+        in_place=True,
+    )
+
+    assert result.validation.valid
+    assert result.in_place is True
+    assert result.output_pdf == pdf.resolve()
+    assert result.source_bookmark_count == 3
+    assert [item.title for item in result.applied_plan] == ["Chapter", "Section"]
+    assert result.markdown_export is not None
+    assert result.markdown_export.chosen_level == 2
+    assert result.original_pdf_sha256 == original_hash
+    assert result.final_pdf_sha256 == file_sha256(pdf)
+    assert result.final_pdf_sha256 != original_hash
+    assert not list(tmp_path.rglob("*_bookmarked.pdf"))
+    with fitz.open(pdf) as updated:
+        assert updated.page_count == 3
+        assert updated.get_toc() == [[1, "Chapter", 1], [2, "Section", 2]]
+        assert "one two three four five" in updated[2].get_text()
+    manifest = json.loads(
+        result.markdown_export.manifest_path.read_text(encoding="utf-8")
+    )
+    assert manifest["chosen_level"] == 2
+    assert manifest["input"]["sha256"] == result.final_pdf_sha256
+
+
+def test_in_place_outline_failure_preserves_original_pdf(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    pdf = tmp_path / "ocr-overlay.pdf"
+    _make_simple_pdf(pdf)
+    original_hash = file_sha256(pdf)
+
+    def fail_validation(*_args, **_kwargs) -> None:
+        raise RuntimeError("candidate validation failed")
+
+    monkeypatch.setattr(
+        "pdfbooktree.pdf.outline._validate_written_outline",
+        fail_validation,
+    )
+
+    try:
+        apply_plan(
+            pdf,
+            tmp_path / "runs",
+            [BookmarkPlanItem(title="Chapter", level=1, pdf_page=1)],
+            total_pages=3,
+            markdown_split=MarkdownSplitConfig(max_words=1000),
+            in_place=True,
+        )
+    except RuntimeError as error:
+        assert str(error) == "candidate validation failed"
+    else:
+        raise AssertionError("in-place validation failure가 전파되어야 한다")
+
+    assert file_sha256(pdf) == original_hash
+    assert not list(tmp_path.glob(".*.bookmarks.*.pdf"))
 
 
 def test_validate_plan_reads_page_count_without_writing(tmp_path: Path) -> None:
