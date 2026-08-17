@@ -22,3 +22,4 @@ tmp/
 ## Custom ignore
 .venv-paddle/
 .gjc/
+releases/
