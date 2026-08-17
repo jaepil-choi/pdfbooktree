@@ -19177,6 +19177,32 @@
       },
       "finding": "임계값 경계, 손상된 manifest, compare 비대칭 입력, CLI 오류 경로에서 숨겨진 예외나 오탐은 없었다. 초기 fail 2건은 제품 결함이 아니라 probe 기대 문구가 실제 오류 메시지보다 덜 구체적이어서 생긴 불일치였고 제품 메시지에 맞춰 정정했다.",
       "ran_at": "2026-08-17T19:40:42+09:00"
+    },
+    {
+      "id": "116_validation_partition_open",
+      "purpose": "보류했던 validation 71권을 열어 진단과 재시도 루프가 미공개 책에서도 서는지 확인한다.",
+      "inputs": [
+        "고정 corpus의 validation 분할 71권",
+        "development와 동일한 seed와 group disposition"
+      ],
+      "outputs": "experiments\\\\outputs\\\\113_pdf_core_release_suitability\\\\core-release-20260817-e",
+      "method": "현재 source로 새 run을 만들어 assignmentHash와 validationCommitment가 development run과 같음을 확인한 뒤 validation default lane 71권을 실행하고 전수 진단했다. thin 판정을 받은 책은 진단이 낸 command_argv를 shell 없이 그대로 실행해 전후를 비교했다.",
+      "summary": {
+        "validation_books": 71,
+        "succeeded": 71,
+        "failed": 0,
+        "verdict_ok": 23,
+        "verdict_fragmented": 30,
+        "verdict_thin": 12,
+        "verdict_over_split": 3,
+        "verdict_uncovered": 3,
+        "thin_all_reused": 12,
+        "retry_attempted": 12,
+        "retry_improved": 12,
+        "retry_no_longer_thin": 11
+      },
+      "finding": "미공개 71권에서 실패나 예외가 0이었고 verdict 분포는 development와 비슷했다. thin 12건은 전부 기존 outline 재사용 2 node 패턴으로 development와 동일했고, 진단이 낸 재시도를 그대로 실행하자 12/12가 node 수가 늘었고 11/12가 thin을 벗어났다. 나머지 1권은 2 node에서 4 node로만 늘어 여전히 thin이며 루프가 다음 후보로 이어진다. fragment는 validation에서도 가장 흔한 원인으로 남아 알려진 한계가 그대로 재현됐다.",
+      "ran_at": "2026-08-17T21:00:00+09:00"
     }
   ]
 }
