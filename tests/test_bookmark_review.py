@@ -69,8 +69,8 @@ def _inference(
             _line(1, "Body text", 120.0),
             _line(2, "123", 100.0),
         ],
-        font_tiers=TierSet("font_size", [], [], 0, 0, 0),
-        height_tiers=TierSet("height", [], [], 0, 0, 0),
+        font_tiers=TierSet("font_size", [], [], 0, 0),
+        height_tiers=TierSet("height", [], [], 0, 0),
         heading_candidates=[
             heading,
             *(

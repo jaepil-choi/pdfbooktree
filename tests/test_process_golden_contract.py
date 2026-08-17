@@ -165,7 +165,6 @@ def test_processor_inference_result와_artifact_shape_golden(tmp_path: Path) -> 
         "cut_points",
         "tiers",
         "raw_tier_count",
-        "gap_merged_tier_count",
         "final_tier_count",
     }
     tier_item_fields = {"tier", "lower_bound", "upper_bound", "peak", "count"}

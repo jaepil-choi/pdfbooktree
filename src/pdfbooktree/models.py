@@ -89,7 +89,6 @@ class TierSet:
     cut_points: list[float]
     tiers: list[Tier]
     raw_tier_count: int
-    gap_merged_tier_count: int
     final_tier_count: int
 
 

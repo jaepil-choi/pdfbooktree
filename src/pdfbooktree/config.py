@@ -88,11 +88,6 @@ class TypographyConfig:
         minimum=0.0,
         exclusive_minimum=True,
     )
-    min_tier_gap: float = _setting(
-        2.0,
-        description="인접 typography tier를 분리할 최소 signal 간격이다.",
-        minimum=0.0,
-    )
     min_tier_count: int = _setting(
         5,
         description="희소 typography tier를 병합하기 위한 최소 line 수다.",
@@ -218,7 +213,6 @@ class TypographyConfig:
             "body_font_max_words": (1, None, False),
             "position_min_repeated_pages": (1, None, False),
             "line_y_tolerance_ratio": (0.0, None, True),
-            "min_tier_gap": (0.0, None, False),
             "min_tier_count": (1, None, False),
             "max_heading_tier": (1, None, False),
             "max_heading_length": (1, None, False),

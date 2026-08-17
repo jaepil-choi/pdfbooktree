@@ -80,7 +80,6 @@ def compute_geometry_font_tier_set(lines: list[TypographyLine]) -> TierSet:
             cut_points=[],
             tiers=[],
             raw_tier_count=0,
-            gap_merged_tier_count=0,
             final_tier_count=0,
         )
 
@@ -108,7 +107,6 @@ def compute_geometry_font_tier_set(lines: list[TypographyLine]) -> TierSet:
         cut_points=cuts,
         tiers=tiers,
         raw_tier_count=len(tiers),
-        gap_merged_tier_count=len(tiers),
         final_tier_count=len(tiers),
     )
 

@@ -29,7 +29,6 @@ def compute_tier_set(
             cut_points=[],
             tiers=[],
             raw_tier_count=0,
-            gap_merged_tier_count=0,
             final_tier_count=0,
         )
     raw_peaks, raw_cuts = _cluster_by_density(values)
@@ -45,7 +44,6 @@ def compute_tier_set(
         cut_points=[round(cut, 4) for cut in final_cuts],
         tiers=tiers,
         raw_tier_count=len(raw_peaks),
-        gap_merged_tier_count=len(raw_peaks),
         final_tier_count=len(tiers),
     )
 
