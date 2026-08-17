@@ -6,7 +6,28 @@
 
 ## Unreleased
 
-0.1.1 이후 변경은 이곳에 기록한다.
+### 추가
+
+- 생성된 Markdown tree를 진단하는 `inspect markdown` 명령과 `inspect_markdown_tree()`,
+  `inspect_compare_markdown()`. verdict와 원인, 실행 가능한 재시도 후보를 함께 낸다.
+- `inspect compare`가 bookmark plan JSON과 Markdown manifest를 자동으로 구분한다.
+
+### 변경
+
+- 구조가 깨진 기존 outline은 재사용하지 않고 그 사유를 warning과 review summary에 남긴다.
+- 추론 plan의 level jump를 연속된 depth로 정규화한다.
+- strict geometry 후보가 없을 때만 기존 heading evidence를 page당 하나 사용한다.
+
+### 수정
+
+- typography tier 구성에서 density peak와 cut 개수가 어긋나 IndexError가 나던 문제.
+
+### 제거
+
+- 소비자가 없던 `typography.min_tier_gap` config key. 이제 이 key를 주면
+  조용히 무시하지 않고 `invalid_config`로 거절한다.
+- 항상 `raw_tier_count`와 같은 값이던 `TierSet.gap_merged_tier_count` 필드와
+  `font_size_tiers.json`, `height_tiers.json` artifact의 동일 항목.
 
 ## 0.1.1 - 2026-07-19
 

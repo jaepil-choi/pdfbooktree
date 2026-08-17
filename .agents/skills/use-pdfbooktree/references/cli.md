@@ -85,7 +85,7 @@ uv run pdfbooktree process $pdf -o .\runs `
   --format json
 ```
 
-길이 제한 Markdown split을 활성화하라.
+기본 길이 제한 Markdown split 값을 override하라.
 
 ```powershell
 uv run pdfbooktree process $pdf -o .\runs `
@@ -103,6 +103,7 @@ uv run pdfbooktree process $pdf -o .\runs `
 ```powershell
 uv run pdfbooktree process <PDF> [-o <OUTPUT_ROOT>] `
   [--config <CONFIG.toml>] [--set <KEY=VALUE>] [--flat-output] `
+  [--in-place] `
   [--log-mode auto|rich|plain|json|none] `
   [--format human|json]
 ```
@@ -115,7 +116,9 @@ uv run pdfbooktree process <PDF> [-o <OUTPUT_ROOT>] `
 - tier/BPE: `--min-tier-count`, `--max-heading-tier`, `--bpe-max-node-words`, `--bpe-level-pollution-ratio`.
 - margin: `--margin-band-ratio`, `--margin-min-consecutive-pages`.
 - Markdown tree: 기본은 `--set processing.markdown_content_mode=direct`이고 기존 subtree 본문 포함은 `inclusive`로 명시한다.
-- Markdown split: `--max-words`, `--max-words-coverage`.
+- Markdown split: 기본 `10,000`단어/`0.95` coverage이며 `--max-words`, `--max-words-coverage`로 override한다. `--set markdown.enabled=false`면 full tree graph를 사용한다.
+- PDF 적용 깊이: split의 `chosen_level` 이하 plan item만 PDF bookmark로 쓴다. full inference plan은 `bookmark_plan_full.json`, 실제 적용 plan은 `bookmark_plan.json`이다.
+- In-place: `--in-place`는 sibling temporary PDF를 검증한 뒤 입력 PDF를 atomic replace하고 `pdf_overwrite.json`에 전후 SHA-256을 기록한다.
 
 더 많은 설정은 `--set`으로 전달하고 `config explain`에서 key를 확인하라.
 기본 tree와 length-limited split은 모두 `toc.md`, `bookmark_plan.json`, `nodes/`, `markdown_manifest.json` graph를 만든다. split node는 선택된 level의 boundary만 export하되 원래 plan order 기반 `n####` identity와 source/confidence/evidence reference를 유지한다. run manifest의 `artifact_paths.markdown_manifest` 또는 `inspect plan` 결과를 먼저 읽으면 node 파일을 모두 열지 않고도 graph와 page coverage를 조사할 수 있다.
@@ -142,7 +145,7 @@ typography 추론을 실행한 run은 `bookmark_review_summary.json`과 `bookmar
 ```powershell
 uv run pdfbooktree apply <PDF> --plan <BOOKMARK_PLAN.json> `
   -o <OUTPUT_ROOT> [--config <CONFIG.toml>] [--set <KEY=VALUE>] `
-  [--flat-output] [--dry-run] [--format human|json]
+  [--flat-output] [--dry-run] [--in-place] [--format human|json]
 ```
 
 run manifest는 plan 경로와 SHA-256을 `plan_source`로 기록하고 생성된 graph manifest를 `artifact_paths.markdown_manifest`로 연결한다.
@@ -155,6 +158,7 @@ run manifest는 plan 경로와 SHA-256을 `plan_source`로 기록하고 생성�
 ```powershell
 uv run pdfbooktree batch <INPUT_DIR> -o <OUTPUT_ROOT> `
   [--recursive] [--config <CONFIG.toml>] [--set <KEY=VALUE>] `
+  [--in-place] `
   [--include-glob <PATTERN>] [--exclude-glob <PATTERN>] `
   [--log-mode auto|rich|plain|json|none] [--format human|json]
 ```
@@ -240,16 +244,26 @@ output root 아래 `pdfs/`, `artifacts/`, `ocr_overlay_batch_report.csv`, `ocr_o
 | `inspect bookmarks` | 기존 bookmark와 target page 확인 | `<PDF>` |
 | `inspect ocr` | OCR progress, cache, stats, 마지막 log 확인 | `<ARTIFACT_DIR>` |
 | `inspect plan` | plan/review summary, item evidence filter, Markdown validation·coverage | `<RUN_OR_OUTPUT_DIR> [--summary] [--items] [--limit N] [--item-id n####] [--page-range 100-120] [--level N] [--source SOURCE] [--attention-only]` |
-| `inspect compare` | 두 plan의 added/removed/moved/level/source 차이 | `<PLAN_A> <PLAN_B> [--page-tolerance 0] [--title-similarity-threshold 0.7]` |
+| `inspect markdown` | Markdown tree manifest의 verdict, finding, 재시도 후보 확인 | `<OUTPUT_DIR_OR_MANIFEST> [--limit N]` |
+| `inspect compare` | 두 plan의 added/removed/moved/level/source 차이 또는 두 Markdown manifest의 verdict/coverage 차이 | `<A> <B> [--page-tolerance 0] [--title-similarity-threshold 0.7]` |
+
+`inspect compare`는 두 입력을 각각 정확히 한 번만 읽어 그 JSON에 `nodes` key가 있는지로 bookmark plan인지 Markdown manifest인지 자동 판별한다(손상된 JSON은 그 자리에서 input 오류로 거부하고 plan 경로로 조용히 넘어가지 않는다). 둘 다 Markdown manifest면 `inspect_compare_markdown()`으로 verdict/coverage delta를 비교하고, 둘 다 plan이면 기존 plan diff를 수행한다. 한쪽만 Markdown manifest면 오류로 거부한다.
 
 ```powershell
 uv run pdfbooktree inspect ocr .\ocr-artifacts --format json
 uv run pdfbooktree inspect plan .\runs\<run-dir> --summary --format json
 uv run pdfbooktree inspect plan .\runs\<run-dir> --attention-only --limit 20 --format json
 uv run pdfbooktree inspect plan .\runs\<run-dir> --page-range 100-120 --source geometry_position_fallback --format json
+uv run pdfbooktree inspect markdown .\runs\<run-dir>\book_markdown_split --limit 20 --format json
 uv run pdfbooktree inspect compare .\plan-a.json .\plan-b.json `
   --page-tolerance 1 --title-similarity-threshold 0.8 --format json
+uv run pdfbooktree inspect compare `
+  .\runs\<run-dir>\book_markdown_split\markdown_manifest.json `
+  .\runs\<retry-run-dir>\book_markdown_split\markdown_manifest.json `
+  --format json
 ```
+
+`inspect markdown`의 `verdict`는 finding이 없으면 `ok`이고, 있으면 severity 순서(`invalid_graph`, `uncovered`, `duplicated`, `thin`, `over_split`, `fragmented`) 상 가장 먼저 오는 finding의 `code`다. `retry`의 각 항목은 `cause`, `overrides`, `command`, `command_argv`, 실측 근거를 담은 `reason`을 제공하며 항상 보장이 아닌 후보다. `command`는 사람이 읽는 문자열이고 POSIX single-quoting(`shlex.quote`)을 써서 bash/zsh와 PowerShell에서는 그대로 실행할 수 있지만 cmd.exe는 작은따옴표를 quoting으로 취급하지 않아 공백/괄호가 섞인 경로에서 그대로 실행하면 실패할 수 있다. shell 없이(subprocess argv로) 실행하거나 cmd.exe에서 실행해야 한다면 quoting이 필요 없는 `command_argv`(문자열 list, override가 없으면 `None`)를 써라.
 
 ## Config 명령
 

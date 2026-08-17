@@ -5,8 +5,10 @@ from __future__ import annotations
 from pathlib import Path
 
 import fitz
+import pytest
 
 from pdfbooktree.config import OutlineQualityConfig, ProcessingConfig
+from pdfbooktree.models import ExistingOutlineItem
 from pdfbooktree.pipeline import resolve_existing_outline_action
 
 PAGE_WIDTH = 595.0
@@ -37,6 +39,8 @@ def test_resolve_existing_outline_action_no_outline_runs_inference(
     assert decision.existing_outline == []
     assert decision.quality is None
     assert decision.reuse_existing is False
+    assert decision.structure_validation is None
+    assert decision.reuse_rejected_reason is None
 
 
 def test_resolve_existing_outline_action_good_quality_reuses_existing(
@@ -51,6 +55,9 @@ def test_resolve_existing_outline_action_good_quality_reuses_existing(
     assert decision.reuse_existing is True
     assert decision.quality is not None
     assert decision.quality.is_low_quality is False
+    assert decision.structure_validation is not None
+    assert decision.structure_validation.valid is True
+    assert decision.reuse_rejected_reason is None
 
 
 def test_resolve_existing_outline_action_low_quality_still_reused_by_default(
@@ -66,6 +73,64 @@ def test_resolve_existing_outline_action_low_quality_still_reused_by_default(
     assert decision.quality is not None
     assert decision.quality.is_low_quality is True
     assert "too_few_items" in decision.quality.reasons
+    assert decision.reuse_rejected_reason is None
+
+
+@pytest.mark.parametrize(
+    ("existing_outline", "total_pages"),
+    [
+        (
+            [
+                ExistingOutlineItem(1, "Part 1", 1, 1),
+                ExistingOutlineItem(2, "Part 2", 1, 481),
+                ExistingOutlineItem(3, "Appendix", 1, 6),
+            ],
+            800,
+        ),
+        (
+            [
+                ExistingOutlineItem(1, "Part 1", 1, 1),
+                ExistingOutlineItem(2, "Part 2", 1, 701),
+                ExistingOutlineItem(3, "Part 3", 1, 656),
+            ],
+            800,
+        ),
+        (
+            [
+                ExistingOutlineItem(1, "Part 1", 1, 1),
+                ExistingOutlineItem(2, "Section 1.1", 3, 2),
+            ],
+            200,
+        ),
+        (
+            [
+                ExistingOutlineItem(1, "Part 1", 1, 1),
+                ExistingOutlineItem(2, "Part 2", 1, 201),
+            ],
+            200,
+        ),
+    ],
+)
+def test_resolve_existing_outline_action_invalid_structure_runs_inference(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    existing_outline: list[ExistingOutlineItem],
+    total_pages: int,
+) -> None:
+    pdf = tmp_path / "book.pdf"
+    monkeypatch.setattr("pdfbooktree.pipeline.read_outline", lambda _: existing_outline)
+    config = ProcessingConfig(
+        skip_existing_bookmarks=True,
+        outline_quality=OutlineQualityConfig(replace_when_low_quality=False),
+    )
+
+    decision = resolve_existing_outline_action(pdf, total_pages, config)
+
+    assert decision.reuse_existing is False
+    assert decision.quality is not None
+    assert decision.structure_validation is not None
+    assert decision.structure_validation.valid is False
+    assert decision.reuse_rejected_reason == "invalid_structure"
 
 
 def test_resolve_existing_outline_action_replace_when_low_quality_enabled(
@@ -83,6 +148,9 @@ def test_resolve_existing_outline_action_replace_when_low_quality_enabled(
     assert decision.reuse_existing is False
     assert decision.quality is not None
     assert decision.quality.is_low_quality is True
+    assert decision.structure_validation is not None
+    assert decision.structure_validation.valid is True
+    assert decision.reuse_rejected_reason == "low_quality_replace"
 
 
 def test_resolve_existing_outline_action_skip_existing_bookmarks_false_ignores_quality(
@@ -98,3 +166,6 @@ def test_resolve_existing_outline_action_skip_existing_bookmarks_false_ignores_q
     assert decision.reuse_existing is False
     assert decision.quality is not None
     assert decision.quality.is_low_quality is False
+    assert decision.structure_validation is not None
+    assert decision.structure_validation.valid is True
+    assert decision.reuse_rejected_reason == "skip_existing_bookmarks_disabled"

@@ -43,6 +43,7 @@ class BatchRunSummary:
     skipped_existing_bookmark_count: int
     failed_count: int
     bookmark_reference_candidate_count: int
+    overwritten_pdf_count: int = 0
 
 
 @dataclass(frozen=True)
@@ -211,6 +212,7 @@ def _summary(result: BatchResult) -> BatchRunSummary:
         skipped_existing_bookmark_count=result.skipped_existing_bookmark_count,
         failed_count=result.failed_count,
         bookmark_reference_candidate_count=result.bookmark_reference_candidate_count,
+        overwritten_pdf_count=result.overwritten_pdf_count,
     )
 
 

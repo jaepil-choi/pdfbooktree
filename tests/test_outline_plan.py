@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import pytest
+
 from pdfbooktree.models import BookmarkPlanItem
-from pdfbooktree.outline.plan import insert_position_fallback
+from pdfbooktree.outline.plan import insert_position_fallback, normalize_bookmark_plan
 from pdfbooktree.outline.tree import build_outline_tree
+from pdfbooktree.outline.validate import validate_bookmark_plan
 from pdfbooktree.typography.position_fallback import PositionFallbackCandidate
 
 
@@ -28,6 +31,92 @@ def _candidate(
         confidence=0.6,
         evidence=("repeated_body_tier_position",),
     )
+
+
+@pytest.mark.parametrize(
+    ("raw_levels", "expected_levels"),
+    [
+        ([1, 5, 5], [1, 2, 2]),
+        ([2, 4], [1, 2]),
+        ([3, 5], [1, 2]),
+        ([4, 6], [1, 2]),
+        ([5, 7], [1, 2]),
+        ([1, 4, 6, 4, 1], [1, 2, 3, 2, 1]),
+    ],
+)
+def test_normalize_bookmark_plan_makes_raw_tier_hierarchy_contiguous(
+    raw_levels: list[int], expected_levels: list[int]
+) -> None:
+    plan = [
+        _plan_item(f"Heading {index}", level, index)
+        for index, level in enumerate(raw_levels, start=1)
+    ]
+
+    normalized = normalize_bookmark_plan(plan)
+
+    assert [item.level for item in normalized] == expected_levels
+    assert validate_bookmark_plan(normalized, total_pages=len(plan)).valid
+
+
+def test_normalize_bookmark_plan_preserves_siblings_ancestors_and_metadata() -> None:
+    plan = [
+        BookmarkPlanItem(
+            title="  Book  ",
+            level=1,
+            pdf_page=1,
+            source="first",
+            confidence=0.1,
+            evidence=["book"],
+        ),
+        BookmarkPlanItem(
+            title="  Chapter A  ",
+            level=4,
+            pdf_page=2,
+            source="second",
+            confidence=0.2,
+            evidence=["chapter-a"],
+        ),
+        BookmarkPlanItem(
+            title="Section A.1",
+            level=6,
+            pdf_page=3,
+            source="third",
+            confidence=0.3,
+            evidence=["section"],
+        ),
+        BookmarkPlanItem(
+            title="Chapter B",
+            level=4,
+            pdf_page=4,
+            source="fourth",
+            confidence=0.4,
+            evidence=["chapter-b"],
+        ),
+        BookmarkPlanItem(
+            title="Appendix",
+            level=1,
+            pdf_page=5,
+            source="fifth",
+            confidence=0.5,
+            evidence=["appendix"],
+        ),
+    ]
+
+    normalized = normalize_bookmark_plan(plan)
+
+    assert [item.level for item in normalized] == [1, 2, 3, 2, 1]
+    assert [item.title for item in normalized] == [
+        "Book",
+        "Chapter A",
+        "Section A.1",
+        "Chapter B",
+        "Appendix",
+    ]
+    assert [
+        (item.pdf_page, item.source, item.confidence, item.evidence)
+        for item in normalized
+    ] == [(item.pdf_page, item.source, item.confidence, item.evidence) for item in plan]
+    assert validate_bookmark_plan(normalized, total_pages=5).valid
 
 
 def test_insert_position_fallback_places_candidate_as_child_of_deepest_parent() -> None:

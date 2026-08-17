@@ -35,6 +35,21 @@ def write_jsonl_artifact(output_dir: Path, name: str, rows: list[Any]) -> Path:
     return path
 
 
+def _markdown_manifest_exists(output_dir: Path) -> bool:
+    """이 run directory 안에 이미 만들어진 Markdown manifest가 있는지 확인한다.
+
+    ``write_inference_artifacts()``는 bookmarked PDF/Markdown을 직접 만들지
+    않지만, 같은 run directory 아래 tree(``*_markdown/``) 또는
+    split(``*_markdown_split/``) export가 먼저 끝났다면 그 manifest가 이미
+    존재할 수 있다. 파일 존재만 직접 확인하고, 없으면 아직 사용할 수 없는
+    것으로 취급한다.
+    """
+
+    if not output_dir.is_dir():
+        return False
+    return any(output_dir.glob("*_markdown*/markdown_manifest.json"))
+
+
 def write_inference_artifacts(
     output_dir: Path,
     inference: BookmarkInferenceResult,
@@ -43,11 +58,16 @@ def write_inference_artifacts(
     input_pdf: Path | None = None,
     total_pages: int | None = None,
     existing_outline: list[ExistingOutlineItem] | None = None,
+    reuse_rejected_reason: str | None = None,
 ) -> dict[str, Path]:
     """``infer_bookmarks()`` 결과와 review 근거 artifact를 저장한다.
 
     ``Processor``와 ``infer`` CLI가 같은 artifact 이름/파일로 저장하도록
     이 함수를 공유한다. bookmarked PDF/Markdown은 여기서 만들지 않는다.
+    ``markdown_manifest_available``은 이 호출 시점의 ``output_dir``에
+    Markdown manifest가 실제로 존재하는지를 직접 확인해 넘긴다 - 호출
+    순서와 무관하게 review summary의 ``next_commands``가 실제로 실행
+    가능한 명령만 담게 한다.
     """
 
     artifacts = {
@@ -89,6 +109,8 @@ def write_inference_artifacts(
         total_pages=total_pages,
         quality=quality,
         existing_outline_plan_available="existing_outline_plan" in artifacts,
+        markdown_manifest_available=_markdown_manifest_exists(output_dir),
+        reuse_rejected_reason=reuse_rejected_reason,
     )
     artifacts["bookmark_review_summary"] = write_artifact(
         output_dir,

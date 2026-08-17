@@ -45,7 +45,6 @@ def _tiers() -> TierSet:
             Tier(tier=2, lower_bound=None, upper_bound=15.0, peak=10.0, count=3),
         ],
         raw_tier_count=2,
-        gap_merged_tier_count=2,
         final_tier_count=2,
     )
 
@@ -110,7 +109,7 @@ def test_tier_set_keeps_close_frequent_peaks_for_body_separator() -> None:
     tiers = compute_tier_set(
         lines,
         "font_size",
-        TypographyConfig(min_tier_count=1, min_tier_gap=2.0),
+        TypographyConfig(min_tier_count=1),
     )
 
     assert tiers.final_tier_count == 2

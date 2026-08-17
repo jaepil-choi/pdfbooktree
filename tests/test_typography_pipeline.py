@@ -13,10 +13,50 @@ from pdfbooktree.processor import Processor
 from pdfbooktree.typography.headings import extract_heading_candidates
 from pdfbooktree.typography.lines import extract_typography_lines
 from pdfbooktree.typography.margins import exclude_margin_artifacts
-from pdfbooktree.typography.tiers import assign_tier, compute_tier_set
+from pdfbooktree.typography.tiers import (
+    _build_tiers,
+    _cluster_by_density,
+    assign_tier,
+    compute_tier_set,
+)
 
 PAGE_WIDTH = 595.0
 PAGE_HEIGHT = 842.0
+
+
+def _계층_불변식을_검증한다(
+    values: list[float], peaks: list[float], cuts: list[float]
+) -> None:
+    tiers = _build_tiers(values, peaks, cuts)
+
+    assert len(tiers) == len(cuts) + 1
+    assert [tier.tier for tier in tiers] == list(range(1, len(tiers) + 1))
+    assert sum(tier.count for tier in tiers) == len(values)
+    assert [tier.lower_bound for tier in tiers[:-1]] == sorted(cuts, reverse=True)
+    assert [tier.upper_bound for tier in tiers[1:]] == sorted(cuts, reverse=True)
+    assert tiers[0].upper_bound is None
+    assert tiers[-1].lower_bound is None
+    assert all(assign_tier(tier.peak, cuts) == tier.tier for tier in tiers)
+
+
+def test_평평한_밀도_골짜기에서도_모든_절단점을_만든다() -> None:
+    # 큰 본문 군집과 드문 큰 글씨 군집 사이의 언더플로 평탄 구간은 기존 엄격한
+    # 골짜기 검출기가 최소점을 고르지 못하는 배열이다.
+    values = [0.0] * 5000 + [float(value) for value in range(100, 109)]
+
+    peaks, cuts = _cluster_by_density(values)
+
+    assert len(peaks) > 1
+    assert len(cuts) == len(peaks) - 1
+    _계층_불변식을_검증한다(values, peaks, cuts)
+
+
+def test_봉우리보다_절단점이_부족해도_실제_절단점_기준_계층을_구성한다() -> None:
+    values = [5.0, 11.0, 19.0, 21.0, 30.0]
+    peaks = [30.0, 22.0, 18.0, 12.0]
+    cuts = [10.0, 20.0]
+
+    _계층_불변식을_검증한다(values, peaks, cuts)
 
 
 def _make_book_pdf(path: Path) -> None:
@@ -267,7 +307,7 @@ def test_processor_rescues_body_tier_chapter_marker_via_position_fallback(
     ).run()
 
     assert result.status == "processed"
-    plan = json.loads((output_dir / "bookmark_plan.json").read_text("utf-8"))
+    plan = json.loads((output_dir / "bookmark_plan_full.json").read_text("utf-8"))
     titles = {item["title"] for item in plan}
     chapter_titles = {f"Chapter {page}" for page in range(1, 8)}
     assert chapter_titles <= titles

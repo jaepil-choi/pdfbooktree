@@ -69,8 +69,8 @@ def _inference(
             _line(1, "Body text", 120.0),
             _line(2, "123", 100.0),
         ],
-        font_tiers=TierSet("font_size", [], [], 0, 0, 0),
-        height_tiers=TierSet("height", [], [], 0, 0, 0),
+        font_tiers=TierSet("font_size", [], [], 0, 0),
+        height_tiers=TierSet("height", [], [], 0, 0),
         heading_candidates=[
             heading,
             *(
@@ -206,3 +206,58 @@ def test_write_inference_artifacts_writes_review_paths(tmp_path: Path) -> None:
     assert summary["plan_item_count"] == 2
     assert len(rows) == 2
     assert rows[1]["node_id"] == "n0002"
+
+
+def test_build_bookmark_review_surfaces_reuse_rejected_reason() -> None:
+    summary, _items = build_bookmark_review(
+        _inference(),
+        reuse_rejected_reason="invalid_structure",
+    )
+
+    assert summary["existing_outline"]["reuse_rejected_reason"] == "invalid_structure"
+
+
+def test_build_bookmark_review_reuse_rejected_reason_defaults_to_none() -> None:
+    summary, _items = build_bookmark_review(_inference())
+
+    assert summary["existing_outline"]["reuse_rejected_reason"] is None
+
+
+def test_build_bookmark_review_next_commands_include_markdown_only_when_available() -> (
+    None
+):
+    without_markdown, _ = build_bookmark_review(
+        _inference(), input_pdf=Path("book.pdf")
+    )
+    with_markdown, _ = build_bookmark_review(
+        _inference(),
+        input_pdf=Path("book.pdf"),
+        markdown_manifest_available=True,
+    )
+
+    assert not any(
+        "inspect markdown" in command for command in without_markdown["next_commands"]
+    )
+    assert any(
+        "inspect markdown" in command for command in with_markdown["next_commands"]
+    )
+
+
+def test_write_inference_artifacts_detects_existing_markdown_manifest(
+    tmp_path: Path,
+) -> None:
+    manifest_dir = tmp_path / "book_markdown_split"
+    manifest_dir.mkdir()
+    (manifest_dir / "markdown_manifest.json").write_text("{}", encoding="utf-8")
+
+    artifacts = write_inference_artifacts(
+        tmp_path,
+        _inference(),
+        input_pdf=Path("book.pdf"),
+        total_pages=3,
+    )
+
+    summary = json.loads(
+        artifacts["bookmark_review_summary"].read_text(encoding="utf-8")
+    )
+    assert any("inspect markdown" in command for command in summary["next_commands"])

@@ -23,6 +23,8 @@ from pdfbooktree.pipeline import (
     analyze_pdf,
     apply_plan,
     confidence_summary_for_inference,
+    existing_outline_check_message,
+    existing_outline_replacement_warnings,
     infer_bookmarks,
     resolve_existing_outline_action,
 )
@@ -44,11 +46,14 @@ class Processor:
         output_dir: Path | str,
         config: ProcessingConfig | None = None,
         log: ProcessingLogger | None = None,
+        *,
+        in_place: bool = False,
     ) -> None:
         self.input_pdf = Path(input_pdf)
         self.output_dir = Path(output_dir)
         self.config = config or ProcessingConfig()
         self.log = log or NullProcessingLogger()
+        self.in_place = in_place
         self._started_at = 0.0
         self._total_pages = 0
 
@@ -85,7 +90,7 @@ class Processor:
         )
         self._emit(
             "existing_outline_check_completed",
-            f"기존 outline 확인 완료: items={len(decision.existing_outline)}",
+            existing_outline_check_message(decision),
         )
         if decision.reuse_existing:
             return self._export_existing_outline(
@@ -112,11 +117,20 @@ class Processor:
             analysis.total_pages,
             decision.quality,
             decision.existing_outline,
+            decision.reuse_rejected_reason,
         )
         if "bookmark_plan" not in artifacts:
             artifacts["bookmark_plan"] = write_artifact(
                 self.output_dir, "bookmark_plan", inference.plan
             )
+        artifacts["bookmark_plan_full"] = write_artifact(
+            self.output_dir, "bookmark_plan_full", inference.plan
+        )
+        artifacts["bookmark_plan_full_validation"] = write_artifact(
+            self.output_dir,
+            "bookmark_plan_full_validation",
+            inference.validation,
+        )
         self._emit(
             "artifacts_written",
             f"추론 artifact 기록 완료: count={len(artifacts)}",
@@ -124,11 +138,7 @@ class Processor:
             bookmark_count=len(inference.plan),
         )
         warnings = list(inference.validation.warnings)
-        if decision.quality is not None and decision.quality.is_low_quality:
-            warnings.append(
-                "기존 outline이 low quality로 판정돼 typography 추론 결과로 "
-                f"교체했다: reasons={decision.quality.reasons}"
-            )
+        warnings.extend(existing_outline_replacement_warnings(decision))
         apply_result = None
         status = "failed"
         if inference.validation.valid:
@@ -145,13 +155,36 @@ class Processor:
                 analysis.total_pages,
                 self.config.markdown_split,
                 self.config.markdown_content_mode,
+                in_place=self.in_place,
             )
-            status = "processed"
+            artifacts["bookmark_plan"] = write_artifact(
+                self.output_dir,
+                "bookmark_plan",
+                apply_result.applied_plan,
+            )
+            artifacts["bookmark_plan_validation"] = write_artifact(
+                self.output_dir,
+                "bookmark_plan_validation",
+                apply_result.validation,
+            )
+            if apply_result.in_place:
+                artifacts["pdf_overwrite"] = write_artifact(
+                    self.output_dir,
+                    "pdf_overwrite",
+                    {
+                        "input_pdf": self.input_pdf.resolve(),
+                        "original_sha256": apply_result.original_pdf_sha256,
+                        "final_sha256": apply_result.final_pdf_sha256,
+                        "atomic_replace": True,
+                    },
+                )
+            status = "processed" if apply_result.validation.valid else "failed"
+            warnings.extend(apply_result.validation.warnings)
             self._emit(
                 "apply_completed",
                 "bookmark PDF와 Markdown 생성 완료",
                 completed_pages=total_pages,
-                bookmark_count=len(inference.plan),
+                bookmark_count=len(apply_result.applied_plan),
             )
             if (
                 apply_result.markdown_export is not None
@@ -169,7 +202,9 @@ class Processor:
                 apply_result.output_markdown_dir if apply_result else None
             ),
             markdown_export=apply_result.markdown_export if apply_result else None,
-            bookmark_count=len(inference.plan),
+            bookmark_count=(
+                len(apply_result.applied_plan) if apply_result is not None else 0
+            ),
             confidence_summary=confidence_summary_for_inference(inference),
             warnings=warnings,
             artifact_paths=artifacts,
@@ -198,7 +233,10 @@ class Processor:
             completed_pages=total_pages,
             bookmark_count=len(plan),
         )
-        if self.config.markdown_split is not None:
+        if (
+            self.config.markdown_split is not None
+            and self.config.markdown_split.enabled
+        ):
             markdown_export = export_markdown_split(
                 self.input_pdf,
                 self.output_dir,
@@ -253,6 +291,7 @@ class Processor:
         total_pages: int,
         quality: OutlineQualityAssessment | None = None,
         existing_outline: list[ExistingOutlineItem] | None = None,
+        reuse_rejected_reason: str | None = None,
     ) -> dict[str, Path]:
         if not self.config.write_artifacts:
             return {}
@@ -263,6 +302,7 @@ class Processor:
             input_pdf=self.input_pdf,
             total_pages=total_pages,
             existing_outline=existing_outline,
+            reuse_rejected_reason=reuse_rejected_reason,
         )
 
     def _write_existing_artifacts(

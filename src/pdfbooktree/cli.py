@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
-from typing import cast
+from typing import Any, cast
 
 import fitz
 import typer
@@ -42,7 +43,9 @@ from pdfbooktree.config_io import (
 )
 from pdfbooktree.inspection import (
     inspect_bookmarks,
+    inspect_compare_markdown,
     inspect_compare_plans,
+    inspect_markdown_tree,
     inspect_ocr_artifact,
     inspect_page_count,
     inspect_plan_artifact,
@@ -799,24 +802,18 @@ def inspect_plan_cmd(
     emit_command_result("inspect.plan", result, output_format=resolved_output_format)
 
 
-@inspect_app.command("compare")
-def inspect_compare_cmd(
-    plan_a: Path = typer.Argument(
-        ..., help="비교 기준(before) bookmark plan JSON이다."
+@inspect_app.command("markdown")
+def inspect_markdown_cmd(
+    target: Path = typer.Argument(
+        ...,
+        help="process output directory 또는 markdown_manifest.json 경로다.",
     ),
-    plan_b: Path = typer.Argument(..., help="비교 대상(after) bookmark plan JSON이다."),
-    page_tolerance: int = typer.Option(
-        0,
-        "--page-tolerance",
-        min=0,
-        help="같은 항목으로 볼 page 오차 허용치다.",
-    ),
-    title_similarity_threshold: float = typer.Option(
-        0.7,
-        "--title-similarity-threshold",
-        min=0.0,
-        max=1.0,
-        help="같은 항목으로 볼 title 유사도 최소값이다.",
+    limit: int = typer.Option(
+        20,
+        "--limit",
+        min=1,
+        max=1000,
+        help="title fragment sample 최대 개수다.",
     ),
     output_format: str = typer.Option(
         "human", "--format", help="출력 형식이다: human, json."
@@ -828,16 +825,126 @@ def inspect_compare_cmd(
         False, "--debug", help="예상하지 못한 오류의 traceback을 그대로 노출한다."
     ),
 ) -> None:
-    """두 bookmark plan JSON을 added/removed/moved/level/source로 비교한다."""
+    """Markdown tree manifest의 verdict, finding, 재시도 후보를 확인한다."""
 
     resolved_output_format = _inspection_output_format(output_format, as_json=as_json)
     try:
-        result = inspect_compare_plans(
-            plan_a,
-            plan_b,
-            page_tolerance=page_tolerance,
-            title_similarity_threshold=title_similarity_threshold,
+        result = inspect_markdown_tree(target, limit=limit)
+    except (FileNotFoundError, ValueError) as error:
+        _exit_stage_input_error(
+            "inspect.markdown",
+            error,
+            code="invalid_input",
+            output_format=resolved_output_format,
         )
+    except Exception as error:
+        _exit_stage_runtime_error(
+            "inspect.markdown",
+            error,
+            output_format=resolved_output_format,
+            debug=debug,
+        )
+    if resolved_output_format == "human":
+        result = _render_markdown_tree_human(result)
+    emit_command_result(
+        "inspect.markdown", result, output_format=resolved_output_format
+    )
+
+
+def _render_markdown_tree_human(result: dict[str, Any]) -> str:
+    """verdict, finding, 재시도 command가 한눈에 보이는 human 요약을 만든다."""
+
+    lines = [
+        f"verdict: {result['verdict']}",
+        f"manifest: {result['manifest_path']}",
+        (
+            f"graph: export_mode={result['graph']['export_mode']}, "
+            f"node_count={result['graph']['node_count']}, "
+            f"chosen_level={result['graph']['chosen_level']}"
+        ),
+        (
+            f"coverage: unassigned_ratio={result['coverage']['unassigned_ratio']}, "
+            f"duplicated_page_count={result['coverage']['duplicated_page_count']}"
+        ),
+        f"titles: fragment_ratio={result['titles']['fragment_ratio']}",
+    ]
+    if not result["findings"]:
+        lines.append("findings: 없음")
+    else:
+        lines.append("findings:")
+        for finding in result["findings"]:
+            lines.append(
+                f"  - [{finding['severity']}] {finding['code']} "
+                f"(cause={finding['cause']}): {finding['detail']}"
+            )
+    if not result["retry"]:
+        lines.append("retry: 없음")
+    else:
+        lines.append("retry:")
+        for candidate in result["retry"]:
+            lines.append(f"  - cause={candidate['cause']}")
+            lines.append(f"    command: {candidate['command']}")
+            lines.append(f"    reason: {candidate['reason']}")
+    if result["warnings"]:
+        lines.append("warnings:")
+        for warning in result["warnings"]:
+            lines.append(f"  - {warning}")
+    return "\n".join(lines)
+
+
+@inspect_app.command("compare")
+def inspect_compare_cmd(
+    plan_a: Path = typer.Argument(
+        ..., help="비교 기준(before) bookmark plan JSON 또는 markdown manifest다."
+    ),
+    plan_b: Path = typer.Argument(
+        ..., help="비교 대상(after) bookmark plan JSON 또는 markdown manifest다."
+    ),
+    page_tolerance: int = typer.Option(
+        0,
+        "--page-tolerance",
+        min=0,
+        help="같은 항목으로 볼 page 오차 허용치다. plan 비교에만 적용한다.",
+    ),
+    title_similarity_threshold: float = typer.Option(
+        0.7,
+        "--title-similarity-threshold",
+        min=0.0,
+        max=1.0,
+        help="같은 항목으로 볼 title 유사도 최소값이다. plan 비교에만 적용한다.",
+    ),
+    output_format: str = typer.Option(
+        "human", "--format", help="출력 형식이다: human, json."
+    ),
+    as_json: bool = typer.Option(
+        False, "--json", help="호환 alias다. --format json과 같다."
+    ),
+    debug: bool = typer.Option(
+        False, "--debug", help="예상하지 못한 오류의 traceback을 그대로 노출한다."
+    ),
+) -> None:
+    """두 JSON을 자동 판별해 bookmark plan diff 또는 Markdown manifest 비교를 한다."""
+
+    resolved_output_format = _inspection_output_format(output_format, as_json=as_json)
+    try:
+        value_a = _read_compare_input(plan_a)
+        value_b = _read_compare_input(plan_b)
+        is_a_markdown = _is_markdown_manifest_value(value_a)
+        is_b_markdown = _is_markdown_manifest_value(value_b)
+        if is_a_markdown or is_b_markdown:
+            if not (is_a_markdown and is_b_markdown):
+                raise ValueError(
+                    "한쪽만 Markdown manifest(nodes 포함)다: "
+                    f"plan_a={plan_a}, plan_b={plan_b}"
+                )
+            result = inspect_compare_markdown(plan_a, plan_b)
+        else:
+            result = inspect_compare_plans(
+                plan_a,
+                plan_b,
+                page_tolerance=page_tolerance,
+                title_similarity_threshold=title_similarity_threshold,
+            )
     except (FileNotFoundError, ValueError) as error:
         _exit_stage_input_error(
             "inspect.compare",
@@ -853,6 +960,42 @@ def inspect_compare_cmd(
             debug=debug,
         )
     emit_command_result("inspect.compare", result, output_format=resolved_output_format)
+
+
+def _read_compare_input(path: Path) -> object:
+    """compare dispatch가 판별에 쓸 raw JSON 값을 파일당 정확히 한 번 읽는다.
+
+    이 값은 markdown/plan 판별에만 쓰고, 실제 비교는
+    ``inspect_compare_markdown()``/``inspect_compare_plans()``가 각자의 loader로
+    다시 읽는다. 손상된 JSON은 여기서 바로 input 오류로 보고하고, plan 경로로
+    조용히 넘어가 다른 오류 메시지를 내지 않는다.
+    """
+
+    if not path.is_file():
+        raise FileNotFoundError(f"비교 입력 파일이 없다: {path}")
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as error:
+        raise ValueError(
+            f"비교 입력 파일을 읽지 못했다: path={path}, reason={error}"
+        ) from error
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError as error:
+        raise ValueError(
+            f"비교 입력 파일이 유효한 JSON이 아니다: path={path}, reason={error}"
+        ) from error
+
+
+def _is_markdown_manifest_value(value: object) -> bool:
+    """markdown manifest 판별 predicate다.
+
+    ``_load_markdown_manifest_for_compare()``가 실제로 강제하는 조건(nodes
+    유무)과 정확히 같은 조건을 써서, 판별과 실제 loader가 서로 다른 파일을
+    다르게 분류하지 않게 한다.
+    """
+
+    return isinstance(value, dict) and "nodes" in value
 
 
 def _coerce_engine_option_value(value: str) -> object:
@@ -1242,6 +1385,11 @@ def process(
         "--flat-output",
         help="호환을 위해 immutable run directory 없이 기존 flat output을 사용한다.",
     ),
+    in_place: bool = typer.Option(
+        False,
+        "--in-place",
+        help="별도 bookmarked PDF를 만들지 않고 입력 PDF를 atomic 교체한다.",
+    ),
     skip_existing_bookmarks: bool = typer.Option(
         True,
         "--skip-existing-bookmarks/--no-skip-existing-bookmarks",
@@ -1395,7 +1543,14 @@ def process(
             "process", log_mode, output_format=resolved_output_format
         )
         try:
-            result = Processor(pdf, output_dir, resolved.config, log=logger).run()
+            processor_kwargs = {"in_place": True} if in_place else {}
+            result = Processor(
+                pdf,
+                output_dir,
+                resolved.config,
+                log=logger,
+                **processor_kwargs,
+            ).run()
         except Exception as error:
             _exit_stage_runtime_error(
                 "process",
@@ -1415,7 +1570,13 @@ def process(
         "process", log_mode, output_format=resolved_output_format
     )
     try:
-        workflow = process_pdf(pdf, output_dir, resolved, log=logger)
+        workflow = process_pdf(
+            pdf,
+            output_dir,
+            resolved,
+            log=logger,
+            in_place=in_place,
+        )
     except RunError as error:
         _exit_stage_input_error(
             "process",
@@ -1570,10 +1731,18 @@ def _run_apply(
     output_dir: Path,
     plan: list[BookmarkPlanItem],
     config: ProcessingConfig,
+    *,
+    in_place: bool = False,
 ) -> ProcessingResult:
     """검증된 plan으로 bookmarked PDF/Markdown만 만든다. typography 추론은 하지 않는다."""
 
-    return apply_plan_to_directory(pdf, output_dir, plan, config)
+    return apply_plan_to_directory(
+        pdf,
+        output_dir,
+        plan,
+        config,
+        in_place=in_place,
+    )
 
 
 @app.command()
@@ -1604,6 +1773,11 @@ def apply(
         False,
         "--dry-run",
         help="plan과 PDF page 범위만 검증하고 run directory나 산출물을 만들지 않는다.",
+    ),
+    in_place: bool = typer.Option(
+        False,
+        "--in-place",
+        help="별도 bookmarked PDF를 만들지 않고 입력 PDF를 atomic 교체한다.",
     ),
     output_format: str = typer.Option(
         "human", "--format", help="final result 출력 형식이다: human, json."
@@ -1640,7 +1814,13 @@ def apply(
 
     if dry_run:
         try:
-            preview = preview_apply_plan(pdf, plan_path, output_dir, resolved)
+            preview = preview_apply_plan(
+                pdf,
+                plan_path,
+                output_dir,
+                resolved,
+                in_place=in_place,
+            )
         except (PlanError, RunError, FileNotFoundError) as error:
             _exit_stage_input_error(
                 "apply",
@@ -1684,7 +1864,13 @@ def apply(
             output_format=resolved_output_format,
         )
         try:
-            result = _run_apply(pdf, output_dir, plan, resolved.config)
+            result = _run_apply(
+                pdf,
+                output_dir,
+                plan,
+                resolved.config,
+                in_place=in_place,
+            )
         except Exception as error:
             _exit_stage_runtime_error(
                 "apply",
@@ -1701,7 +1887,13 @@ def apply(
         return
 
     try:
-        workflow = apply_plan_file(pdf, plan_path, output_dir, resolved)
+        workflow = apply_plan_file(
+            pdf,
+            plan_path,
+            output_dir,
+            resolved,
+            in_place=in_place,
+        )
     except (PlanError, RunError) as error:
         _exit_stage_input_error(
             "apply",
@@ -1758,6 +1950,11 @@ def batch(
         "--set",
         help="최종 config override다. dotted.key=value 형식으로 여러 번 줄 수 있다.",
     ),
+    in_place: bool = typer.Option(
+        False,
+        "--in-place",
+        help="각 입력 PDF를 검증된 temporary PDF로 atomic 교체한다.",
+    ),
     log_mode: str = typer.Option(
         "auto",
         "--log-mode",
@@ -1800,6 +1997,7 @@ def batch(
         )
     try:
         batch_logger = build_batch_logger(cast(BatchLogMode, resolved_log_mode))
+        batch_kwargs = {"in_place": True} if in_place else {}
         result = BatchProcessor(
             input_dir,
             output_dir,
@@ -1808,6 +2006,7 @@ def batch(
             include_globs=tuple(include_glob),
             exclude_globs=tuple(exclude_glob),
             log=batch_logger,
+            **batch_kwargs,
         ).run()
     except (
         FileExistsError,

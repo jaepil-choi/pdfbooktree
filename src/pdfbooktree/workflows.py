@@ -12,7 +12,10 @@ import fitz
 from pdfbooktree.artifacts import write_artifact, write_inference_artifacts
 from pdfbooktree.config import ProcessingConfig
 from pdfbooktree.config_io import ResolvedConfig, resolve_config_input
-from pdfbooktree.export.markdown import plan_markdown_dir_path
+from pdfbooktree.export.markdown import (
+    plan_markdown_dir_path,
+    plan_markdown_split_dir_path,
+)
 from pdfbooktree.export.pdf import plan_bookmarked_pdf_path
 from pdfbooktree.models import (
     BookmarkPlanValidation,
@@ -27,6 +30,8 @@ from pdfbooktree.pipeline import (
     analyze_pdf,
     apply_plan,
     confidence_summary_for_inference,
+    existing_outline_check_message,
+    existing_outline_replacement_warnings,
     infer_bookmarks,
     resolve_existing_outline_action,
     validate_plan,
@@ -82,6 +87,8 @@ def process_pdf(
     output_root: Path | str,
     config: ProcessingConfig | ResolvedConfig | None = None,
     log: ProcessingLogger | None = None,
+    *,
+    in_place: bool = False,
 ) -> ProcessingRunResult:
     """단일 PDF를 immutable run에서 끝까지 처리한다."""
 
@@ -94,11 +101,13 @@ def process_pdf(
     )
     run.start()
     try:
+        processor_kwargs = {"in_place": True} if in_place else {}
         result = Processor(
             input_pdf,
             run.run_dir,
             resolved.config,
             log=log,
+            **processor_kwargs,
         ).run()
         manifest = run.complete(result)
     except Exception as error:
@@ -142,6 +151,8 @@ def preview_apply_plan(
     plan_path: Path | str,
     output_root: Path | str,
     config: ProcessingConfig | ResolvedConfig | None = None,
+    *,
+    in_place: bool = False,
 ) -> ApplyPreview:
     """외부 plan의 구조와 예상 output을 파일 생성 없이 확인한다."""
 
@@ -163,8 +174,17 @@ def preview_apply_plan(
         total_pages=total_pages,
         bookmark_count=len(plan),
         validation=validation,
-        planned_output_pdf=plan_bookmarked_pdf_path(pdf, output_dir),
-        planned_output_markdown_dir=plan_markdown_dir_path(pdf, output_dir),
+        planned_output_pdf=(
+            pdf if in_place else plan_bookmarked_pdf_path(pdf, output_dir)
+        ),
+        planned_output_markdown_dir=(
+            plan_markdown_split_dir_path(pdf, output_dir)
+            if (
+                resolved.config.markdown_split is not None
+                and resolved.config.markdown_split.enabled
+            )
+            else plan_markdown_dir_path(pdf, output_dir)
+        ),
         config_hash=resolved.config_hash,
     )
 
@@ -174,6 +194,8 @@ def apply_plan_file(
     plan_path: Path | str,
     output_root: Path | str,
     config: ProcessingConfig | ResolvedConfig | None = None,
+    *,
+    in_place: bool = False,
 ) -> ProcessingRunResult:
     """외부 bookmark plan을 immutable run에서 적용한다."""
 
@@ -194,6 +216,7 @@ def apply_plan_file(
             run.run_dir,
             plan,
             resolved.config,
+            in_place=in_place,
         )
         manifest = run.complete(result)
     except Exception as error:
@@ -244,7 +267,7 @@ def infer_to_directory(
         decision = resolve_existing_outline_action(pdf, total_pages, config)
         emit(
             "existing_outline_check_completed",
-            f"기존 outline 확인 완료: items={len(decision.existing_outline)}",
+            existing_outline_check_message(decision),
         )
         if decision.reuse_existing:
             plan = outline_to_plan(decision.existing_outline)
@@ -306,6 +329,7 @@ def infer_to_directory(
                     input_pdf=pdf,
                     total_pages=analysis.total_pages,
                     existing_outline=decision.existing_outline,
+                    reuse_rejected_reason=decision.reuse_rejected_reason,
                 )
                 if config.write_artifacts
                 else {}
@@ -321,11 +345,7 @@ def infer_to_directory(
                 bookmark_count=len(inference.plan),
             )
             warnings = list(inference.validation.warnings)
-            if decision.quality is not None and decision.quality.is_low_quality:
-                warnings.append(
-                    "기존 outline이 low quality로 판정돼 typography 추론 결과로 "
-                    f"교체했다: reasons={decision.quality.reasons}"
-                )
+            warnings.extend(existing_outline_replacement_warnings(decision))
             result = ProcessingResult(
                 status="processed" if inference.validation.valid else "failed",
                 input_pdf=pdf,
@@ -356,12 +376,20 @@ def apply_plan_to_directory(
     output_dir: Path,
     plan: list[BookmarkPlanItem],
     config: ProcessingConfig,
+    *,
+    in_place: bool = False,
 ) -> ProcessingResult:
     """검증된 plan으로 PDF와 Markdown을 지정 directory에 생성한다."""
 
     output_dir.mkdir(parents=True, exist_ok=True)
     artifacts: dict[str, Path] = {
         "bookmark_plan": write_artifact(output_dir, "bookmark_plan", plan),
+        "bookmark_plan_full": write_artifact(output_dir, "bookmark_plan_full", plan),
+        "bookmark_plan_full_validation": write_artifact(
+            output_dir,
+            "bookmark_plan_full_validation",
+            validate_bookmark_plan(plan, _pdf_page_count(pdf)),
+        ),
     }
     with fitz.open(pdf) as document:
         total_pages = document.page_count
@@ -372,7 +400,24 @@ def apply_plan_to_directory(
         total_pages,
         config.markdown_split,
         config.markdown_content_mode,
+        in_place=in_place,
     )
+    artifacts["bookmark_plan"] = write_artifact(
+        output_dir,
+        "bookmark_plan",
+        apply_result.applied_plan,
+    )
+    if apply_result.in_place:
+        artifacts["pdf_overwrite"] = write_artifact(
+            output_dir,
+            "pdf_overwrite",
+            {
+                "input_pdf": pdf.resolve(),
+                "original_sha256": apply_result.original_pdf_sha256,
+                "final_sha256": apply_result.final_pdf_sha256,
+                "atomic_replace": True,
+            },
+        )
     if config.write_artifacts:
         artifacts["bookmark_plan_validation"] = write_artifact(
             output_dir, "bookmark_plan_validation", apply_result.validation
@@ -388,13 +433,18 @@ def apply_plan_to_directory(
         output_pdf=apply_result.output_pdf,
         output_markdown_dir=apply_result.output_markdown_dir,
         markdown_export=apply_result.markdown_export,
-        bookmark_count=len(plan),
+        bookmark_count=len(apply_result.applied_plan),
         confidence_summary=ConfidenceSummary(outline=1.0),
         warnings=list(apply_result.validation.warnings),
         artifact_paths=artifacts,
     )
     report_path = write_processing_report(result, output_dir)
     return replace(result, report_path=report_path)
+
+
+def _pdf_page_count(pdf: Path) -> int:
+    with fitz.open(pdf) as document:
+        return document.page_count
 
 
 def _processing_run_result(

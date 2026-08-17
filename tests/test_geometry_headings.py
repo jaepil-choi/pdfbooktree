@@ -24,7 +24,6 @@ def _tiers() -> TierSet:
             Tier(tier=2, lower_bound=None, upper_bound=15.0, peak=10.0, count=12),
         ],
         raw_tier_count=2,
-        gap_merged_tier_count=2,
         final_tier_count=2,
     )
 
@@ -193,7 +192,6 @@ def _small_candidate_tiers() -> TierSet:
             Tier(tier=3, lower_bound=None, upper_bound=8.0, peak=6.0, count=6),
         ],
         raw_tier_count=3,
-        gap_merged_tier_count=3,
         final_tier_count=3,
     )
 

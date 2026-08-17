@@ -75,8 +75,15 @@ them with the same controls as the input PDF.
 
 ## Final PDF and Markdown
 
-The bookmarked PDF is a new file; the source PDF is not overwritten. Markdown
-tree and split exports contain:
+The default Markdown export is a 10,000-word, 0.95-coverage split. Only plan
+items at or above its `chosen_level` boundary (`item.level <= chosen_level`)
+are embedded in the PDF. `bookmark_plan_full.json` preserves the full inferred
+plan and `bookmark_plan.json` records the effective embedded plan.
+
+Copy mode creates a new bookmarked PDF. `--in-place` instead writes and
+validates a sibling temporary PDF, atomically replaces the input, and records
+the original/final SHA-256 values in `pdf_overwrite.json`. Markdown exports
+contain:
 
 ```text
 <book>_markdown[_split]/

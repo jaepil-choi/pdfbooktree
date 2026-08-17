@@ -29,7 +29,6 @@ def compute_tier_set(
             cut_points=[],
             tiers=[],
             raw_tier_count=0,
-            gap_merged_tier_count=0,
             final_tier_count=0,
         )
     raw_peaks, raw_cuts = _cluster_by_density(values)
@@ -45,7 +44,6 @@ def compute_tier_set(
         cut_points=[round(cut, 4) for cut in final_cuts],
         tiers=tiers,
         raw_tier_count=len(raw_peaks),
-        gap_merged_tier_count=len(raw_peaks),
         final_tier_count=len(tiers),
     )
 
@@ -84,38 +82,16 @@ def _cluster_by_density(values: list[float]) -> tuple[list[float], list[float]]:
         for idx in range(1, len(density) - 1)
         if density[idx - 1] < density[idx] > density[idx + 1]
     ]
-    valley_idx = [
-        idx
-        for idx in range(1, len(density) - 1)
-        if density[idx - 1] > density[idx] < density[idx + 1]
-    ]
     if not peak_idx:
         return [float(np.median(arr))], []
     peaks = [float(grid[idx]) for idx in peak_idx]
+    # 평평한 골짜기는 엄격한 국소 최소값이 아니어서 검출되지 않을 수 있다.
+    # 인접 봉우리 사이의 최소 밀도 지점을 항상 하나씩 선택해 절단점 수를 맞춘다.
     cuts = [
-        float(grid[idx])
-        for idx in valley_idx
-        if min(peaks) < float(grid[idx]) < max(peaks)
+        float(grid[min(range(left + 1, right), key=lambda idx: density[idx])])
+        for left, right in zip(peak_idx, peak_idx[1:], strict=False)
     ]
     return sorted(peaks, reverse=True), sorted(cuts)
-
-
-def _merge_close_tiers(
-    peaks: list[float], cut_points: list[float], min_gap: float
-) -> tuple[list[float], list[float]]:
-    if len(peaks) <= 1:
-        return peaks, []
-    ascending = sorted(peaks)
-    merged = [ascending[0]]
-    for peak in ascending[1:]:
-        if peak - merged[-1] < min_gap:
-            merged[-1] = (merged[-1] + peak) / 2.0
-        else:
-            merged.append(peak)
-    cuts = [
-        (left + right) / 2.0 for left, right in zip(merged, merged[1:], strict=False)
-    ]
-    return sorted(merged, reverse=True), sorted(cuts)
 
 
 def _merge_sparse_tiers(
@@ -154,21 +130,49 @@ def _merge_sparse_tiers(
 def _build_tiers(
     values: list[float], peaks: list[float], cut_points: list[float]
 ) -> list[Tier]:
-    counts = Counter(assign_tier(value, cut_points) for value in values)
-    tiers: list[Tier] = []
     sorted_cuts_desc = sorted(cut_points, reverse=True)
-    for index, peak in enumerate(sorted(peaks, reverse=True), start=1):
+    tier_count = len(sorted_cuts_desc) + 1
+    peaks_by_tier: dict[int, list[float]] = {
+        index: [] for index in range(1, tier_count + 1)
+    }
+    values_by_tier: dict[int, list[float]] = {
+        index: [] for index in range(1, tier_count + 1)
+    }
+    for peak in peaks:
+        peaks_by_tier[assign_tier(peak, cut_points)].append(peak)
+    for value in values:
+        values_by_tier[assign_tier(value, cut_points)].append(value)
+
+    tiers: list[Tier] = []
+    for index in range(1, tier_count + 1):
         lower = (
             sorted_cuts_desc[index - 1] if index - 1 < len(sorted_cuts_desc) else None
         )
         upper = sorted_cuts_desc[index - 2] if index >= 2 else None
+        tier_peaks = peaks_by_tier[index]
+        tier_values = values_by_tier[index]
+        if tier_peaks:
+            reference = float(np.median(tier_values or tier_peaks))
+            peak = min(
+                tier_peaks,
+                key=lambda candidate: (abs(candidate - reference), -candidate),
+            )
+        elif tier_values:
+            peak = float(np.median(tier_values))
+        else:
+            # compute_tier_set()의 실제 흐름에서는 cut_points가 항상 인접한
+            # peaks 사이 중간값이라 모든 tier에 peak이 최소 하나씩 배정된다.
+            # peak도 value도 없는 tier는 이 함수를 직접 호출해 peaks/cut_points를
+            # 인위적으로 불일치시킬 때만 생길 수 있다 - lower/upper bound만으로
+            # 안전한 fallback 값을 만든다.
+            peak = lower if lower is not None else upper if upper is not None else 0.0
         tiers.append(
             Tier(
                 tier=index,
                 lower_bound=lower,
                 upper_bound=upper,
                 peak=round(peak, 4),
-                count=counts.get(index, 0),
+                count=len(tier_values),
             )
         )
     return tiers

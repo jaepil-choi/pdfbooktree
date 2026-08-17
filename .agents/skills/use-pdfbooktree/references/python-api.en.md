@@ -48,6 +48,7 @@ Inspection/evaluation:
 
 - `inspect_page_count`, `inspect_text`, `inspect_bookmarks`
 - `inspect_ocr_artifact`, `inspect_plan_artifact`, `inspect_compare_plans`
+- `inspect_markdown_tree`, `inspect_compare_markdown`
 - `match_bookmark_plans`, `compare_bookmark_plans`
 - `MatchedPair`, `MatchMetrics`, `PlanMatchResult`
 - `PlanDiffEntry`, `PlanDiffResult`
@@ -99,6 +100,8 @@ process_pdf(
     output_root,
     config=None,
     log=None,
+    *,
+    in_place=False,
 ) -> ProcessingRunResult
 ```
 
@@ -124,6 +127,8 @@ preview_apply_plan(
     plan_path,
     output_root,
     config=None,
+    *,
+    in_place=False,
 ) -> ApplyPreview
 ```
 
@@ -136,6 +141,8 @@ apply_plan_file(
     plan_path,
     output_root,
     config=None,
+    *,
+    in_place=False,
 ) -> ProcessingRunResult
 ```
 
@@ -152,8 +159,9 @@ by path and hash. Use `preview_apply_plan()` for the no-write validation path.
   validation, and review artifacts.
 - `validate_plan(input_pdf, plan) -> BookmarkPlanValidation` performs no writes.
 - `apply_plan(input_pdf, output_dir, plan, total_pages, markdown_split=None,
-  markdown_content_mode="direct") -> ApplyResult` writes a bookmarked PDF and
-  Markdown using an already validated plan.
+  markdown_content_mode="direct", *, in_place=False) -> ApplyResult` filters
+  the embedded outline to the Markdown `chosen_level`; in-place mode atomically
+  replaces the input after validating a sibling temporary PDF.
 - `Processor.run()` composes the lower-level functions for compatibility.
 
 All public pages are 1-based. Content correctness still requires review even
@@ -188,6 +196,33 @@ The `inspect_*` functions are read-only and mirror the CLI:
 similarity and page tolerance, returning matched/missed/extra entries and
 metrics. `compare_bookmark_plans()` returns a deterministic A/B diff. Embedded
 outlines are weak references; metrics do not establish ground truth.
+
+`inspect_markdown_tree(target, *, limit=20) -> dict` reads a Markdown tree
+manifest (a `markdown_manifest.json` path, or a process output directory that
+contains one) and returns `graph`, `levels`, `words_per_node`,
+`pages_per_node`, `coverage`, `sources`, `titles`, `validation`, `findings`,
+`verdict`, and `retry`. `verdict` is `"ok"` when `findings` is empty,
+otherwise the `code` of the highest-severity finding, in order `invalid_graph`,
+`uncovered`, `duplicated`, `thin`, `over_split`, `fragmented`. Only
+`invalid_graph` and `uncovered` are `blocking`; the rest are `advisory`. Each
+`retry` entry carries `cause`, `overrides`, a human-facing re-runnable
+`command` string (or `None` when no config override applies), a shell-free
+`command_argv` list of argv tokens (or `None` under the same condition), and a
+`reason` grounded in measured corpus behavior — retries are candidates, never
+guarantees. `command` is quoted with POSIX single-quoting (`shlex.quote`): it
+runs as-is under bash/zsh and PowerShell, but `cmd.exe` does not treat single
+quotes as quoting and can fail on paths with spaces or brackets. To run a
+candidate without a shell, or under `cmd.exe`, use `command_argv` instead.
+
+`inspect_compare_markdown(manifest_a, manifest_b) -> dict` compares two
+Markdown manifests by `(level, pdf_start_page, normalized title)` node keys
+and returns `before`, `after` (each with `node_count`, `chosen_level`,
+`words_per_node_median` (`None` when the export has no word_count signal),
+`words_per_node_has_data`, `pages_per_node_mean`, `unassigned_ratio`,
+`fragment_ratio`, `verdict`), and `delta` (the numeric differences plus
+`verdict_changed`, `added_node_count`, `removed_node_count`).
+`words_per_node_median` in `delta` is only computed when both sides have a
+word_count signal; otherwise it is `None`.
 
 ## Batch runs and manifests
 

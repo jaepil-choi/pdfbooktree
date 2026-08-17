@@ -17,6 +17,8 @@ from pdfbooktree import (
     process_pdf,
     resolve_processing_config,
 )
+from pdfbooktree.config import TypographyConfig
+from pdfbooktree.models import ExistingOutlineItem
 
 
 def _make_existing_outline_book(path: Path) -> None:
@@ -79,9 +81,10 @@ def test_infer_preview_apply는_같은_canonical_plan을_사용한다(
     assert applied.result.markdown_manifest_path is not None
     assert applied.result.bookmark_plan_path == applied.run_dir / "bookmark_plan.json"
     assert (
-        applied.result.bookmark_plan_path.read_bytes()
-        == inferred.result.bookmark_plan_path.read_bytes()
-    )
+        applied.run_dir / "bookmark_plan_full.json"
+    ).read_bytes() == inferred.result.bookmark_plan_path.read_bytes()
+    with fitz.open(applied.result.output_pdf) as document:
+        assert len(document.get_toc()) == applied.result.bookmark_count
     assert applied.manifest.plan_source == {
         "path": str(inferred.result.bookmark_plan_path),
         "sha256": preview.plan_sha256,
@@ -159,6 +162,54 @@ def test_invalid_apply_preview와_실행은_output을_생성하지_않는다(
     assert applied.result.output_pdf is None
     assert applied.result.output_markdown_dir is None
     assert applied.result.bookmark_plan_path.is_file()
+
+
+def test_infer_pdf_surfaces_reuse_rejected_reason_for_invalid_structure(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """구조가 무효한 outline은 quality가 acceptable해도 재사용을 포기하고,
+    그 이유가 warnings와 bookmark_review_summary에 남아야 한다."""
+
+    pdf = tmp_path / "book.pdf"
+    document = fitz.open()
+    try:
+        for page_no in range(1, 10):
+            page = document.new_page()
+            if page_no in (1, 4, 7):
+                chapter = {1: 1, 4: 2, 7: 3}[page_no]
+                page.insert_text((72, 90), f"Chapter {chapter} Title", fontsize=28)
+                page.insert_text((72, 155), f"{chapter}.1 Section", fontsize=16)
+            for row in range(15):
+                page.insert_text(
+                    (72, 260 + row * 15),
+                    "This is ordinary body text for the chapter.",
+                    fontsize=10,
+                )
+        document.save(pdf)
+    finally:
+        document.close()
+    invalid_outline = [
+        ExistingOutlineItem(1, "Part 1", 1, 1),
+        ExistingOutlineItem(2, "Part 2", 1, 4),
+        ExistingOutlineItem(3, "Part 3", 1, 7),
+        ExistingOutlineItem(4, "Part 4", 1, 999),
+    ]
+    monkeypatch.setattr("pdfbooktree.pipeline.read_outline", lambda _: invalid_outline)
+
+    run = infer_pdf(
+        pdf,
+        tmp_path / "infer-runs",
+        ProcessingConfig(
+            typography=TypographyConfig(min_tier_count=1, max_heading_tier=2)
+        ),
+    )
+
+    assert any("유효하지 않아" in warning for warning in run.result.warnings)
+    assert run.result.review_summary_path is not None
+    summary = json.loads(run.result.review_summary_path.read_text("utf-8"))
+    assert summary["existing_outline"]["reuse_rejected_reason"] == "invalid_structure"
+    assert summary["existing_outline"]["is_low_quality"] is False
 
 
 def test_apply_exception도_manifest와_canonical_plan을_보존한다(

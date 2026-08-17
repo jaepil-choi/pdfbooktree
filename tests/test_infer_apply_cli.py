@@ -186,7 +186,7 @@ def test_apply_produces_pdf_and_markdown_from_infer_plan(tmp_path: Path) -> None
 
     assert apply_result.exit_code == 0, apply_result.output
     assert list(apply_dir.glob("*_bookmarked.pdf"))
-    assert list(apply_dir.glob("*_markdown"))
+    assert list(apply_dir.glob("*_markdown_split"))
 
 
 def test_apply_does_not_reextract_typography(tmp_path: Path) -> None:
@@ -379,3 +379,50 @@ def test_apply_cli_length_limit은_split_graph_manifest를_연결한다(
     assert markdown_manifest["validation"]["valid"] is True
     assert (markdown_manifest_path.parent / "toc.md").is_file()
     assert (markdown_manifest_path.parent / "nodes").is_dir()
+
+
+def test_apply_cli_in_place는_원본을_atomic_교체하고_별도_pdf를_만들지_않는다(
+    tmp_path: Path,
+) -> None:
+    pdf = tmp_path / "ocr-overlay.pdf"
+    output_dir = tmp_path / "runs"
+    _make_typography_book(pdf)
+    original_hash = file_sha256(pdf)
+    plan_path = tmp_path / "plan.json"
+    plan_path.write_text(
+        json.dumps(
+            [
+                {"title": "Chapter", "level": 1, "pdf_page": 1},
+                {"title": "Section", "level": 2, "pdf_page": 4},
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    result = RUNNER.invoke(
+        app,
+        [
+            "apply",
+            str(pdf),
+            "--plan",
+            str(plan_path),
+            "--output-dir",
+            str(output_dir),
+            "--flat-output",
+            "--in-place",
+            "--format",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    payload = json.loads(result.stdout)["result"]
+    assert Path(payload["output_pdf"]) == pdf.resolve()
+    assert file_sha256(pdf) != original_hash
+    assert not list(tmp_path.rglob("*_bookmarked.pdf"))
+    overwrite = json.loads(
+        (output_dir / "pdf_overwrite.json").read_text(encoding="utf-8")
+    )
+    assert overwrite["original_sha256"] == original_hash
+    assert overwrite["final_sha256"] == file_sha256(pdf)
+    assert overwrite["atomic_replace"] is True

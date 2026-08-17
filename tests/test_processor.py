@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import fitz
+import pytest
 
 from pdfbooktree.config import (
     MarkdownSplitConfig,
@@ -12,6 +14,7 @@ from pdfbooktree.config import (
     ProcessingConfig,
     TypographyConfig,
 )
+from pdfbooktree.models import ExistingOutlineItem
 from pdfbooktree.processor import Processor
 
 PAGE_WIDTH = 595.0
@@ -37,7 +40,7 @@ def test_processor_exports_markdown_for_existing_outline(tmp_path: Path) -> None
     assert result.output_markdown_dir is not None
     assert (result.output_markdown_dir / "toc.md").exists()
     assert result.markdown_export is not None
-    assert result.markdown_export.export_mode == "tree_graph"
+    assert result.markdown_export.export_mode == "split"
     assert result.markdown_export.manifest_path is not None
     assert result.artifact_paths["markdown_manifest"] == (
         result.markdown_export.manifest_path
@@ -189,6 +192,59 @@ def test_processor_replaces_low_quality_existing_outline_when_configured(
     assert result.artifact_paths["bookmark_review_summary"].is_file()
     assert result.artifact_paths["bookmark_review_items"].is_file()
     assert result.artifact_paths["existing_outline_plan"].is_file()
+
+
+def test_processor_surfaces_invalid_structure_reuse_rejected_reason(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """품질은 acceptable하지만 구조가 무효한 outline은 typography로 대체되고
+    warnings/artifact/result 모두에 그 사유가 남아야 한다."""
+
+    pdf = tmp_path / "book.pdf"
+    _make_inference_book_with_headings(pdf)
+    invalid_outline = [
+        ExistingOutlineItem(1, "Part 1", 1, 1),
+        ExistingOutlineItem(2, "Part 2", 1, 4),
+        ExistingOutlineItem(3, "Part 3", 1, 7),
+        ExistingOutlineItem(4, "Part 4", 1, 999),
+    ]
+    monkeypatch.setattr("pdfbooktree.pipeline.read_outline", lambda _: invalid_outline)
+
+    output_dir = tmp_path / "out"
+    result = Processor(
+        pdf,
+        output_dir,
+        ProcessingConfig(
+            typography=TypographyConfig(min_tier_count=1, max_heading_tier=2)
+        ),
+    ).run()
+
+    assert any("유효하지 않아" in warning for warning in result.warnings)
+    summary = json.loads(
+        result.artifact_paths["bookmark_review_summary"].read_text("utf-8")
+    )
+    assert summary["existing_outline"]["reuse_rejected_reason"] == "invalid_structure"
+    assert summary["existing_outline"]["is_low_quality"] is False
+
+
+def _make_inference_book_with_headings(path: Path) -> None:
+    document = fitz.open()
+    try:
+        for page_no in range(1, 10):
+            page = document.new_page(width=PAGE_WIDTH, height=PAGE_HEIGHT)
+            if page_no in (1, 4, 7):
+                chapter = {1: 1, 4: 2, 7: 3}[page_no]
+                page.insert_text((72, 90), f"Chapter {chapter} Title", fontsize=28)
+                page.insert_text((72, 155), f"{chapter}.1 Section", fontsize=16)
+            for row in range(15):
+                page.insert_text(
+                    (72, 260 + row * 15),
+                    "This is ordinary body text for the chapter.",
+                    fontsize=10,
+                )
+        document.save(path)
+    finally:
+        document.close()
 
 
 def test_processor_failed_result_does_not_claim_nonexistent_outputs(

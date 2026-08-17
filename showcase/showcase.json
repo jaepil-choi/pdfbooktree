@@ -399,6 +399,28 @@
       "finding": "실제 2-page MIT OCW PDF에서 infer→preview→apply Python workflow가 bookmark 1개를 같은 canonical plan snapshot으로 처리했다.",
       "command": "uv run python showcase/033_python_workflow_api.py",
       "ran_at": "2026-07-18T15:05:07+09:00"
+    },
+    {
+      "id": "034_in_place_markdown_level_sync",
+      "purpose": "data/300STUDY_ocr_overlay의 실제 OCR PDF를 typography로 재추론하고, 기본 10K Markdown chosen level과 PDF bookmark 최대 level을 동기화하며, 별도 bookmarked PDF 없이 검증된 sibling temporary PDF로 원본을 atomic replace한다.",
+      "inputs": [
+        "data\\300STUDY_ocr_overlay\\pdfs\\NOW_READING\\books\\Patrick G. Riley - The One-Page Proposal_  How to Get Your Business Pitch onto One Persuasive Page[office book].pdf"
+      ],
+      "outputs": "showcase\\outputs\\034_in_place_markdown_level_sync\\result.json",
+      "finding": "full_plan=18, effective_plan=15, chosen_level=2, embedded_max_level=2, proof={'same_input_path_overwritten': True, 'pdf_sha256_changed': True, 'page_count_preserved': True, 'sample_text_preserved': True, 'markdown_chosen_level_matches_pdf_max_level': True, 'pdf_bookmark_count_matches_effective_plan': True, 'full_plan_preserved': True, 'overwrite_hashes_match': True, 'markdown_manifest_hash_matches_final_pdf': True, 'no_separate_bookmarked_pdf': True}",
+      "command": "uv run python showcase/034_in_place_markdown_level_sync.py",
+      "ran_at": "2026-07-26T21:34:06+09:00"
+    },
+    {
+      "id": "035_markdown_tree_diagnosis_retry",
+      "purpose": "실제 scansnap OCR 책 한 권으로 inspect_markdown_tree()의 verdict와 retry 후보를 받고, 그 override를 그대로 두 번째 process run에 적용해 inspect_compare_markdown()으로 전후 Markdown tree 개선을 확인하며, CLI `inspect markdown --format json`이 Python API와 같은 진단을 내는지 대조한다.",
+      "inputs": [
+        "data\\300STUDY_ocr_overlay\\pdfs\\scansnap_compressed\\books\\당뇨병_완치_설명서_-_차봉수.compressed[health book].pdf"
+      ],
+      "outputs": "showcase\\outputs\\035_markdown_tree_diagnosis_retry\\result.json",
+      "finding": "baseline verdict=thin, node_count=2, cause=reused_existing_outline -> retry verdict=ok, node_count=47, delta=45, proof={'baseline_verdict_is_thin': True, 'baseline_cause_is_reused_existing_outline': True, 'baseline_sources_only_existing_outline': True, 'retry_overrides_are_actionable': True, 'retry_command_argv_is_shell_free': True, 'retry_increased_node_count': True, 'retry_dropped_thin_verdict': True, 'retry_stopped_reusing_existing_outline': True, 'compare_reports_verdict_change': True, 'compare_added_nodes': True, 'compare_node_count_delta_matches': True, 'cli_matches_python_api': True}",
+      "command": "uv run python showcase/035_markdown_tree_diagnosis_retry.py",
+      "ran_at": "2026-08-17T17:47:40+09:00"
     }
   ]
 }

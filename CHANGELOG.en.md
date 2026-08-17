@@ -6,7 +6,34 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
-Changes after 0.1.1 are recorded here.
+### Added
+
+- `inspect markdown` command plus `inspect_markdown_tree()` and
+  `inspect_compare_markdown()` for diagnosing a produced Markdown tree. Each
+  result carries a verdict, the cause, and runnable retry candidates.
+- `inspect compare` now distinguishes a bookmark plan JSON from a Markdown
+  manifest automatically.
+
+### Changed
+
+- A structurally invalid embedded outline is no longer reused, and the reason is
+  reported in the processing warnings and the review summary.
+- Level jumps in an inferred plan are normalized to contiguous depths.
+- Existing heading evidence is used, one candidate per page, only when the
+  strict geometry selector produces no candidates.
+
+### Fixed
+
+- An IndexError raised while building typography tiers when the number of
+  density peaks and cuts disagreed.
+
+### Removed
+
+- The `typography.min_tier_gap` config key, which had no consumer. Supplying it
+  is now rejected with `invalid_config` instead of being silently ignored.
+- The `TierSet.gap_merged_tier_count` field, which always equalled
+  `raw_tier_count`, and the same entry in the `font_size_tiers.json` and
+  `height_tiers.json` artifacts.
 
 ## 0.1.1 - 2026-07-19
 

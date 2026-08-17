@@ -94,7 +94,11 @@ default. Important option groups include:
   `--heading-candidate-mode`, `--body-font-text-coverage`,
   `--position-fallback`, `--position-fallback-tolerance`, and
   `--position-fallback-min-isolation-ratio`
-- Markdown limits: `--max-words`, `--max-words-coverage`
+- Markdown split defaults to 10,000 words and 0.95 coverage; override it with
+  `--max-words`, `--max-words-coverage`, or disable it with
+  `--set markdown.enabled=false`
+- `--in-place` atomically replaces the input PDF after validating a sibling
+  temporary PDF
 - final `--format` and progress `--log-mode`
 
 With a meaningful existing outline, the default policy reuses that outline for
@@ -111,7 +115,8 @@ bookmarked PDF or Markdown graph. Use the returned `run_dir` and
 Validates and applies an existing plan without repeating typography inference.
 `--dry-run` performs validation and returns predicted paths without creating
 them. The source plan is copied into the non-dry-run run as an immutable
-`bookmark_plan.json` snapshot and recorded by path and SHA-256.
+`bookmark_plan_full.json` snapshot and recorded by path and SHA-256. The
+effective plan filtered to the Markdown `chosen_level` is `bookmark_plan.json`.
 
 ### `batch`
 
@@ -119,6 +124,7 @@ Processes matching PDFs in deterministic order. `--recursive`,
 `--include-glob`, and `--exclude-glob` control selection. The output subtree is
 excluded automatically. A batch run manifest links item runs and failures.
 Analysis cache, resume, and parallel jobs are not available in v0.1.0.
+With `--in-place`, each successful item is atomically replaced independently.
 
 ## OCR and classification
 
@@ -168,7 +174,12 @@ pdfbooktree inspect page-count "book.pdf" --format json
 pdfbooktree inspect text "book.pdf" --pages 10-12 --format json
 pdfbooktree inspect bookmarks "book.pdf" --format json
 pdfbooktree inspect ocr ".\ocr-artifacts" --format json
+pdfbooktree inspect markdown ".\runs\<run-dir>\book_markdown_split" --format json
 pdfbooktree inspect compare "plan-a.json" "plan-b.json" --format json
+pdfbooktree inspect compare `
+  ".\runs\<run-dir>\book_markdown_split\markdown_manifest.json" `
+  ".\runs\<retry-run-dir>\book_markdown_split\markdown_manifest.json" `
+  --format json
 ```
 
 `inspect plan` accepts a plan, run directory, or Markdown graph directory. Use
@@ -176,6 +187,27 @@ pdfbooktree inspect compare "plan-a.json" "plan-b.json" --format json
 `--level`, and `--source` to progressively disclose only needed evidence.
 Confidence and attention signals prioritize review; they do not certify
 quality.
+
+`inspect markdown <OUTPUT_DIR_OR_MANIFEST> [--limit N]` reads a Markdown tree
+manifest and returns `verdict`, `findings`, and `retry` candidates. `verdict`
+is `ok` when there are no findings, otherwise the `code` of the
+highest-severity finding (`invalid_graph`, `uncovered`, `duplicated`, `thin`,
+`over_split`, `fragmented`, in that order); only `invalid_graph` and
+`uncovered` are blocking. Each `retry` entry carries `command`, `command_argv`,
+and a `reason` grounded in measured corpus behavior — retries are candidates,
+not guarantees. `command` is a human-facing string quoted with POSIX
+single-quoting (`shlex.quote`); it is valid to run as-is under bash/zsh and
+PowerShell, but `cmd.exe` does not treat single quotes as quoting and can fail
+on paths with spaces or brackets. To run a candidate without a shell, or under
+`cmd.exe`, use `command_argv` (a list of argv tokens, or `None` when there is
+no override) instead.
+
+`inspect compare <A> <B>` auto-dispatches: it reads each input exactly once
+and classifies it as a Markdown manifest when its JSON contains `nodes` (a
+corrupt file is reported as an input error, not silently treated as a plan).
+When both inputs are Markdown manifests it compares their verdict/coverage as
+a `before`/`after`/`delta` diff; when both are bookmark plan JSON it runs the
+existing plan diff. Mixing one of each is rejected as an error.
 
 ## Configuration
 

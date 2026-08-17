@@ -63,7 +63,7 @@ def test_processor_run_plan_matches_pinned_golden_plan(tmp_path: Path) -> None:
 
     result = Processor(pdf, output_dir, config).run()
 
-    plan = json.loads((output_dir / "bookmark_plan.json").read_text("utf-8"))
+    plan = json.loads((output_dir / "bookmark_plan_full.json").read_text("utf-8"))
     observed = [
         (item["title"], item["pdf_page"], item["level"], item["source"])
         for item in plan
@@ -89,7 +89,10 @@ def test_processor_run_plan_matches_pinned_golden_plan(tmp_path: Path) -> None:
         ("Note 9", 9, 3, "geometry_position_fallback"),
     ]
     assert result.status == "processed"
-    assert result.bookmark_count == len(plan)
+    applied_plan = json.loads((output_dir / "bookmark_plan.json").read_text("utf-8"))
+    assert result.bookmark_count == len(applied_plan) == 3
+    assert result.markdown_export is not None
+    assert result.markdown_export.chosen_level == 1
 
 
 def test_processor_existing_outline_fast_path_skips_typography_extraction(
