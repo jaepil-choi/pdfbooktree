@@ -24,7 +24,8 @@ description: 이 저장소의 pdfbooktree Python API와 CLI를 사용해 PDF 책
 5. 빠른 최종 결과가 필요하면 CLI `process` 또는 Python `process_pdf()`를 사용하라.
 6. 계획을 검토·수정·비교해야 하면 `infer` → `inspect plan`/`inspect compare` → `apply --dry-run` → `apply` 흐름을 사용하라.
 7. 여러 PDF를 구조화하려면 `batch` 또는 `BatchProcessor.run()`을 사용하라.
-8. 결과를 기계적으로 소비하려면 `--format json`을 사용하고 exit code와 stderr를 함께 검사하라.
+8. `process` 또는 `apply`로 Markdown graph를 만든 뒤에는 `inspect markdown <OUTPUT_DIR>`으로 `verdict`와 `findings`를 확인하라. `verdict`가 `ok`가 아니면 결과가 제시하는 `retry[].command`로 재실행하고(재시도 후보일 뿐 보장이 아니다), `inspect compare <BEFORE_MANIFEST> <AFTER_MANIFEST>`로 재실행 전후 Markdown manifest를 비교해 실제로 개선됐는지 확인하라.
+9. 결과를 기계적으로 소비하려면 `--format json`을 사용하고 exit code와 stderr를 함께 검사하라.
 
 상세 명령과 예시는 [CLI 레퍼런스](references/cli.md)를 읽고, Python 통합이 필요하면 [Python API 레퍼런스](references/python-api.md)를 읽으라. 출력 파일·설정·로그 계약을 다룰 때는 [계약과 artifact](references/contracts.md)를 읽으라.
 영문 문서가 필요하면 [CLI reference](references/cli.en.md), [Python API reference](references/python-api.en.md), [contracts and artifacts](references/contracts.en.md)를 사용하라.

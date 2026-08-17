@@ -30,6 +30,8 @@ from pdfbooktree.pipeline import (
     analyze_pdf,
     apply_plan,
     confidence_summary_for_inference,
+    existing_outline_check_message,
+    existing_outline_replacement_warnings,
     infer_bookmarks,
     resolve_existing_outline_action,
     validate_plan,
@@ -265,7 +267,7 @@ def infer_to_directory(
         decision = resolve_existing_outline_action(pdf, total_pages, config)
         emit(
             "existing_outline_check_completed",
-            f"기존 outline 확인 완료: items={len(decision.existing_outline)}",
+            existing_outline_check_message(decision),
         )
         if decision.reuse_existing:
             plan = outline_to_plan(decision.existing_outline)
@@ -327,6 +329,7 @@ def infer_to_directory(
                     input_pdf=pdf,
                     total_pages=analysis.total_pages,
                     existing_outline=decision.existing_outline,
+                    reuse_rejected_reason=decision.reuse_rejected_reason,
                 )
                 if config.write_artifacts
                 else {}
@@ -342,11 +345,7 @@ def infer_to_directory(
                 bookmark_count=len(inference.plan),
             )
             warnings = list(inference.validation.warnings)
-            if decision.quality is not None and decision.quality.is_low_quality:
-                warnings.append(
-                    "기존 outline이 low quality로 판정돼 typography 추론 결과로 "
-                    f"교체했다: reasons={decision.quality.reasons}"
-                )
+            warnings.extend(existing_outline_replacement_warnings(decision))
             result = ProcessingResult(
                 status="processed" if inference.validation.valid else "failed",
                 input_pdf=pdf,

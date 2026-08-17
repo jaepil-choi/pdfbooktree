@@ -23,11 +23,21 @@ def build_bookmark_review(
     total_pages: int | None = None,
     quality: OutlineQualityAssessment | None = None,
     existing_outline_plan_available: bool = False,
+    markdown_manifest_available: bool = False,
+    reuse_rejected_reason: str | None = None,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     """추론 결과에서 review summary와 item별 근거를 만든다.
 
     attention signal은 내용 품질의 판정이 아니라 사람이 먼저 확인할 위치를
     나타낸다. 최종 plan의 source, confidence와 evidence는 변형하지 않는다.
+    ``markdown_manifest_available``은 호출 시점에 Markdown tree manifest가
+    이미 존재하는지를 나타내며, 존재할 때만 ``next_commands``에
+    ``inspect markdown``을 추가 후보로 남긴다. ``reuse_rejected_reason``은
+    ``resolve_existing_outline_action()``이 기존 outline을 재사용하지 않은
+    이유(``invalid_structure``, ``skip_existing_bookmarks_disabled``,
+    ``low_quality_replace``)를 그대로 전달받아 ``existing_outline`` 섹션에
+    남긴다 - typography 추론으로 넘어온 원인이 quality가 아니라 구조 오류일
+    때도 agent가 구분할 수 있게 한다.
     """
 
     candidate_index = _candidate_index(inference)
@@ -44,6 +54,8 @@ def build_bookmark_review(
         input_pdf=input_pdf,
         quality=quality,
         existing_outline_plan_available=existing_outline_plan_available,
+        markdown_manifest_available=markdown_manifest_available,
+        reuse_rejected_reason=reuse_rejected_reason,
     )
     return summary, items
 
@@ -307,6 +319,8 @@ def _build_review_summary(
     input_pdf: Path | None,
     quality: OutlineQualityAssessment | None,
     existing_outline_plan_available: bool,
+    markdown_manifest_available: bool = False,
+    reuse_rejected_reason: str | None = None,
 ) -> dict[str, Any]:
     signal_counts = Counter(
         signal for item in items for signal in item["attention_signals"]
@@ -397,6 +411,7 @@ def _build_review_summary(
                 if existing_outline_plan_available
                 else None
             ),
+            "reuse_rejected_reason": reuse_rejected_reason,
         },
         "attention": {
             "item_count": len(priority_items),
@@ -418,7 +433,7 @@ def _build_review_summary(
             "heading_candidates": "heading_candidates.json",
             "position_fallback_candidates": "position_fallback_candidates.json",
         },
-        "next_commands": _next_commands(input_pdf),
+        "next_commands": _next_commands(input_pdf, markdown_manifest_available),
         "warnings": warnings,
     }
 
@@ -441,10 +456,15 @@ def _density_windows(
     return windows
 
 
-def _next_commands(input_pdf: Path | None) -> list[str]:
+def _next_commands(
+    input_pdf: Path | None, markdown_manifest_available: bool = False
+) -> list[str]:
     pdf = str(input_pdf) if input_pdf is not None else "<PDF>"
-    return [
+    commands = [
         "uv run pdfbooktree inspect plan <RUN> --attention-only --limit 20 --format json",
         "uv run pdfbooktree inspect plan <RUN> --item-id n0001 --format json",
         f'uv run pdfbooktree inspect text "{pdf}" --pages 1 --format json',
     ]
+    if markdown_manifest_available:
+        commands.append("uv run pdfbooktree inspect markdown <RUN> --format json")
+    return commands

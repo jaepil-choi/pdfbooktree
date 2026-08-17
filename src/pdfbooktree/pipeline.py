@@ -26,25 +26,28 @@ from pdfbooktree.models import (
     BookmarkPlanValidation,
     ConfidenceSummary,
     ExistingOutlineItem,
+    HeadingCandidate,
     OutlineQualityAssessment,
     PdfAnalysis,
     TierSet,
 )
+from pdfbooktree.outline.infer import infer_outline
 from pdfbooktree.outline.plan import insert_position_fallback, normalize_bookmark_plan
 from pdfbooktree.outline.validate import validate_bookmark_plan
-from pdfbooktree.pdf.outline import read_outline
+from pdfbooktree.pdf.outline import outline_to_plan, read_outline
 from pdfbooktree.pdf.outline_quality import assess_outline_quality
 from pdfbooktree.processing_logger import (
     NullProcessingLogger,
     ProcessingLogEvent,
     ProcessingLogger,
 )
-from pdfbooktree.typography.bpe import infer_bpe_outline
+from pdfbooktree.typography.bpe import BpeHeading, infer_bpe_outline
 from pdfbooktree.typography.geometry import (
     build_geometry_context,
     compute_geometry_font_tier_set,
     select_geometry_headings,
 )
+from pdfbooktree.typography.headings import extract_heading_candidates
 from pdfbooktree.typography.lines import extract_typography_lines
 from pdfbooktree.typography.margins import exclude_margin_artifacts
 from pdfbooktree.typography.position_fallback import select_body_tier_position_fallback
@@ -52,6 +55,7 @@ from pdfbooktree.typography.tiers import compute_tier_set
 from pdfbooktree.utils.hashing import stable_json_hash
 from pdfbooktree.utils.hashing import file_sha256
 from pdfbooktree.utils.jsonio import write_json
+from pdfbooktree.utils.text_normalize import normalize_text
 
 
 @dataclass(frozen=True)
@@ -61,6 +65,8 @@ class ExistingOutlineDecision:
     existing_outline: list[ExistingOutlineItem]
     quality: OutlineQualityAssessment | None
     reuse_existing: bool
+    structure_validation: BookmarkPlanValidation | None = None
+    reuse_rejected_reason: str | None = None
 
 
 def resolve_existing_outline_action(
@@ -70,9 +76,13 @@ def resolve_existing_outline_action(
 
     outline이 있으면 품질은 ``skip_existing_bookmarks`` 값과 무관하게 항상
     계산해 결과에 남긴다 - 호출자가 "왜 이 outline을 재사용/교체했는지"를
-    항상 확인할 수 있어야 한다. 실제로 재사용할지는 세 조건을 모두 만족해야
-    한다: outline이 있고, ``skip_existing_bookmarks``가 True이고, low
-    quality라도 ``outline_quality.replace_when_low_quality``가 False다.
+    항상 확인할 수 있어야 한다. 재사용하려면 outline 구조가 유효해야 하며,
+    다음 세 정책 조건도 모두 만족해야 한다: outline이 있고,
+    ``skip_existing_bookmarks``가 True이고, low quality라도
+    ``outline_quality.replace_when_low_quality``가 False다. 구조 검증
+    (``structure_validation``)과 거부하면 그 사유(``reuse_rejected_reason``)도
+    항상 결과에 남겨, reuse하지 않은 원인이 quality가 아니라 구조 오류였는지도
+    호출자가 구분할 수 있게 한다.
     """
 
     existing_outline = read_outline(input_pdf)
@@ -83,14 +93,71 @@ def resolve_existing_outline_action(
     quality = assess_outline_quality(
         existing_outline, total_pages, config.outline_quality
     )
-    reuse_existing = config.skip_existing_bookmarks and not (
-        quality.is_low_quality and config.outline_quality.replace_when_low_quality
+    validation = validate_bookmark_plan(outline_to_plan(existing_outline), total_pages)
+    reuse_existing = (
+        validation.valid
+        and config.skip_existing_bookmarks
+        and not (
+            quality.is_low_quality and config.outline_quality.replace_when_low_quality
+        )
     )
+    reuse_rejected_reason: str | None = None
+    if not reuse_existing:
+        if not validation.valid:
+            reuse_rejected_reason = "invalid_structure"
+        elif not config.skip_existing_bookmarks:
+            reuse_rejected_reason = "skip_existing_bookmarks_disabled"
+        else:
+            reuse_rejected_reason = "low_quality_replace"
     return ExistingOutlineDecision(
         existing_outline=existing_outline,
         quality=quality,
         reuse_existing=reuse_existing,
+        structure_validation=validation,
+        reuse_rejected_reason=reuse_rejected_reason,
     )
+
+
+def existing_outline_check_message(decision: ExistingOutlineDecision) -> str:
+    """기존 outline 확인 결과를 진행 event 메시지 한 줄로 만든다.
+
+    ``Processor``와 ``infer_to_directory()``가 같은 문구를 내보내야 하므로
+    두 곳에서 문자열을 각자 조립하지 않고 이 함수를 공유한다.
+    """
+
+    message = f"기존 outline 확인 완료: items={len(decision.existing_outline)}"
+    if decision.reuse_rejected_reason is None:
+        return message
+    return f"{message}, reuse_rejected_reason={decision.reuse_rejected_reason}"
+
+
+def existing_outline_replacement_warnings(
+    decision: ExistingOutlineDecision,
+) -> list[str]:
+    """기존 outline을 typography 추론 결과로 대체한 사유 경고를 만든다.
+
+    quality 저하와 구조 오류는 서로 다른 원인이므로 둘 다 성립하면 두 경고를
+    모두 남긴다. ``Processor``와 ``infer_to_directory()``가 같은 경고를 내야
+    하므로 문구를 여기서 한 번만 정의한다.
+    """
+
+    warnings: list[str] = []
+    if decision.quality is not None and decision.quality.is_low_quality:
+        warnings.append(
+            "기존 outline이 low quality로 판정돼 typography 추론 결과로 "
+            f"교체했다: reasons={decision.quality.reasons}"
+        )
+    if decision.reuse_rejected_reason == "invalid_structure":
+        structure_warnings = (
+            decision.structure_validation.warnings
+            if decision.structure_validation is not None
+            else []
+        )
+        warnings.append(
+            "기존 outline 구조가 유효하지 않아 재사용하지 못하고 typography "
+            f"추론 결과로 대체했다: structure_warnings={structure_warnings}"
+        )
+    return warnings
 
 
 def analyze_pdf(
@@ -185,7 +252,14 @@ def infer_bookmarks(
     height_tiers = compute_tier_set(lines, "height", resolved)
     context = build_geometry_context(lines, font_tiers, resolved)
     candidates = select_geometry_headings(context, resolved)
-    font_plan = normalize_bookmark_plan(infer_bpe_outline(candidates, resolved))
+    if candidates:
+        font_plan = normalize_bookmark_plan(infer_bpe_outline(candidates, resolved))
+    else:
+        legacy_candidates = _select_page_strongest_heading_candidates(
+            extract_heading_candidates(lines, font_tiers, height_tiers, resolved)
+        )
+        font_plan = normalize_bookmark_plan(infer_outline(legacy_candidates))
+        candidates = _legacy_heading_candidates_to_bpe_headings(legacy_candidates)
     fallback_candidates = (
         select_body_tier_position_fallback(context, font_plan, resolved)
         if resolved.position_fallback_enabled
@@ -204,6 +278,72 @@ def infer_bookmarks(
         plan=plan,
         validation=validation,
     )
+
+
+def _select_page_strongest_heading_candidates(
+    candidates: list[HeadingCandidate],
+) -> list[HeadingCandidate]:
+    """legacy 후보에서는 페이지별로 가장 강한 근거 하나만 남긴다."""
+
+    strongest_by_page: dict[int, HeadingCandidate] = {}
+    for candidate in candidates:
+        current = strongest_by_page.get(candidate.pdf_page)
+        if current is None or _heading_candidate_rank(
+            candidate
+        ) < _heading_candidate_rank(current):
+            strongest_by_page[candidate.pdf_page] = candidate
+    return [strongest_by_page[page] for page in sorted(strongest_by_page)]
+
+
+def _heading_candidate_rank(
+    candidate: HeadingCandidate,
+) -> tuple[bool, bool, bool, float, float, str]:
+    """동점에서도 입력 순서에 의존하지 않는 legacy 후보 우선순위다."""
+
+    return (
+        candidate.numbering_depth is None,
+        "top_page_position" not in candidate.evidence,
+        "bold" not in candidate.evidence,
+        -candidate.confidence,
+        candidate.y0,
+        normalize_text(candidate.title).casefold(),
+    )
+
+
+def _legacy_heading_candidates_to_bpe_headings(
+    candidates: list[HeadingCandidate],
+) -> list[BpeHeading]:
+    """legacy ``HeadingCandidate``를 ``BookmarkInferenceResult.heading_candidates``
+    계약(``list[BpeHeading]``)에 맞춰 변환한다.
+
+    ``source``는 ``infer_outline()``이 만드는 plan item의 ``source="typography"``와
+    일관되게 유지하면서도, strict geometry 경로가 쓰는 ``"geometry_typography"``와는
+    구분된다. ``font_tier``/``height_tier`` 중 적어도 하나는 항상 채워져 있다 -
+    ``extract_heading_candidates()``가 둘 중 하나에 대한 ``large_*`` evidence가
+    없는 후보는 걸러내기 때문이다.
+    """
+
+    bpe_headings: list[BpeHeading] = []
+    for candidate in candidates:
+        tiers = [
+            tier
+            for tier in (candidate.font_tier, candidate.height_tier)
+            if tier is not None
+        ]
+        bpe_headings.append(
+            BpeHeading(
+                title=candidate.title,
+                pdf_page=candidate.pdf_page,
+                tier=min(tiers),
+                y0=candidate.y0,
+                y1=candidate.y1,
+                merged_line_count=1,
+                confidence=candidate.confidence,
+                source="typography",
+                evidence=tuple(candidate.evidence),
+            )
+        )
+    return bpe_headings
 
 
 def apply_plan(

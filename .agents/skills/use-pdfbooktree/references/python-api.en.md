@@ -48,6 +48,7 @@ Inspection/evaluation:
 
 - `inspect_page_count`, `inspect_text`, `inspect_bookmarks`
 - `inspect_ocr_artifact`, `inspect_plan_artifact`, `inspect_compare_plans`
+- `inspect_markdown_tree`, `inspect_compare_markdown`
 - `match_bookmark_plans`, `compare_bookmark_plans`
 - `MatchedPair`, `MatchMetrics`, `PlanMatchResult`
 - `PlanDiffEntry`, `PlanDiffResult`
@@ -195,6 +196,33 @@ The `inspect_*` functions are read-only and mirror the CLI:
 similarity and page tolerance, returning matched/missed/extra entries and
 metrics. `compare_bookmark_plans()` returns a deterministic A/B diff. Embedded
 outlines are weak references; metrics do not establish ground truth.
+
+`inspect_markdown_tree(target, *, limit=20) -> dict` reads a Markdown tree
+manifest (a `markdown_manifest.json` path, or a process output directory that
+contains one) and returns `graph`, `levels`, `words_per_node`,
+`pages_per_node`, `coverage`, `sources`, `titles`, `validation`, `findings`,
+`verdict`, and `retry`. `verdict` is `"ok"` when `findings` is empty,
+otherwise the `code` of the highest-severity finding, in order `invalid_graph`,
+`uncovered`, `duplicated`, `thin`, `over_split`, `fragmented`. Only
+`invalid_graph` and `uncovered` are `blocking`; the rest are `advisory`. Each
+`retry` entry carries `cause`, `overrides`, a human-facing re-runnable
+`command` string (or `None` when no config override applies), a shell-free
+`command_argv` list of argv tokens (or `None` under the same condition), and a
+`reason` grounded in measured corpus behavior — retries are candidates, never
+guarantees. `command` is quoted with POSIX single-quoting (`shlex.quote`): it
+runs as-is under bash/zsh and PowerShell, but `cmd.exe` does not treat single
+quotes as quoting and can fail on paths with spaces or brackets. To run a
+candidate without a shell, or under `cmd.exe`, use `command_argv` instead.
+
+`inspect_compare_markdown(manifest_a, manifest_b) -> dict` compares two
+Markdown manifests by `(level, pdf_start_page, normalized title)` node keys
+and returns `before`, `after` (each with `node_count`, `chosen_level`,
+`words_per_node_median` (`None` when the export has no word_count signal),
+`words_per_node_has_data`, `pages_per_node_mean`, `unassigned_ratio`,
+`fragment_ratio`, `verdict`), and `delta` (the numeric differences plus
+`verdict_changed`, `added_node_count`, `removed_node_count`).
+`words_per_node_median` in `delta` is only computed when both sides have a
+word_count signal; otherwise it is `None`.
 
 ## Batch runs and manifests
 

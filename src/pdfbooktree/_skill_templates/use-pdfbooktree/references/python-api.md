@@ -234,10 +234,27 @@ CLI와 같은 읽기 전용 조사 함수를 사용하라.
 - `inspect_ocr_artifact(artifact_dir) -> dict`
 - `inspect_plan_artifact(output_dir, include_items=False, limit=20, item_id=None, page_range=None, level=None, source=None, attention_only=False) -> dict`: plan/review summary와 Markdown manifest를 반환하고 요청할 때만 제한된 review item을 filter한다.
 - `inspect_compare_plans(plan_a, plan_b, page_tolerance=None, title_similarity_threshold=None) -> dict`
+- `inspect_markdown_tree(target, *, limit=20) -> dict`: Markdown tree manifest(`markdown_manifest.json` 경로 또는 process output directory)를 조사해 `graph`, `levels`, `words_per_node`, `pages_per_node`, `coverage`, `sources`, `titles`, `validation`과 함께 `findings`, `verdict`, `retry`를 반환한다. `verdict`는 `findings`가 비어 있으면 `"ok"`이고, 그렇지 않으면 severity 순서(`invalid_graph`, `uncovered`, `duplicated`, `thin`, `over_split`, `fragmented`) 상 가장 먼저 오는 finding의 `code`다. blocking severity는 `invalid_graph`, `uncovered`뿐이고 나머지는 advisory다. 각 finding은 `code`, `severity`, `detail`, `cause`를 가지며 `cause`는 `graph_contract_violation`, `pages_outside_any_node`, `pages_owned_by_multiple_nodes`, `reused_existing_outline`, `sparse_heading_candidates`, `heading_candidates_too_permissive`, `non_heading_text_selected` 중 하나다. `retry`의 각 항목은 `cause`, `overrides`, 사람이 읽는 `command`(재실행 가능한 `pdfbooktree process ...` 문자열, override가 없으면 `None`), shell 없이 그대로 실행 가능한 `command_argv`(argv 문자열 list, override가 없으면 `None`), 실측 근거를 담은 `reason`을 담으며 항상 보장이 아닌 재시도 후보로만 제시한다. `command`는 POSIX single-quoting(`shlex.quote`)을 써서 bash/zsh와 PowerShell에서는 그대로 실행되지만, cmd.exe는 작은따옴표를 quoting으로 취급하지 않아 공백/괄호가 섞인 경로에서 실패할 수 있다. shell 없이 실행하거나 cmd.exe에서 실행할 때는 `command_argv`를 써라.
+- `inspect_compare_markdown(manifest_a, manifest_b) -> dict`: 두 Markdown manifest를 `(level, pdf_start_page, normalized title)` 키로 비교해 `before`, `after`, `delta`를 반환한다. `before`/`after`는 각각 `node_count`, `chosen_level`, `words_per_node_median`(word_count signal이 없는 export에서는 `None`), `words_per_node_has_data`, `pages_per_node_mean`, `unassigned_ratio`, `fragment_ratio`, `verdict`를 담고, `delta`는 그 수치 차이와 `verdict_changed`, `added_node_count`, `removed_node_count`를 담는다. `words_per_node_median`의 delta는 양쪽 다 word_count signal이 있을 때만 계산하고, 한쪽이라도 없으면 `None`이다.
 
 두 in-memory plan을 비교하려면 `compare_bookmark_plans(before, after, page_tolerance=0, title_similarity_threshold=0.7) -> PlanDiffResult`를 사용하라. gold/predicted 품질 지표가 필요하면 `match_bookmark_plans(gold, predicted, page_tolerance=1, title_similarity_threshold=0.7) -> PlanMatchResult`를 사용하라.
 
 비교 결과에서는 added/removed/matched/unchanged/moved/level changed/source changed 수와 item 상세를 확인하라. 평가 결과에서는 precision, recall, F1, Jaccard, exact-page-match rate를 확인하라.
+
+```python
+from pdfbooktree import inspect_compare_markdown, inspect_markdown_tree
+
+inspection = inspect_markdown_tree("runs/book/book_markdown_split", limit=20)
+if inspection["verdict"] != "ok":
+    for candidate in inspection["retry"]:
+        print(candidate["cause"], candidate["command"], candidate["reason"])
+
+comparison = inspect_compare_markdown(
+    "runs/book/book_markdown_split/markdown_manifest.json",
+    "runs/book-retry/book_markdown_split/markdown_manifest.json",
+)
+print(comparison["delta"]["verdict_changed"], comparison["delta"]["node_count"])
+```
 
 ## Batch와 실행 manifest
 

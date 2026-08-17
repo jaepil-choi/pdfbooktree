@@ -174,7 +174,12 @@ pdfbooktree inspect page-count "book.pdf" --format json
 pdfbooktree inspect text "book.pdf" --pages 10-12 --format json
 pdfbooktree inspect bookmarks "book.pdf" --format json
 pdfbooktree inspect ocr ".\ocr-artifacts" --format json
+pdfbooktree inspect markdown ".\runs\<run-dir>\book_markdown_split" --format json
 pdfbooktree inspect compare "plan-a.json" "plan-b.json" --format json
+pdfbooktree inspect compare `
+  ".\runs\<run-dir>\book_markdown_split\markdown_manifest.json" `
+  ".\runs\<retry-run-dir>\book_markdown_split\markdown_manifest.json" `
+  --format json
 ```
 
 `inspect plan` accepts a plan, run directory, or Markdown graph directory. Use
@@ -182,6 +187,27 @@ pdfbooktree inspect compare "plan-a.json" "plan-b.json" --format json
 `--level`, and `--source` to progressively disclose only needed evidence.
 Confidence and attention signals prioritize review; they do not certify
 quality.
+
+`inspect markdown <OUTPUT_DIR_OR_MANIFEST> [--limit N]` reads a Markdown tree
+manifest and returns `verdict`, `findings`, and `retry` candidates. `verdict`
+is `ok` when there are no findings, otherwise the `code` of the
+highest-severity finding (`invalid_graph`, `uncovered`, `duplicated`, `thin`,
+`over_split`, `fragmented`, in that order); only `invalid_graph` and
+`uncovered` are blocking. Each `retry` entry carries `command`, `command_argv`,
+and a `reason` grounded in measured corpus behavior — retries are candidates,
+not guarantees. `command` is a human-facing string quoted with POSIX
+single-quoting (`shlex.quote`); it is valid to run as-is under bash/zsh and
+PowerShell, but `cmd.exe` does not treat single quotes as quoting and can fail
+on paths with spaces or brackets. To run a candidate without a shell, or under
+`cmd.exe`, use `command_argv` (a list of argv tokens, or `None` when there is
+no override) instead.
+
+`inspect compare <A> <B>` auto-dispatches: it reads each input exactly once
+and classifies it as a Markdown manifest when its JSON contains `nodes` (a
+corrupt file is reported as an input error, not silently treated as a plan).
+When both inputs are Markdown manifests it compares their verdict/coverage as
+a `before`/`after`/`delta` diff; when both are bookmark plan JSON it runs the
+existing plan diff. Mixing one of each is rejected as an error.
 
 ## Configuration
 

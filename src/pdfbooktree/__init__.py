@@ -41,7 +41,9 @@ from pdfbooktree.evaluation import (
 )
 from pdfbooktree.inspection import (
     inspect_bookmarks,
+    inspect_compare_markdown,
     inspect_compare_plans,
+    inspect_markdown_tree,
     inspect_ocr_artifact,
     inspect_page_count,
     inspect_plan_artifact,
@@ -154,7 +156,9 @@ __all__ = [
     "MatchedPair",
     "MatchMetrics",
     "inspect_bookmarks",
+    "inspect_compare_markdown",
     "inspect_compare_plans",
+    "inspect_markdown_tree",
     "inspect_ocr_artifact",
     "inspect_page_count",
     "inspect_plan_artifact",

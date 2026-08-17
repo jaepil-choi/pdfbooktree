@@ -23,6 +23,8 @@ from pdfbooktree.pipeline import (
     analyze_pdf,
     apply_plan,
     confidence_summary_for_inference,
+    existing_outline_check_message,
+    existing_outline_replacement_warnings,
     infer_bookmarks,
     resolve_existing_outline_action,
 )
@@ -88,7 +90,7 @@ class Processor:
         )
         self._emit(
             "existing_outline_check_completed",
-            f"기존 outline 확인 완료: items={len(decision.existing_outline)}",
+            existing_outline_check_message(decision),
         )
         if decision.reuse_existing:
             return self._export_existing_outline(
@@ -115,6 +117,7 @@ class Processor:
             analysis.total_pages,
             decision.quality,
             decision.existing_outline,
+            decision.reuse_rejected_reason,
         )
         if "bookmark_plan" not in artifacts:
             artifacts["bookmark_plan"] = write_artifact(
@@ -135,11 +138,7 @@ class Processor:
             bookmark_count=len(inference.plan),
         )
         warnings = list(inference.validation.warnings)
-        if decision.quality is not None and decision.quality.is_low_quality:
-            warnings.append(
-                "기존 outline이 low quality로 판정돼 typography 추론 결과로 "
-                f"교체했다: reasons={decision.quality.reasons}"
-            )
+        warnings.extend(existing_outline_replacement_warnings(decision))
         apply_result = None
         status = "failed"
         if inference.validation.valid:
@@ -292,6 +291,7 @@ class Processor:
         total_pages: int,
         quality: OutlineQualityAssessment | None = None,
         existing_outline: list[ExistingOutlineItem] | None = None,
+        reuse_rejected_reason: str | None = None,
     ) -> dict[str, Path]:
         if not self.config.write_artifacts:
             return {}
@@ -302,6 +302,7 @@ class Processor:
             input_pdf=self.input_pdf,
             total_pages=total_pages,
             existing_outline=existing_outline,
+            reuse_rejected_reason=reuse_rejected_reason,
         )
 
     def _write_existing_artifacts(
