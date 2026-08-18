@@ -19224,6 +19224,25 @@
       },
       "finding": "표본 8권 전부 font가 1종이고 font_size와 bbox height의 상관계수가 0.9988 이상이다. overlay가 font size를 각 bbox에 맞춰 정하므로 font_size는 조판 정보가 아니라 OCR box 기하다. 그 결과 tier가 중앙값 18개까지 생기고 level 1이 되는 최상위 tier의 중앙값 40%, 최대 55%가 표 행·이미지 placeholder·맨숫자·단일 토큰 같은 비텍스트 조각이다. fragment가 level 1에 가장 몰리고 기존 knob 조정이 듣지 않던 이유를 설명한다.",
       "ran_at": "2026-08-18T10:00:00+09:00"
+    },
+    {
+      "id": "118_heading_knob_steerability",
+      "purpose": "heading 추출 parameter가 agent가 책마다 조절해 맞출 수 있는 축인지 확인한다.",
+      "inputs": [
+        "고정 corpus에서 seed 20260818로 뽑은 6권",
+        "size_class_depth, max_headings_per_page, min_words 3축 36조합"
+      ],
+      "outputs": "experiments\\\\outputs\\\\118_heading_knob_steerability\\\\results.json",
+      "method": "책당 typography 분석을 한 번만 하고 메모리에서 knob을 sweep해 후보 수와 장당 page 간격을 측정했다. 도달성은 5~40 page/heading 범위 안에 설정이 존재하는지로, 단조성은 knob을 키울 때 후보가 줄지 않는 비율로 보았다.",
+      "summary": {
+        "sampled_books": 6,
+        "books_with_reachable_setting": 6,
+        "median_settings_in_range": 16.5,
+        "median_monotonic_size_class_depth": 0.9585,
+        "median_monotonic_max_headings_per_page": 1.0
+      },
+      "finding": "표본 6권 전부 말이 되는 지점에 도달했고 36개 설정 중 중앙값 16.5개가 그 범위에 들어 바늘구먹기가 아니다. max_headings_per_page는 단조성 1.0, size_class_depth는 0.96으로 에이전트가 한 방향으로 밀면 결과도 한 방향으로 움직인다. 가장 중요한 것은 6권이 서로 다른 설정에서 답을 얻었다는 점이다. 단일 기본값으로는 맞출 수 없고 조절 가능성이 제품의 답이다.",
+      "ran_at": "2026-08-18T12:00:00+09:00"
     }
   ]
 }
