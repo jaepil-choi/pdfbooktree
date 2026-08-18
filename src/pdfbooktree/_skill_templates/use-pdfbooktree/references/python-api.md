@@ -67,18 +67,23 @@ private module helper보다 공개 root/subpackage import를 우선하라.
 
 ## Project skill 설치
 
-Python에서 package에 번들된 skill을 설치하려면 `install_project_skill(project_dir=".", force=False) -> SkillInstallResult`를 사용하라.
+Python에서 package에 번들된 skill을 설치하려면 `install_project_skill(project_dir=".", force=False) -> SkillInstallResult`를, 제거하려면 `uninstall_project_skill(project_dir=".") -> SkillUninstallResult`를 사용하라.
 
 ```python
 from pathlib import Path
 
-from pdfbooktree import install_project_skill
+from pdfbooktree import install_project_skill, uninstall_project_skill
 
 result = install_project_skill(Path("my-project"))
 print(result.status, result.skill_dir, result.files)
+
+removed = uninstall_project_skill(Path("my-project"))
+print(removed.status, removed.removed_skill_dirs)
 ```
 
 기본 target은 `<project_dir>/.agents/skills/use-pdfbooktree`다. 기존 target은 `SkillInstallError`로 보호하며, 전체 교체를 명시할 때만 `force=True`를 사용하라. `PROJECT_SKILL_NAME`, `PROJECT_SKILL_RELATIVE_PATH`, `SkillInstallResult`도 공개 계약으로 사용할 수 있다.
+
+설치는 `AGENTS.md`와 `CLAUDE.md`에 marker로 감싼 짧은 pointer block도 심어서 skill을 discoverable하게 만든다. 다시 설치하면 그 block만 그 자리에서 교체한다. `uninstall_project_skill`은 install의 정확한 역이다. 두 skill directory는 `SKILL.md` frontmatter의 `name`이 `use-pdfbooktree`일 때만 지우고, `AGENTS.md`/`CLAUDE.md`에서는 marker block만 제거하며 block 제거로 파일이 비면 파일 자체를 지운다. 아무것도 설치돼 있지 않으면 오류 대신 `status="not_installed"`를 반환하고, 반복 호출도 안전하다.
 
 ## 단일 PDF 고수준 처리
 

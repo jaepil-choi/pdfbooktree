@@ -47,7 +47,19 @@ pdfbooktree skill install --force
 - 기존 target은 기본적으로 exit `2`의 `skill_install_error`로 보호한다.
 - `--force`는 기존 skill directory 전체를 교체하므로 local 수정이 필요하면 먼저 보존하라.
 - 성공 JSON result의 `status`, `project_dir`, `skill_dir`, `file_count`, `files`를 확인하라.
+- install은 `AGENTS.md`/`CLAUDE.md`에도 marker로 감싼 짧은 pointer block을 심는다. 다시 실행해도 그 block만 그 자리에서 교체하며 중복되지 않는다.
 - 이 저장소를 source checkout으로 실행할 때는 동일하게 `uv run pdfbooktree skill install`을 사용하라.
+
+설치한 skill을 제거하려면 `skill uninstall`을 사용하라. `install`의 정확한 역이며, `--project-dir`, `--format`, `--debug` option은 `install`과 같다.
+
+```powershell
+pdfbooktree skill uninstall
+pdfbooktree skill uninstall --project-dir C:\work\my-project --format json
+```
+
+- 이 package가 만든 두 skill directory와 `AGENTS.md`/`CLAUDE.md`의 marker block만 지운다. `SKILL.md` frontmatter의 `name`이 `use-pdfbooktree`가 아닌 directory나 marker 밖의 사용자 내용은 절대 건드리지 않는다.
+- marker block 제거로 파일이 완전히 비면 그 파일을 지우고, 아니면 나머지 내용을 그대로 남긴다.
+- 아무것도 설치돼 있지 않아도 오류 없이 성공하며, JSON result의 `status`가 `not_installed`다. 반복 실행도 안전하다.
 
 ## 빠른 workflow
 

@@ -8,7 +8,7 @@ description: 이 저장소의 pdfbooktree Python API와 CLI를 사용해 PDF 책
 ## 기본 원칙
 
 - 저장소 루트에서 모든 실행 명령을 `uv run`으로 호출하라. CLI는 `uv run pdfbooktree ...`, Python 파일은 `uv run python ...` 형식을 사용하라.
-- pip로 설치한 package를 새 project에서 사용할 때 skill이 없다면 project root에서 `pdfbooktree skill install`을 한 번 실행하라.
+- pip로 설치한 package를 새 project에서 사용할 때 skill이 없다면 project root에서 `pdfbooktree skill install`을 한 번 실행하라. 제거하려면 정확히 그 역인 `pdfbooktree skill uninstall`을 사용하라.
 - 일반 구조화 기능은 `python -m pip install pdfbooktree`, live OCR overlay까지 필요하면 `python -m pip install "pdfbooktree[ocr]"`로 설치하라.
 - PowerShell 문법으로 예시와 명령을 작성하라.
 - 입력 PDF와 결과 artifact를 먼저 조사하고, 사용자 목적에 맞는 가장 작은 workflow를 선택하라.

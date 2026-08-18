@@ -75,7 +75,11 @@ from pdfbooktree.processing_logger import (
     default_processing_log_mode,
 )
 from pdfbooktree.processor import Processor
-from pdfbooktree.project_skill import SkillInstallError, install_project_skill
+from pdfbooktree.project_skill import (
+    SkillInstallError,
+    install_project_skill,
+    uninstall_project_skill,
+)
 from pdfbooktree.run import RunError
 from pdfbooktree.workflows import (
     apply_plan_to_directory,
@@ -285,6 +289,44 @@ def skill_install_cmd(
             command,
             error,
             code="skill_install_error",
+            output_format=resolved_output_format,
+        )
+    except Exception as error:
+        _exit_stage_runtime_error(
+            command,
+            error,
+            output_format=resolved_output_format,
+            debug=debug,
+        )
+    emit_command_result(command, result, output_format=resolved_output_format)
+
+
+@skill_app.command("uninstall")
+def skill_uninstall_cmd(
+    project_dir: Path = typer.Option(
+        Path("."),
+        "--project-dir",
+        "-p",
+        help="skill을 제거할 project root다. 기본값은 현재 directory다.",
+    ),
+    output_format: str = typer.Option(
+        "human", "--format", help="출력 형식이다: human, json."
+    ),
+    debug: bool = typer.Option(
+        False, "--debug", help="예상하지 못한 오류의 traceback을 그대로 노출한다."
+    ),
+) -> None:
+    """``skill install``이 만든 것만 정확히 찾아 제거한다."""
+
+    command = "skill.uninstall"
+    resolved_output_format = _stage_output_format(output_format)
+    try:
+        result = uninstall_project_skill(project_dir)
+    except SkillInstallError as error:
+        _exit_stage_input_error(
+            command,
+            error,
+            code="skill_uninstall_error",
             output_format=resolved_output_format,
         )
     except Exception as error:

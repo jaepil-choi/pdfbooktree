@@ -39,7 +39,24 @@ pdfbooktree skill install --force --format json
 The command installs the package-bundled `use-pdfbooktree` skill under
 `.agents/skills` in the project. Existing content is protected unless
 `--force` replaces the complete tree. Check `status`, `project_dir`,
-`skill_dir`, `file_count`, and `files` in JSON output.
+`skill_dir`, `file_count`, and `files` in JSON output. Install also writes a
+short marked pointer block into `AGENTS.md` and `CLAUDE.md`; re-running it
+replaces only that block in place without duplicating it.
+
+Remove an installed skill with `skill uninstall`, the exact inverse of
+`install`. It shares the same `--project-dir`, `--format`, and `--debug`
+options.
+
+```powershell
+pdfbooktree skill uninstall
+pdfbooktree skill uninstall --project-dir C:\work\project --format json
+```
+
+It removes only the two skill directories this package owns (confirmed by
+`SKILL.md` frontmatter `name: use-pdfbooktree`) and only the marked block in
+`AGENTS.md`/`CLAUDE.md`, deleting a file entirely only if that leaves it
+empty. Nothing installed still succeeds with `status="not_installed"`, and
+running it twice is safe.
 
 ## Quick workflows
 

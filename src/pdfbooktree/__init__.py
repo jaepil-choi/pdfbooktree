@@ -94,7 +94,9 @@ from pdfbooktree.project_skill import (
     PROJECT_SKILL_RELATIVE_PATH,
     SkillInstallError,
     SkillInstallResult,
+    SkillUninstallResult,
     install_project_skill,
+    uninstall_project_skill,
 )
 from pdfbooktree.run import (
     InputIdentity,
@@ -152,6 +154,7 @@ __all__ = [
     "infer_bookmarks",
     "infer_pdf",
     "install_project_skill",
+    "uninstall_project_skill",
     "JsonValue",
     "match_bookmark_plans",
     "MatchedPair",
@@ -198,6 +201,7 @@ __all__ = [
     "RunManifest",
     "SkillInstallError",
     "SkillInstallResult",
+    "SkillUninstallResult",
     "InputIdentity",
     "ToolIdentity",
     "create_run_context",

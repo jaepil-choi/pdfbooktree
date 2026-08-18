@@ -28,6 +28,7 @@ Package/version and skill:
 - `__version__`, `package_version`
 - `PROJECT_SKILL_NAME`, `PROJECT_SKILL_RELATIVE_PATH`
 - `SkillInstallResult`, `SkillInstallError`, `install_project_skill`
+- `SkillUninstallResult`, `uninstall_project_skill`
 
 High-level workflows and core pipeline:
 
@@ -83,14 +84,26 @@ Public result/model classes:
 
 ```python
 from pathlib import Path
-from pdfbooktree import install_project_skill
+from pdfbooktree import install_project_skill, uninstall_project_skill
 
 result = install_project_skill(Path("."), force=False)
 print(result.status, result.skill_dir, result.file_count)
+
+removed = uninstall_project_skill(Path("."))
+print(removed.status, removed.removed_skill_dirs)
 ```
 
 Installation is project-scoped and refuses an existing target unless `force` is
-true. The complete bundled tree is replaced atomically at the target.
+true. The complete bundled tree is replaced atomically at the target. Install
+also writes a short marked pointer block into `AGENTS.md` and `CLAUDE.md` so
+the skill is discoverable; re-running install replaces only that block.
+
+`uninstall_project_skill` is the exact inverse: it removes both skill
+directories only after confirming their `SKILL.md` frontmatter `name` is
+`use-pdfbooktree`, and it removes only the marked block from `AGENTS.md` and
+`CLAUDE.md`, deleting a file entirely only if removing the block leaves it
+empty. Nothing installed yields `status="not_installed"` instead of an error.
+Running it twice is safe.
 
 ## High-level single-PDF workflows
 
