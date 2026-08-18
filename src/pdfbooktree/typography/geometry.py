@@ -300,20 +300,6 @@ def select_geometry_headings(
         and chunk.font_size > profile.representative_body_font_size
         and len(chunk.text.split()) <= resolved.body_font_max_words
     }
-    if resolved.max_headings_per_page > 0:
-        # 한 page에 top-size-class 후보가 너무 많으면 chapter 시작이 아니라
-        # 표/배너 page일 가능성이 높다(실험 118: chapter 시작 1~3개 vs
-        # 표/배너 7~20개). page 희소성은 어떤 overlay든 주는 일반 정보이므로
-        # book-relative 상대 count로만 판정한다. 0(기본값)은 비활성화이며 제한을
-        # 걸지 않는다.
-        chunk_by_id = {chunk.chunk_id: chunk for chunk in chunks}
-        page_counts = Counter(chunk_by_id[chunk_id].pdf_page for chunk_id in font_ids)
-        font_ids = {
-            chunk_id
-            for chunk_id in font_ids
-            if page_counts[chunk_by_id[chunk_id].pdf_page]
-            <= resolved.max_headings_per_page
-        }
     if resolved.heading_candidate_mode == "position":
         selected_ids = position_ids
     elif resolved.heading_candidate_mode == "font":
@@ -325,6 +311,25 @@ def select_geometry_headings(
             f"지원하지 않는 heading candidate mode다: {resolved.heading_candidate_mode}"
         )
 
+    if resolved.max_headings_per_page > 0:
+        # 한 page에 후보가 너무 많으면 chapter 시작이 아니라 표/배너 page일
+        # 가능성이 높다(실험 118: chapter 시작 1~3개 vs 표/배너 7~20개). page
+        # 희소성은 어떤 overlay든 주는 일반 정보이므로 book-relative 상대
+        # count로만 판정한다. 0(기본값)은 비활성화이며 제한을 걸지 않는다.
+        #
+        # mode를 고른 뒤의 최종 선택집합에 적용한다. font 경로에만 걸면
+        # position mode에서 이 knob이 오류도 경고도 없이 무반응이 되어, agent가
+        # 값을 바꿔도 결과가 같은 가짜 knob이 된다.
+        chunk_by_id = {chunk.chunk_id: chunk for chunk in chunks}
+        page_counts = Counter(
+            chunk_by_id[chunk_id].pdf_page for chunk_id in selected_ids
+        )
+        selected_ids = {
+            chunk_id
+            for chunk_id in selected_ids
+            if page_counts[chunk_by_id[chunk_id].pdf_page]
+            <= resolved.max_headings_per_page
+        }
     evidence = {
         "position": [
             "repeated_anchor_pattern",
