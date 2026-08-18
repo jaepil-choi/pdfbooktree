@@ -11,6 +11,23 @@
 - 생성된 Markdown tree를 진단하는 `inspect markdown` 명령과 `inspect_markdown_tree()`,
   `inspect_compare_markdown()`. verdict와 원인, 실행 가능한 재시도 후보를 함께 낸다.
 - `inspect compare`가 bookmark plan JSON과 Markdown manifest를 자동으로 구분한다.
+- typography를 한 번만 분석하고 heading knob 조합을 메모리 안에서 재평가하는
+  `inspect sweep` 명령과 `inspect_heading_sweep()`. `process` output artifact를
+  만들지 않으므로 agent가 값을 바꿀 때마다 재실행하지 않고도 조합별
+  candidate 수와 방향(`increases_candidates`/`decreases_candidates`/`mixed`/
+  `no_effect`)을 저렴하게 확인할 수 있다.
+- 책 내부 상대값으로 정의한 typography knob `max_headings_per_page`,
+  `size_class_depth`. 둘 다 기본값 `0`(비활성화)이라 기존 동작을 바꾸지
+  않는다. OCR overlay는 각 줄의 font size를 bbox에서 정하고 책마다 다른
+  값에서 clamp하므로, 절대 font size나 tier 번호는 책 사이에서 뜻이
+  달라져 agent가 쓸 수 있는 축이 아니다. 두 knob은 책 내부에서만 뜻이
+  통하는 상대 축(page당 희소성, 상위 size class 개수)으로 이 문제를
+  피한다.
+- `skill install`이 이제 두 target을 설치한다. `.agents/skills/`에는 전체
+  지침을, `.claude/skills/`에는 이 저장소의 `CLAUDE.md`가 `AGENTS.md`에
+  위임하는 것과 같은 adapter 한 파일을 설치하며, 두 target 모두 같은
+  번들 원본에서 파생돼 workflow 목록 같은 내용을 손으로 중복 유지하지
+  않는다.
 
 ### 변경
 
@@ -21,6 +38,10 @@
 ### 수정
 
 - typography tier 구성에서 density peak와 cut 개수가 어긋나 IndexError가 나던 문제.
+- `max_headings_per_page`가 `heading_candidate_mode=position`에서는 최종
+  선택에 전혀 반영되지 않던 문제. font 후보 집합에만 상한이 걸려 있었는데
+  `position` mode는 그 집합을 쓰지 않아 값을 바꿔도 plan이 조용히
+  그대로였다. 이제 mode 분기 뒤 최종 선택 집합에 상한을 적용한다.
 
 ### 제거
 
@@ -28,6 +49,9 @@
   조용히 무시하지 않고 `invalid_config`로 거절한다.
 - 항상 `raw_tier_count`와 같은 값이던 `TierSet.gap_merged_tier_count` 필드와
   `font_size_tiers.json`, `height_tiers.json` artifact의 동일 항목.
+- 중복이던 height tier 증거. OCR overlay에서는 font size와 bounding-box
+  height가 같은 측정값이라(최상위 tier가 표본 전체에서 100% 동일), 독립
+  증거 두 개로 취급하던 것을 제거하고 font tier만 남겼다.
 
 ## 0.1.1 - 2026-07-19
 

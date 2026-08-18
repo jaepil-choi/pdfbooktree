@@ -13,6 +13,23 @@ This project follows [Semantic Versioning](https://semver.org/).
   result carries a verdict, the cause, and runnable retry candidates.
 - `inspect compare` now distinguishes a bookmark plan JSON from a Markdown
   manifest automatically.
+- `inspect sweep` command plus `inspect_heading_sweep()`, which analyzes a PDF
+  exactly once and re-evaluates heading-knob combinations entirely in memory.
+  No `process` output artifact is written, so an agent can see the candidate
+  count and direction (`increases_candidates`/`decreases_candidates`/`mixed`/
+  `no_effect`) for every combination cheaply, without rerunning per setting.
+- Book-relative typography knobs `max_headings_per_page` and
+  `size_class_depth`. Both default to `0` (off), so current behavior is
+  unchanged. The OCR overlay sets each line's font size from its bounding box
+  and clamps at a per-book value, so an absolute font size or tier index does
+  not carry the same meaning across books and is not an axis an agent can act
+  on. Both new knobs are book-relative (per-page sparsity, count of top size
+  classes) instead, so they avoid that trap.
+- `skill install` now installs two targets. `.agents/skills/` gets the full
+  instructions, and `.claude/skills/` gets a single adapter file that mirrors
+  how this repository's `CLAUDE.md` defers to `AGENTS.md`. Both targets are
+  derived from the same bundled source, so content such as the workflow list
+  is never hand-duplicated between them.
 
 ### Changed
 
@@ -26,6 +43,11 @@ This project follows [Semantic Versioning](https://semver.org/).
 
 - An IndexError raised while building typography tiers when the number of
   density peaks and cuts disagreed.
+- `max_headings_per_page` had no effect at all in
+  `heading_candidate_mode=position`. The cap was applied only to the font
+  candidate set, which `position` mode never uses, so changing the value left
+  the plan silently unchanged. The cap is now applied to the final selected
+  candidates after the mode branch, in every heading candidate mode.
 
 ### Removed
 
@@ -34,6 +56,10 @@ This project follows [Semantic Versioning](https://semver.org/).
 - The `TierSet.gap_merged_tier_count` field, which always equalled
   `raw_tier_count`, and the same entry in the `font_size_tiers.json` and
   `height_tiers.json` artifacts.
+- Duplicated height-tier evidence. In an OCR overlay, font size and
+  bounding-box height are the same measurement (their top tiers agreed 100%
+  across the sample), so treating them as two independent signals was
+  removed and only the font tier remains.
 
 ## 0.1.1 - 2026-07-19
 
