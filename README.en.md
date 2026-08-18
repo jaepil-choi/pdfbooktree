@@ -1,154 +1,68 @@
 # pdfbooktree
 
-[한국어](README.md) · [Documentation](docs/reference.md) ·
-[Changelog](CHANGELOG.en.md)
+[한국어](https://github.com/jaepil-choi/pdfbooktree/blob/master/README.md) ·
+[Docs](https://github.com/jaepil-choi/pdfbooktree/blob/master/docs/reference.md) ·
+[Changelog](https://github.com/jaepil-choi/pdfbooktree/blob/master/CHANGELOG.en.md)
 
-`pdfbooktree` adds bookmarks to PDF books and exports their chapter structure
-as Markdown.
+`pdfbooktree` is a Python tool that reads a PDF book and infers a hierarchical
+bookmark tree. Instead of locating and parsing a table-of-contents page, it
+recovers the chapter and section structure from the typography and page
+geometry of the whole book. The result is saved as a navigable bookmarked PDF
+and as a Markdown directory tree an LLM can read section by section.
 
-It keeps a useful outline when the PDF already has one. Otherwise, it builds a
-draft outline from the size and placement of text on each page. You can review
-the draft before writing a new bookmarked PDF and a folder of linked Markdown
-files.
+## Core capabilities
 
-## When to use it
+- Bookmark structure inferred from typography and geometry, with no TOC page required
+- Bookmarked PDF output
+- Markdown directory tree export, split per section
+- OCR text layer overlay for scanned PDFs
+- Batch processing across many books
+- Read-only inspection commands for intermediate results
 
-- Make a long PDF easier to navigate
-- Move a book's chapter structure into Markdown or Obsidian
-- Process a directory of PDF books with the same settings
+## Built for AI agents
+
+This package is designed for AI agents as much as for people. Rather than
+reading a whole book, an agent runs a cheap deterministic extraction, checks
+with the inspection commands whether the resulting structure makes sense, and
+then adjusts parameters per book and runs again.
 
 ## Install
 
-Python 3.12 or newer is required.
+```powershell
+uv add pdfbooktree
+```
+
+Add the `[ocr]` extra if you need live OCR overlay for scanned PDFs.
 
 ```powershell
-python -m pip install pdfbooktree
+uv add "pdfbooktree[ocr]"
 ```
 
-Install the OCR extra only if you need to add a text layer to scanned PDFs:
+## Getting started
+
+Run this once in your project. It registers the same skill for both
+agents-style tools and Claude.
 
 ```powershell
-python -m pip install "pdfbooktree[ocr]"
+pdfbooktree skill install
 ```
 
-## Quick start
+From there the installed skill and its reference documents cover the commands,
+options and output structure. Remove it with `pdfbooktree skill uninstall`.
 
-```powershell
-pdfbooktree process "book.pdf" -o .\runs
-```
+## Good to know
 
-Each run gets its own output directory:
-
-```text
-runs/
-└── <book name>-<ID>/
-    └── <run ID>/
-        ├── bookmark_plan.json
-        ├── <book name>_bookmarked.pdf
-        └── <book name>_markdown/
-            ├── toc.md
-            └── nodes/
-```
-
-- `bookmark_plan.json` contains the outline and page assignments.
-- `*_bookmarked.pdf` is a new PDF with bookmarks.
-- `*_markdown/` contains the table of contents and chapter files.
-
-The source PDF is never modified.
-
-## Review before applying
-
-An inferred outline can vary with the design of the book. For important
-documents, review it with the `infer → inspect → apply` workflow:
-
-```powershell
-$pdf = "book.pdf"
-
-pdfbooktree infer $pdf -o .\runs --format json
-pdfbooktree inspect plan "<run_dir returned by infer>" --summary
-pdfbooktree apply $pdf `
-  --plan "<run_dir>\bookmark_plan.json" `
-  -o .\runs --dry-run
-pdfbooktree apply $pdf `
-  --plan "<run_dir>\bookmark_plan.json" `
-  -o .\runs
-```
-
-`--dry-run` checks page ranges and outline levels without writing output files.
-
-To process a directory:
-
-```powershell
-pdfbooktree batch .\books -o .\runs --recursive
-```
-
-## Markdown output
-
-Each chapter or section becomes a Markdown file with links to its parent,
-children, previous section, and next section. Open the generated Markdown
-directory as an Obsidian vault and start with `toc.md`.
-
-You can split long sections by setting a word limit:
-
-```powershell
-pdfbooktree process "book.pdf" -o .\runs `
-  --max-words 10000 --max-words-coverage 0.95
-```
-
-## Scanned PDFs
-
-A PDF without searchable text needs OCR first. The built-in OCR command uses
-Upstage Document Parse.
-
-```powershell
-$env:UPSTAGE_API_KEY = "<upstage-api-key>"
-pdfbooktree ocr-overlay "scan.pdf" -o ".\scan_ocr.pdf"
-pdfbooktree process ".\scan_ocr.pdf" -o .\runs
-```
-
-OCR sends an image of each page to Upstage and may incur API charges. Check
-your security policy and Upstage's data-processing terms before sending
-sensitive documents. Never commit API keys.
-
-## PDFs that already have bookmarks
-
-By default, a useful existing outline is reused. Replacing it with an inferred
-outline requires an explicit setting:
-
-```powershell
-pdfbooktree batch .\books -o .\runs `
-  --set outline_quality.replace_when_low_quality=true
-```
-
-Review the original bookmarks and the dry-run result before replacing them.
-
-## Python API
-
-```python
-from pdfbooktree import process_pdf
-
-result = process_pdf("book.pdf", "runs")
-print(result.run_dir)
-print(result.result.bookmarked_pdf_path)
-print(result.result.markdown_manifest_path)
-```
-
-Use `infer_pdf()`, `preview_apply_plan()`, and `apply_plan_file()` when you need
-separate inference, validation, and application steps.
-
-## Limitations
-
-- Bad text extraction or reading order in the source PDF carries over to
-  Markdown.
-- An inferred outline is a draft and should be reviewed when heading styles are
-  inconsistent.
-- Tables, equations, and figures are not reconstructed semantically.
-- Password-protected PDFs are not supported.
-- Public page numbers are 1-based.
-
-See the [documentation index](docs/reference.md) for the complete CLI and Python
-API references.
+- The inferred result is a **draft outline**, not a finished answer. It assumes
+  a person or an agent will review and adjust it. Use the flow that builds a
+  plan first (`infer`), checks it, and then applies it (`apply`) so you can
+  correct the structure before it is written.
+- OCR overlay calls an external document parsing service, so it needs
+  **API keys**. Without them you can still process PDFs that already carry a
+  text layer.
+- **Password-protected PDFs** are not supported. Use a copy with the password
+  already removed.
+- The original PDF is not overwritten by default.
 
 ## License
 
-[MIT License](LICENSE)
+[MIT License](https://github.com/jaepil-choi/pdfbooktree/blob/master/LICENSE)
