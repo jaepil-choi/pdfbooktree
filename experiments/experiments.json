@@ -19203,6 +19203,27 @@
       },
       "finding": "미공개 71권에서 실패나 예외가 0이었고 verdict 분포는 development와 비슷했다. thin 12건은 전부 기존 outline 재사용 2 node 패턴으로 development와 동일했고, 진단이 낸 재시도를 그대로 실행하자 12/12가 node 수가 늘었고 11/12가 thin을 벗어났다. 나머지 1권은 2 node에서 4 node로만 늘어 여전히 thin이며 루프가 다음 후보로 이어진다. fragment는 validation에서도 가장 흔한 원인으로 남아 알려진 한계가 그대로 재현됐다.",
       "ran_at": "2026-08-17T21:00:00+09:00"
+    },
+    {
+      "id": "117_ocr_overlay_typography_signal_loss",
+      "purpose": "OCR overlay가 typography 신호를 파괴해 heading 추론이 무너지는지 확인한다.",
+      "inputs": [
+        "고정 corpus에서 seed 20260818로 뽑은 8권",
+        "본문 줄 800개 이상인 책만 측정"
+      ],
+      "outputs": "experiments\\\\outputs\\\\117_ocr_overlay_typography_signal_loss\\\\results.json",
+      "method": "각 책의 overlay text에서 font 종류 수, font size 종류 수, font_size와 bbox height의 상관계수, density clustering이 만든 tier 수, 최상위 tier의 실제 구성을 측정했다. 제품 코드는 변경하지 않았다.",
+      "summary": {
+        "sampled_books": 8,
+        "single_font_books": 8,
+        "min_font_size_height_correlation": 0.9988,
+        "median_distinct_font_sizes": 629.5,
+        "median_tier_count": 18.0,
+        "median_top_tier_non_text_ratio": 0.40325,
+        "max_top_tier_non_text_ratio": 0.5526
+      },
+      "finding": "표본 8권 전부 font가 1종이고 font_size와 bbox height의 상관계수가 0.9988 이상이다. overlay가 font size를 각 bbox에 맞춰 정하므로 font_size는 조판 정보가 아니라 OCR box 기하다. 그 결과 tier가 중앙값 18개까지 생기고 level 1이 되는 최상위 tier의 중앙값 40%, 최대 55%가 표 행·이미지 placeholder·맨숫자·단일 토큰 같은 비텍스트 조각이다. fragment가 level 1에 가장 몰리고 기존 knob 조정이 듣지 않던 이유를 설명한다.",
+      "ran_at": "2026-08-18T10:00:00+09:00"
     }
   ]
 }
