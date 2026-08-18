@@ -319,15 +319,16 @@
     },
     {
       "id": "027_install_project_skill_cli",
-      "purpose": "현재 source로 wheel을 빌드해 격리 venv에 설치한 뒤, 설치된 pdfbooktree CLI가 실행 위치의 .agents/skills/use-pdfbooktree를 완전한 package resource로 생성하는지 검증한다.",
+      "purpose": "현재 source로 wheel을 빌드해 격리 venv에 설치한 뒤, 설치된 pdfbooktree CLI가 실행 위치의 .agents/skills/use-pdfbooktree를 완전한 package resource로 생성하고, .claude/skills/use-pdfbooktree에는 frontmatter가 있고 본문을 복제하지 않으며 모든 상대 link가 실존 파일을 가리키는 Claude adapter를 생성하는지 검증한다.",
       "inputs": [
         ".agents\\skills\\use-pdfbooktree",
+        ".claude\\skills\\use-pdfbooktree",
         "현재 source에서 빌드한 pdfbooktree wheel"
       ],
       "outputs": "showcase\\outputs\\027_install_project_skill_cli\\result.json",
-      "finding": "wheel 설치 CLI가 skill file 5개를 실행 project에 byte-identical하게 생성했고, 기존 target은 exit 2로 보호하며 --force에서 전체 교체했다.",
+      "finding": "wheel 설치 CLI가 agents target skill file 8개를 실행 project에 byte-identical하게 생성했고, Claude adapter 7개 상대 link가 모두 agents target 내 실존 파일을 가리키며 frontmatter description='이 저장소의 pdfbooktree Python API와 CLI를 사용해 PDF 책을 조사하고, 스캔 여부를 분류하고, OCR text layer를 만들거나 재사용하고, 북마크 계획을 추론·검토·적용하고, 북마크 PDF와 계층형 또는 길이 제한 Markdown을 생성하며, 디렉터리를 batch 처리하고, 설정·실행 manifest·artifact·계획 차이를 점검한다. Claude가 이 저장소에서 PDF 구조화, OCR overlay, 기존 outline 품질, bookmark plan, Markdown export, batch run, CLI 자동화 또는 pdfbooktree Python 통합을 다룰 때 사용한다.'을 담고 전체 본문을 복제하지 않았다. 기존 target은 exit 2로 보호하며 --force에서 두 target 모두 전체 교체했다.",
       "command": "uv run python showcase/027_install_project_skill_cli.py",
-      "ran_at": "2026-07-17T07:49:48+09:00"
+      "ran_at": "2026-08-18T13:11:32+09:00"
     },
     {
       "id": "028_markdown_graph_progressive_review",
