@@ -77,6 +77,27 @@ class TypographyConfig:
         description="font 골격 heading 후보로 볼 최대 단어 수다.",
         minimum=1,
     )
+    max_headings_per_page: int = _setting(
+        0,
+        description=(
+            "한 page가 이 값보다 많은 top-size-class heading 후보를 내면 그 "
+            "page 전체를 후보에서 제외한다(실험 118: 배너/표 page는 7~20개, "
+            "chapter 시작 page는 1~3개). 0이면 제한하지 않는다(기존 동작 유지, "
+            "기본값)."
+        ),
+        minimum=0,
+    )
+    size_class_depth: int = _setting(
+        0,
+        description=(
+            "책 내부에서 큰 순서로 상위 몇 번째 font-size class까지 heading "
+            "후보로 볼지 정하는 책 상대값이다(실험 117/118: 절대 font size나 "
+            "tier 번호는 책마다 clamp 지점이 달라 의미가 다르지만, 이 책에서 "
+            "몇 번째로 큰 class인지는 책 내부에서만 비교하는 상대값이다). "
+            "0이면 비활성화한다(기존 동작 유지, 기본값)."
+        ),
+        minimum=0,
+    )
     position_min_repeated_pages: int = _setting(
         5,
         description="동일 anchor pattern이 반복되어야 하는 최소 page 수다.",
@@ -211,6 +232,8 @@ class TypographyConfig:
         ranges = {
             "body_font_text_coverage": (0.0, 1.0, True),
             "body_font_max_words": (1, None, False),
+            "max_headings_per_page": (0, None, False),
+            "size_class_depth": (0, None, False),
             "position_min_repeated_pages": (1, None, False),
             "line_y_tolerance_ratio": (0.0, None, True),
             "min_tier_count": (1, None, False),

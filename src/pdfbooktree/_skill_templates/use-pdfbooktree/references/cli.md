@@ -245,6 +245,7 @@ output root 아래 `pdfs/`, `artifacts/`, `ocr_overlay_batch_report.csv`, `ocr_o
 | `inspect ocr` | OCR progress, cache, stats, 마지막 log 확인 | `<ARTIFACT_DIR>` |
 | `inspect plan` | plan/review summary, item evidence filter, Markdown validation·coverage | `<RUN_OR_OUTPUT_DIR> [--summary] [--items] [--limit N] [--item-id n####] [--page-range 100-120] [--level N] [--source SOURCE] [--attention-only]` |
 | `inspect markdown` | Markdown tree manifest의 verdict, finding, 재시도 후보 확인 | `<OUTPUT_DIR_OR_MANIFEST> [--limit N]` |
+| `inspect sweep` | typography를 1회만 분석하고 heading knob 조합(`size_class_depth`, `max_headings_per_page`, 최소 단어 수)을 메모리에서 sweep해 candidate 수/방향 확인 | `<PDF> [--size-class-depths 1,2,3] [--max-headings-per-page 1,2,3,5,8,999] [--min-words 1,2] [--format human\|json]` |
 | `inspect compare` | 두 plan의 added/removed/moved/level/source 차이 또는 두 Markdown manifest의 verdict/coverage 차이 | `<A> <B> [--page-tolerance 0] [--title-similarity-threshold 0.7]` |
 
 `inspect compare`는 두 입력을 각각 정확히 한 번만 읽어 그 JSON에 `nodes` key가 있는지로 bookmark plan인지 Markdown manifest인지 자동 판별한다(손상된 JSON은 그 자리에서 input 오류로 거부하고 plan 경로로 조용히 넘어가지 않는다). 둘 다 Markdown manifest면 `inspect_compare_markdown()`으로 verdict/coverage delta를 비교하고, 둘 다 plan이면 기존 plan diff를 수행한다. 한쪽만 Markdown manifest면 오류로 거부한다.
@@ -255,6 +256,8 @@ uv run pdfbooktree inspect plan .\runs\<run-dir> --summary --format json
 uv run pdfbooktree inspect plan .\runs\<run-dir> --attention-only --limit 20 --format json
 uv run pdfbooktree inspect plan .\runs\<run-dir> --page-range 100-120 --source geometry_position_fallback --format json
 uv run pdfbooktree inspect markdown .\runs\<run-dir>\book_markdown_split --limit 20 --format json
+uv run pdfbooktree inspect sweep .\book.pdf --format json
+uv run pdfbooktree inspect sweep .\book.pdf --size-class-depths 1,2,3,4 --max-headings-per-page 2,3,5 --min-words 1,2 --format human
 uv run pdfbooktree inspect compare .\plan-a.json .\plan-b.json `
   --page-tolerance 1 --title-similarity-threshold 0.8 --format json
 uv run pdfbooktree inspect compare `
@@ -264,6 +267,8 @@ uv run pdfbooktree inspect compare `
 ```
 
 `inspect markdown`의 `verdict`는 finding이 없으면 `ok`이고, 있으면 severity 순서(`invalid_graph`, `uncovered`, `duplicated`, `thin`, `over_split`, `fragmented`) 상 가장 먼저 오는 finding의 `code`다. `retry`의 각 항목은 `cause`, `overrides`, `command`, `command_argv`, 실측 근거를 담은 `reason`을 제공하며 항상 보장이 아닌 후보다. `command`는 사람이 읽는 문자열이고 POSIX single-quoting(`shlex.quote`)을 써서 bash/zsh와 PowerShell에서는 그대로 실행할 수 있지만 cmd.exe는 작은따옴표를 quoting으로 취급하지 않아 공백/괄호가 섞인 경로에서 그대로 실행하면 실패할 수 있다. shell 없이(subprocess argv로) 실행하거나 cmd.exe에서 실행해야 한다면 quoting이 필요 없는 `command_argv`(문자열 list, override가 없으면 `None`)를 써라.
+
+`inspect sweep`은 `analyze_pdf`를 정확히 한 번만 실행하고 이후 knob 조합은 이미 추출한 line에 대해 메모리 안에서만 재평가하며, `process`가 만드는 output artifact는 만들지 않는다. `--format human`(기본값)은 `settings_tried`, `plausible_settings`(`sensible_pages_per_candidate_range` 안에 드는 조합), 그리고 knob별 `direction`(`increases_candidates`/`decreases_candidates`/`mixed`/`no_effect`) 요약을 출력한다. `--format json`은 `settings`(조합별 `candidate_count`, `pages_with_candidate_count`, `pages_per_candidate`)와 `summary`를 그대로 반환한다. `max_headings_per_page`를 올리는 방향은 candidate가 줄지 않으므로 안전하게 hill-climb할 수 있다.
 
 ## Config 명령
 

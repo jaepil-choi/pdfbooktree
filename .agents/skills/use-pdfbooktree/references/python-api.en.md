@@ -48,7 +48,7 @@ Inspection/evaluation:
 
 - `inspect_page_count`, `inspect_text`, `inspect_bookmarks`
 - `inspect_ocr_artifact`, `inspect_plan_artifact`, `inspect_compare_plans`
-- `inspect_markdown_tree`, `inspect_compare_markdown`
+- `inspect_markdown_tree`, `inspect_compare_markdown`, `inspect_heading_sweep`
 - `match_bookmark_plans`, `compare_bookmark_plans`
 - `MatchedPair`, `MatchMetrics`, `PlanMatchResult`
 - `PlanDiffEntry`, `PlanDiffResult`
@@ -177,6 +177,17 @@ values, then dotted overrides. Unsupported keys/types/ranges raise
 `ProcessingConfig.ocr_policy` accepts only `never`. OCR is an explicit
 preprocessing step.
 
+`TypographyConfig.max_headings_per_page` (default `0`, disabled) drops a whole
+page from heading candidates once its top-size-class candidate count exceeds
+the value. `TypographyConfig.size_class_depth` (default `0`, disabled) caps
+heading candidates to the top N font-size classes ranked largest-first,
+within that book only. Both are book-relative on purpose: OCR overlay clamps
+font size to fit each bounding box, so absolute font sizes and tier indices
+mean different things across books, but "Nth largest class in this book" does
+not. Measured across 6 sampled books, every book had a workable setting but
+no two books needed the same one, so both knobs default to off and preserve
+existing behavior.
+
 `assess_outline_quality()` returns evidence about tiny, numeric-only, or
 page-dense outlines. `resolve_existing_outline_action()` applies the policy:
 meaningful outlines are reused by default, and low-quality outlines are still
@@ -191,6 +202,7 @@ The `inspect_*` functions are read-only and mirror the CLI:
 - OCR cache completeness
 - plan/run/Markdown manifest review with filters
 - plan-to-plan differences
+- heading knob response surface (`inspect_heading_sweep`)
 
 `match_bookmark_plans()` compares a predicted and reference plan with title
 similarity and page tolerance, returning matched/missed/extra entries and
@@ -213,6 +225,37 @@ guarantees. `command` is quoted with POSIX single-quoting (`shlex.quote`): it
 runs as-is under bash/zsh and PowerShell, but `cmd.exe` does not treat single
 quotes as quoting and can fail on paths with spaces or brackets. To run a
 candidate without a shell, or under `cmd.exe`, use `command_argv` instead.
+
+```
+inspect_heading_sweep(
+    pdf_path,
+    *,
+    size_class_depths=(1, 2, 3),
+    max_headings_per_page_values=(1, 2, 3, 5, 8, 999),
+    min_word_counts=(1, 2),
+    base_config=None,
+) -> dict
+```
+
+`inspect_heading_sweep()` runs `analyze_pdf()` exactly once, then re-evaluates
+every combination of `size_class_depth` x `max_headings_per_page` x minimum
+word count against the already-extracted lines, entirely in memory — no
+`process` output artifact is written. This lets an agent see the parameter
+response surface without repeating full `process` runs. The result carries
+`settings` (per-combination `candidate_count`, `pages_with_candidate_count`,
+`pages_per_candidate`) and `summary` (`plausible_settings` within a sensible
+pages-per-candidate range, and a `*_direction` per knob:
+`increases_candidates`, `decreases_candidates`, `mixed`, or `no_effect`).
+Raising `max_headings_per_page` never decreases the candidate count, so that
+direction is safe to hill-climb.
+
+```python
+from pdfbooktree import inspect_heading_sweep
+
+sweep = inspect_heading_sweep("book.pdf")
+print(sweep["summary"]["plausible_settings"])
+print(sweep["summary"]["max_headings_per_page_direction"])
+```
 
 `inspect_compare_markdown(manifest_a, manifest_b) -> dict` compares two
 Markdown manifests by `(level, pdf_start_page, normalized title)` node keys

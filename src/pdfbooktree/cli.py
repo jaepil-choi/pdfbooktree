@@ -45,6 +45,7 @@ from pdfbooktree.inspection import (
     inspect_bookmarks,
     inspect_compare_markdown,
     inspect_compare_plans,
+    inspect_heading_sweep,
     inspect_markdown_tree,
     inspect_ocr_artifact,
     inspect_page_count,
@@ -663,6 +664,136 @@ def inspect_bookmarks_cmd(
     emit_command_result(
         "inspect.bookmarks", result, output_format=resolved_output_format
     )
+
+
+def _parse_positive_int_list(value: str, option: str) -> list[int]:
+    """comma로 구분한 1 이상 정수 목록을 파싱한다."""
+
+    values: list[int] = []
+    for part in value.split(","):
+        token = part.strip()
+        if not token:
+            continue
+        try:
+            parsed = int(token)
+        except ValueError as exc:
+            raise typer.BadParameter(f"{option}은 정수 목록이어야 한다.") from exc
+        if parsed < 1:
+            raise typer.BadParameter(f"{option}의 모든 값은 1 이상이어야 한다.")
+        values.append(parsed)
+    if not values:
+        raise typer.BadParameter(f"{option}은 하나 이상의 값을 가져야 한다.")
+    return values
+
+
+@inspect_app.command("sweep")
+def inspect_sweep_cmd(
+    pdf: Path = typer.Argument(..., help="확인할 PDF 파일이다."),
+    size_class_depths: str = typer.Option(
+        "1,2,3",
+        "--size-class-depths",
+        help="sweep할 typography.size_class_depth 값 목록이다. 예: 1,2,3",
+    ),
+    max_headings_per_page_values: str = typer.Option(
+        "1,2,3,5,8,999",
+        "--max-headings-per-page",
+        help="sweep할 typography.max_headings_per_page 값 목록이다. 예: 1,2,3,5,8,999",
+    ),
+    min_word_counts: str = typer.Option(
+        "1,2",
+        "--min-words",
+        help="sweep할 heading 후보 최소 단어 수 목록이다. 예: 1,2",
+    ),
+    output_format: str = typer.Option(
+        "human", "--format", help="출력 형식이다: human, json."
+    ),
+    as_json: bool = typer.Option(
+        False, "--json", help="호환 alias다. --format json과 같다."
+    ),
+    debug: bool = typer.Option(
+        False, "--debug", help="예상하지 못한 오류의 traceback을 그대로 노출한다."
+    ),
+) -> None:
+    """typography를 한 번만 분석하고 heading knob 조합을 메모리에서 sweep한다.
+
+    ``process``를 설정마다 반복 실행하지 않고, candidate 수와 page당 candidate
+    분포로 다음에 조절할 knob 방향을 고를 수 있게 한다. output artifact는
+    만들지 않는다.
+    """
+
+    resolved_output_format = _inspection_output_format(output_format, as_json=as_json)
+    try:
+        result = inspect_heading_sweep(
+            pdf,
+            size_class_depths=_parse_positive_int_list(
+                size_class_depths, "--size-class-depths"
+            ),
+            max_headings_per_page_values=_parse_positive_int_list(
+                max_headings_per_page_values, "--max-headings-per-page"
+            ),
+            min_word_counts=_parse_positive_int_list(min_word_counts, "--min-words"),
+        )
+    except (FileNotFoundError, ValueError, typer.BadParameter) as error:
+        _exit_stage_input_error(
+            "inspect.sweep",
+            error,
+            code="invalid_input",
+            output_format=resolved_output_format,
+        )
+    except Exception as error:
+        _exit_stage_runtime_error(
+            "inspect.sweep",
+            error,
+            output_format=resolved_output_format,
+            debug=debug,
+        )
+    if resolved_output_format == "human":
+        result = _render_heading_sweep_human(result)
+    emit_command_result("inspect.sweep", result, output_format=resolved_output_format)
+
+
+def _render_heading_sweep_human(result: dict[str, Any]) -> str:
+    """setting별 candidate 수와 knob 방향이 한눈에 보이는 human 요약을 만든다."""
+
+    summary = result["summary"]
+    lines = [
+        f"pdf: {result['pdf_path']}",
+        f"page_count: {result['page_count']}, body_line_count: {result['body_line_count']}",
+        f"settings_tried: {result['settings_tried']} (typography 분석은 1회만 수행)",
+        (
+            "sensible_pages_per_candidate_range: "
+            f"{summary['sensible_pages_per_candidate_range']}"
+        ),
+        f"plausible_setting_count: {summary['plausible_setting_count']}",
+    ]
+    if summary["plausible_settings"]:
+        lines.append("plausible_settings:")
+        for setting in summary["plausible_settings"]:
+            lines.append(
+                "  - depth={size_class_depth} max_per_page={max_headings_per_page} "
+                "min_words={min_words} -> candidates={candidate_count}, "
+                "pages_with_candidate={pages_with_candidate_count}, "
+                "pages_per_candidate={pages_per_candidate}".format(**setting)
+            )
+    else:
+        lines.append("plausible_settings: 없음")
+    lines.append(
+        "knob direction: size_class_depth={}, max_headings_per_page={}, "
+        "min_words={}".format(
+            summary["size_class_depth_direction"],
+            summary["max_headings_per_page_direction"],
+            summary["min_words_direction"],
+        )
+    )
+    lines.append("settings:")
+    for setting in result["settings"]:
+        lines.append(
+            "  - depth={size_class_depth} max_per_page={max_headings_per_page} "
+            "min_words={min_words} -> candidates={candidate_count}, "
+            "pages_with_candidate={pages_with_candidate_count}, "
+            "pages_per_candidate={pages_per_candidate}".format(**setting)
+        )
+    return "\n".join(lines)
 
 
 @inspect_app.command("ocr")

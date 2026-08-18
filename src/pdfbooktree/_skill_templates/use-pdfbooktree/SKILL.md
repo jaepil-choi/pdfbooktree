@@ -25,7 +25,8 @@ description: 이 저장소의 pdfbooktree Python API와 CLI를 사용해 PDF 책
 6. 계획을 검토·수정·비교해야 하면 `infer` → `inspect plan`/`inspect compare` → `apply --dry-run` → `apply` 흐름을 사용하라.
 7. 여러 PDF를 구조화하려면 `batch` 또는 `BatchProcessor.run()`을 사용하라.
 8. `process` 또는 `apply`로 Markdown graph를 만든 뒤에는 `inspect markdown <OUTPUT_DIR>`으로 `verdict`와 `findings`를 확인하라. `verdict`가 `ok`가 아니면 결과가 제시하는 `retry[].command`로 재실행하고(재시도 후보일 뿐 보장이 아니다), `inspect compare <BEFORE_MANIFEST> <AFTER_MANIFEST>`로 재실행 전후 Markdown manifest를 비교해 실제로 개선됐는지 확인하라.
-9. 결과를 기계적으로 소비하려면 `--format json`을 사용하고 exit code와 stderr를 함께 검사하라.
+9. `inspect markdown`이나 `inspect plan`으로 훑어본 구조가 말이 안 되면(page당 heading이 너무 많거나 너무 적으면) `inspect sweep <PDF>`로 `typography.size_class_depth`, `typography.max_headings_per_page` 조합별 candidate 수 표를 한 번에 확인하라. 표에서 방향(`direction`)과 `plausible_settings`를 보고 값을 고른 뒤 `process --set typography.max_headings_per_page=<값>` 또는 `--set typography.size_class_depth=<값>`으로 재실행하고, `inspect markdown`으로 다시 확인하라. 두 knob 모두 기본값은 `0`(비활성화, 기존 동작 유지)이며 책마다 필요한 값이 달라 모든 책에 맞는 단일 정답 설정은 없다.
+10. 결과를 기계적으로 소비하려면 `--format json`을 사용하고 exit code와 stderr를 함께 검사하라.
 
 상세 명령과 예시는 [CLI 레퍼런스](references/cli.md)를 읽고, Python 통합이 필요하면 [Python API 레퍼런스](references/python-api.md)를 읽으라. 출력 파일·설정·로그 계약을 다룰 때는 [계약과 artifact](references/contracts.md)를 읽으라.
 영문 문서가 필요하면 [CLI reference](references/cli.en.md), [Python API reference](references/python-api.en.md), [contracts and artifacts](references/contracts.en.md)를 사용하라.

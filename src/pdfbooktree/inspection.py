@@ -9,16 +9,25 @@ import shlex
 import statistics
 import unicodedata
 from collections import Counter
+from collections.abc import Sequence
+from dataclasses import fields as dataclass_fields, replace
 from pathlib import Path
 from typing import Any
 
 import fitz
 
-from pdfbooktree.config import MarkdownSplitConfig
+from pdfbooktree.config import MarkdownSplitConfig, TypographyConfig
 from pdfbooktree.evaluation import PlanDiffEntry, compare_bookmark_plans
 from pdfbooktree.models import BookmarkPlanItem
 from pdfbooktree.outline.plan_io import load_bookmark_plan_json
 from pdfbooktree.pdf.bookmarks import extract_existing_bookmarks
+from pdfbooktree.pipeline import analyze_pdf
+from pdfbooktree.typography.geometry import (
+    build_geometry_context,
+    compute_geometry_font_tier_set,
+    select_geometry_headings,
+)
+from pdfbooktree.typography.margins import exclude_margin_artifacts
 
 # ---------------------------------------------------------------------------
 # Markdown tree finding 상수
@@ -122,6 +131,27 @@ _SPARSE_HEADING_OVER_SPLIT_FOLLOWUP = (
 
 _WORD_RE = re.compile(r"[A-Za-z\uac00-\ud7a3]+")
 
+# ---------------------------------------------------------------------------
+# heading candidate sweep 상수 (실험 118 heading_knob_steerability 재현)
+#
+# 여기 sweep하는 knob은 전부 책 내부 상대값이다. 절대 font size나 tier
+# 번호는 OCR overlay가 책마다 다른 지점에서 clamp해 책 사이에서 의미가
+# 달라지므로(실험 117) sweep 대상에 넣지 않는다.
+# ---------------------------------------------------------------------------
+
+HEADING_SWEEP_DEFAULT_SIZE_CLASS_DEPTHS: tuple[int, ...] = (1, 2, 3)
+HEADING_SWEEP_DEFAULT_MAX_HEADINGS_PER_PAGE: tuple[int, ...] = (1, 2, 3, 5, 8, 999)
+HEADING_SWEEP_DEFAULT_MIN_WORD_COUNTS: tuple[int, ...] = (1, 2)
+
+# agent가 훑어보고 "말이 되는" 장 간격이라고 볼 범위다. 정답이 아니라 조작
+# 가능성을 판정하기 위한 눈금이며, 책마다 실제 장 수는 다를 수 있다.
+HEADING_SWEEP_SENSIBLE_PAGES_PER_CANDIDATE = (5.0, 40.0)
+
+_HEADING_SWEEP_REQUIRED_TYPOGRAPHY_FIELDS = (
+    "size_class_depth",
+    "max_headings_per_page",
+)
+
 
 def inspect_page_count(pdf_path: Path | str) -> dict[str, Any]:
     """PDF 총 page 수를 1-based convention과 함께 반환한다."""
@@ -170,6 +200,199 @@ def inspect_bookmarks(pdf_path: Path | str) -> dict[str, Any]:
         "bookmark_count": len(bookmarks),
         "bookmarks": bookmarks,
     }
+
+
+def inspect_heading_sweep(
+    pdf_path: Path | str,
+    *,
+    size_class_depths: Sequence[int] = HEADING_SWEEP_DEFAULT_SIZE_CLASS_DEPTHS,
+    max_headings_per_page_values: Sequence[
+        int
+    ] = HEADING_SWEEP_DEFAULT_MAX_HEADINGS_PER_PAGE,
+    min_word_counts: Sequence[int] = HEADING_SWEEP_DEFAULT_MIN_WORD_COUNTS,
+    base_config: TypographyConfig | None = None,
+) -> dict[str, Any]:
+    """PDF typography를 한 번만 분석하고 heading knob 조합을 메모리에서 sweep한다.
+
+    agent가 ``process``를 설정마다 반복 실행하지 않고도 ``typography.
+    size_class_depth``, ``typography.max_headings_per_page``, 최소 단어 수
+    조합이 candidate 수/page 분포를 어느 방향으로 움직이는지 한 번에 훑어볼 수
+    있게 한다. typography 추출(``analyze_pdf``)은 이 함수 안에서 정확히 한 번만
+    실행하고, 이후 sweep은 이미 추출한 line에 대해서만 메모리 안에서 반복한다.
+    process가 만드는 최종 bookmark/Markdown output은 만들지 않는다.
+
+    ``size_class_depth``/``max_headings_per_page``는 ``TypographyConfig``
+    필드로 존재해야 한다. 없으면 다른 lane의 작업이 아직 반영되지 않은 것이므로
+    후보를 조용히 건너뛰지 않고 명확한 메시지로 실패한다.
+    """
+
+    path = _require_file(pdf_path, "PDF")
+    _require_typography_sweep_fields()
+    depths = _positive_int_sequence(size_class_depths, "size_class_depths")
+    max_per_page_values = _positive_int_sequence(
+        max_headings_per_page_values, "max_headings_per_page_values"
+    )
+    min_word_values = _positive_int_sequence(min_word_counts, "min_word_counts")
+
+    resolved_base = base_config or TypographyConfig()
+    analysis = analyze_pdf(path, resolved_base)
+    lines = exclude_margin_artifacts(analysis.lines, resolved_base)
+
+    settings: list[dict[str, Any]] = []
+    for depth in depths:
+        for max_per_page in max_per_page_values:
+            for min_words in min_word_values:
+                settings.append(
+                    _evaluate_heading_sweep_setting(
+                        lines,
+                        resolved_base,
+                        analysis.total_pages,
+                        size_class_depth=depth,
+                        max_headings_per_page=max_per_page,
+                        min_words=min_words,
+                    )
+                )
+
+    summary = _heading_sweep_summary(settings)
+    return {
+        "pdf_path": str(path),
+        "page_count": analysis.total_pages,
+        "body_line_count": len(lines),
+        "settings_tried": len(settings),
+        "settings": settings,
+        "summary": summary,
+    }
+
+
+def _require_typography_sweep_fields() -> None:
+    """sweep이 참조하는 book-relative knob이 config에 없으면 조용히 넘어가지 않는다."""
+
+    field_names = {field.name for field in dataclass_fields(TypographyConfig)}
+    missing = [
+        name
+        for name in _HEADING_SWEEP_REQUIRED_TYPOGRAPHY_FIELDS
+        if name not in field_names
+    ]
+    if missing:
+        raise ValueError(
+            "TypographyConfig에 heading sweep이 요구하는 field가 없다: "
+            f"missing={missing}. 이 field를 추가하는 lane의 변경을 먼저 반영해야 한다."
+        )
+
+
+def _positive_int_sequence(values: Sequence[int], label: str) -> list[int]:
+    resolved = list(values)
+    if not resolved:
+        raise ValueError(f"{label}은 하나 이상의 값을 가져야 한다.")
+    if any(not isinstance(value, int) or isinstance(value, bool) for value in resolved):
+        raise ValueError(f"{label}은 정수 목록이어야 한다: value={resolved!r}")
+    if any(value < 1 for value in resolved):
+        raise ValueError(f"{label}의 모든 값은 1 이상이어야 한다: value={resolved!r}")
+    return resolved
+
+
+def _evaluate_heading_sweep_setting(
+    lines: list[Any],
+    base_config: TypographyConfig,
+    total_pages: int,
+    *,
+    size_class_depth: int,
+    max_headings_per_page: int,
+    min_words: int,
+) -> dict[str, Any]:
+    """이미 추출한 line에 대해 단일 knob 조합의 candidate 결과를 계산한다."""
+
+    setting_config = replace(
+        base_config,
+        size_class_depth=size_class_depth,
+        max_headings_per_page=max_headings_per_page,
+    )
+    font_tiers = compute_geometry_font_tier_set(lines)
+    context = build_geometry_context(lines, font_tiers, setting_config)
+    candidates = [
+        heading
+        for heading in select_geometry_headings(context, setting_config)
+        if len(_WORD_RE.findall(heading.title)) >= min_words
+    ]
+    pages_with_candidate = {candidate.pdf_page for candidate in candidates}
+    candidate_count = len(candidates)
+    pages_per_candidate = (
+        round(total_pages / candidate_count, 2) if candidate_count else None
+    )
+    return {
+        "size_class_depth": size_class_depth,
+        "max_headings_per_page": max_headings_per_page,
+        "min_words": min_words,
+        "candidate_count": candidate_count,
+        "pages_with_candidate_count": len(pages_with_candidate),
+        "pages_per_candidate": pages_per_candidate,
+    }
+
+
+def _heading_sweep_summary(settings: list[dict[str, Any]]) -> dict[str, Any]:
+    """sweep 결과를 훑어 plausible한 setting과 knob 방향을 한 번에 알려준다."""
+
+    low, high = HEADING_SWEEP_SENSIBLE_PAGES_PER_CANDIDATE
+    plausible = [
+        setting
+        for setting in settings
+        if setting["pages_per_candidate"] is not None
+        and low <= setting["pages_per_candidate"] <= high
+    ]
+    return {
+        "sensible_pages_per_candidate_range": [low, high],
+        "plausible_setting_count": len(plausible),
+        "plausible_settings": plausible,
+        "size_class_depth_direction": _heading_sweep_knob_direction(
+            settings, "size_class_depth"
+        ),
+        "max_headings_per_page_direction": _heading_sweep_knob_direction(
+            settings, "max_headings_per_page"
+        ),
+        "min_words_direction": _heading_sweep_knob_direction(settings, "min_words"),
+    }
+
+
+def _heading_sweep_knob_direction(settings: list[dict[str, Any]], knob: str) -> str:
+    """knob을 키울 때 candidate 수가 늘거나 줄거나 섞이는지 한 단어로 요약한다.
+
+    다른 knob 값은 고정한 채 짝지어 비교해, agent가 다음에 어느 방향으로 knob을
+    움직여야 candidate가 늘거나 줄지 결과를 다시 읽지 않고 바로 판단하게 한다.
+    """
+
+    other_keys = [
+        key
+        for key in ("size_class_depth", "max_headings_per_page", "min_words")
+        if key != knob
+    ]
+    groups: dict[tuple[Any, ...], list[tuple[int, int]]] = {}
+    for setting in settings:
+        group_key = tuple(setting[key] for key in other_keys)
+        groups.setdefault(group_key, []).append(
+            (setting[knob], setting["candidate_count"])
+        )
+    increasing = 0
+    decreasing = 0
+    flat = 0
+    for series in groups.values():
+        series.sort()
+        for (_, before), (_, after) in zip(series, series[1:]):
+            if after > before:
+                increasing += 1
+            elif after < before:
+                decreasing += 1
+            else:
+                flat += 1
+    total = increasing + decreasing + flat
+    if total == 0:
+        return "unknown"
+    if increasing and not decreasing:
+        return "increases_candidates" if flat == 0 else "mostly_increases_candidates"
+    if decreasing and not increasing:
+        return "decreases_candidates" if flat == 0 else "mostly_decreases_candidates"
+    if not increasing and not decreasing:
+        return "no_effect"
+    return "mixed"
 
 
 def inspect_ocr_artifact(artifact_dir: Path | str) -> dict[str, Any]:

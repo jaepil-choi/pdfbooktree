@@ -278,13 +278,42 @@ def select_geometry_headings(
         resolved.position_min_repeated_pages,
         tolerance=1.0,
     )
+    # size_class_depth는 책 내부 상대값이다: 절대 font size나 tier 번호는
+    # OCR overlay가 책마다 다른 지점에서 clamp하기 때문에 책 사이에서 의미가
+    # 다르지만(실험 117), "이 책에서 큰 순서로 몇 번째 size class인가"는 책
+    # 내부에서만 비교하는 상대 서수다(실험 118). tier 번호는 이미 책 안에서
+    # 큰 순서로 매겨지므로 tier <= depth가 곧 "상위 depth개 class"다. 0(기본값)은
+    # 비활성화이며 기존 candidate_tiers 전체를 그대로 쓴다.
+    eligible_font_tiers = profile.candidate_tiers
+    if resolved.size_class_depth > 0:
+        # tier 번호는 책 안에서 큰 순서로 매겨지지만 body_tiers가 candidate_tiers
+        # 사이에 끼어 번호가 듬성듬성할 수 있다. 그래서 depth는 tier 번호 자체가
+        # 아니라 candidate_tiers를 크기 순으로 정렬했을 때의 순위로 센다.
+        ranked_candidate_tiers = sorted(profile.candidate_tiers)
+        eligible_font_tiers = frozenset(
+            ranked_candidate_tiers[: resolved.size_class_depth]
+        )
     font_ids = {
         chunk.chunk_id
         for chunk in chunks
-        if _tier_for_size(chunk.font_size, font_tiers) in profile.candidate_tiers
+        if _tier_for_size(chunk.font_size, font_tiers) in eligible_font_tiers
         and chunk.font_size > profile.representative_body_font_size
         and len(chunk.text.split()) <= resolved.body_font_max_words
     }
+    if resolved.max_headings_per_page > 0:
+        # 한 page에 top-size-class 후보가 너무 많으면 chapter 시작이 아니라
+        # 표/배너 page일 가능성이 높다(실험 118: chapter 시작 1~3개 vs
+        # 표/배너 7~20개). page 희소성은 어떤 overlay든 주는 일반 정보이므로
+        # book-relative 상대 count로만 판정한다. 0(기본값)은 비활성화이며 제한을
+        # 걸지 않는다.
+        chunk_by_id = {chunk.chunk_id: chunk for chunk in chunks}
+        page_counts = Counter(chunk_by_id[chunk_id].pdf_page for chunk_id in font_ids)
+        font_ids = {
+            chunk_id
+            for chunk_id in font_ids
+            if page_counts[chunk_by_id[chunk_id].pdf_page]
+            <= resolved.max_headings_per_page
+        }
     if resolved.heading_candidate_mode == "position":
         selected_ids = position_ids
     elif resolved.heading_candidate_mode == "font":

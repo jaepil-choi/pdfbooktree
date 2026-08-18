@@ -8,7 +8,7 @@ from pathlib import Path
 import fitz
 
 from pdfbooktree.config import ProcessingConfig, TypographyConfig
-from pdfbooktree.models import TypographyLine
+from pdfbooktree.models import Tier, TierSet, TypographyLine
 from pdfbooktree.processor import Processor
 from pdfbooktree.typography.headings import extract_heading_candidates
 from pdfbooktree.typography.lines import extract_typography_lines
@@ -265,6 +265,93 @@ def test_extract_heading_candidates_does_not_merge_lines_with_large_gap(
     assert "CHAPTER" in titles
     assert "1 Introduction" in titles
     assert "CHAPTER 1 Introduction" not in titles
+
+
+def _heading_shape_line(
+    *, font_size: float, height: float, y0: float = 90.0
+) -> TypographyLine:
+    return TypographyLine(
+        pdf_page=1,
+        text="Section Title Line",
+        x0=72.0,
+        y0=y0,
+        x1=300.0,
+        y1=y0 + height,
+        page_width=PAGE_WIDTH,
+        page_height=PAGE_HEIGHT,
+        font_size=font_size,
+        height=height,
+        is_bold=False,
+    )
+
+
+def test_large_height_tier는_더이상_독립_증거로_후보를_통과시키지_않는다() -> None:
+    # 실험 117 실측: OCR overlay는 line마다 font size를 bbox에 맞춰 정하므로
+    # font_size와 height는 사실상 같은 신호다(상관계수 0.9988~1.0, 최상위
+    # tier가 표본 전 권에서 100% 동일). 이 line은 font_tiers 기준으로는
+    # tier 2(허용 상한 1 밖)라 large_font_tier를 얻지 못하지만, height_tiers
+    # 기준으로는 tier 1이라 예전 코드였다면 large_height_tier만으로 후보에
+    # 남았을 것이다. 중복 신호를 제거한 뒤에는 large_font_tier가 없으면
+    # 후보가 되지 않아야 한다.
+    line = _heading_shape_line(font_size=12.0, height=12.0)
+    font_tiers = TierSet(
+        signal="font_size",
+        cut_points=[20.0],
+        tiers=[
+            Tier(tier=1, lower_bound=20.0, upper_bound=None, peak=24.0, count=5),
+            Tier(tier=2, lower_bound=None, upper_bound=20.0, peak=12.0, count=50),
+        ],
+        raw_tier_count=2,
+        final_tier_count=2,
+    )
+    height_tiers = TierSet(
+        signal="height",
+        cut_points=[8.0],
+        tiers=[
+            Tier(tier=1, lower_bound=8.0, upper_bound=None, peak=12.0, count=50),
+            Tier(tier=2, lower_bound=None, upper_bound=8.0, peak=6.0, count=5),
+        ],
+        raw_tier_count=2,
+        final_tier_count=2,
+    )
+    config = TypographyConfig(max_heading_tier=1, min_heading_confidence=0.0)
+
+    candidates = extract_heading_candidates([line], font_tiers, height_tiers, config)
+
+    assert candidates == []
+
+
+def test_large_font_tier가_있으면_height_tier_병기와_무관하게_후보로_남는다() -> None:
+    # font_tier가 스스로 자격을 주는 정상 경로는 height evidence를 제거해도
+    # 그대로 동작해야 한다.
+    line = _heading_shape_line(font_size=24.0, height=24.0)
+    font_tiers = TierSet(
+        signal="font_size",
+        cut_points=[20.0],
+        tiers=[
+            Tier(tier=1, lower_bound=20.0, upper_bound=None, peak=24.0, count=5),
+            Tier(tier=2, lower_bound=None, upper_bound=20.0, peak=12.0, count=50),
+        ],
+        raw_tier_count=2,
+        final_tier_count=2,
+    )
+    height_tiers = TierSet(
+        signal="height",
+        cut_points=[8.0],
+        tiers=[
+            Tier(tier=1, lower_bound=8.0, upper_bound=None, peak=24.0, count=5),
+            Tier(tier=2, lower_bound=None, upper_bound=8.0, peak=6.0, count=50),
+        ],
+        raw_tier_count=2,
+        final_tier_count=2,
+    )
+    config = TypographyConfig(max_heading_tier=1, min_heading_confidence=0.0)
+
+    candidates = extract_heading_candidates([line], font_tiers, height_tiers, config)
+
+    assert [candidate.title for candidate in candidates] == ["Section Title Line"]
+    assert "large_font_tier" in candidates[0].evidence
+    assert "large_height_tier" not in candidates[0].evidence
 
 
 def _make_ocr_style_book_pdf(path: Path, chapter_pages: int = 7) -> None:

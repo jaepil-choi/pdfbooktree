@@ -238,6 +238,122 @@ def test_font_mode은_body_font_max_words_초과_후보를_제외한다():
     assert relaxed and relaxed[0].title == long_title
 
 
+def test_size_class_depth_기본값_0은_모든_candidate_tier를_그대로_쓴다():
+    lines: list[TypographyLine] = []
+    body = "본문" * 100
+    for page in range(1, 6):
+        lines.extend(
+            [
+                _line(page, f"큰제목 {page}", 24.0, 20.0),
+                _line(page, f"작은제목 {page}", 18.0, 50.0),
+                _line(page, body, 10.0, 100.0),
+                _line(page, body, 10.0, 120.0),
+            ]
+        )
+    three_tiers = TierSet(
+        signal="font_size",
+        cut_points=[21.0, 14.0],
+        tiers=[
+            Tier(tier=1, lower_bound=21.0, upper_bound=None, peak=24.0, count=5),
+            Tier(tier=2, lower_bound=14.0, upper_bound=21.0, peak=18.0, count=5),
+            Tier(tier=3, lower_bound=None, upper_bound=14.0, peak=10.0, count=10),
+        ],
+        raw_tier_count=3,
+        final_tier_count=3,
+    )
+    base = TypographyConfig(heading_candidate_mode="font", body_font_text_coverage=0.95)
+
+    default_titles = {
+        item.title for item in extract_geometry_headings(lines, three_tiers, base)
+    }
+    unlimited_depth_titles = {
+        item.title
+        for item in extract_geometry_headings(
+            lines, three_tiers, replace(base, size_class_depth=2)
+        )
+    }
+
+    assert default_titles == unlimited_depth_titles
+    assert any(title.startswith("큰제목") for title in default_titles)
+    assert any(title.startswith("작은제목") for title in default_titles)
+
+
+def test_size_class_depth_는_책_내부_상대_순위로_상위_font_class만_남긴다():
+    lines: list[TypographyLine] = []
+    body = "본문" * 100
+    for page in range(1, 6):
+        lines.extend(
+            [
+                _line(page, f"큰제목 {page}", 24.0, 20.0),
+                _line(page, f"작은제목 {page}", 18.0, 50.0),
+                _line(page, body, 10.0, 100.0),
+                _line(page, body, 10.0, 120.0),
+            ]
+        )
+    three_tiers = TierSet(
+        signal="font_size",
+        cut_points=[21.0, 14.0],
+        tiers=[
+            Tier(tier=1, lower_bound=21.0, upper_bound=None, peak=24.0, count=5),
+            Tier(tier=2, lower_bound=14.0, upper_bound=21.0, peak=18.0, count=5),
+            Tier(tier=3, lower_bound=None, upper_bound=14.0, peak=10.0, count=10),
+        ],
+        raw_tier_count=3,
+        final_tier_count=3,
+    )
+    base = TypographyConfig(heading_candidate_mode="font", body_font_text_coverage=0.95)
+
+    depth1 = extract_geometry_headings(
+        lines, three_tiers, replace(base, size_class_depth=1)
+    )
+    depth2 = extract_geometry_headings(
+        lines, three_tiers, replace(base, size_class_depth=2)
+    )
+
+    depth1_titles = {item.title for item in depth1}
+    depth2_titles = {item.title for item in depth2}
+    assert depth1_titles and all(title.startswith("큰제목") for title in depth1_titles)
+    assert not any(title.startswith("작은제목") for title in depth1_titles)
+    assert depth1_titles < depth2_titles
+    # 절대 tier 번호가 아니라 책 내부 순위이므로 depth를 늘리면 후보가 줄지 않는다.
+    assert len(depth1) <= len(depth2)
+
+
+def test_max_headings_per_page_는_초과하는_page를_통째로_제외한다():
+    lines: list[TypographyLine] = []
+    body = "본문" * 100
+    for page in range(1, 6):
+        lines.extend(
+            [
+                _line(page, f"제목 {page}", 20.0, 20.0),
+                _line(page, body, 10.0, 60.0),
+                _line(page, body, 10.0, 80.0),
+            ]
+        )
+    banner_page = 6
+    for index in range(8):
+        lines.append(_line(banner_page, f"배너 {index}", 20.0, 20.0 + index * 30.0))
+    lines.append(_line(banner_page, body, 10.0, 500.0))
+    lines.append(_line(banner_page, body, 10.0, 520.0))
+
+    base = TypographyConfig(heading_candidate_mode="font", body_font_text_coverage=0.95)
+
+    unlimited = extract_geometry_headings(lines, _tiers(), base)
+    limited = extract_geometry_headings(
+        lines, _tiers(), replace(base, max_headings_per_page=5)
+    )
+    just_enough = extract_geometry_headings(
+        lines, _tiers(), replace(base, max_headings_per_page=8)
+    )
+
+    assert any(item.pdf_page == banner_page for item in unlimited)
+    assert not any(item.pdf_page == banner_page for item in limited)
+    assert {item.pdf_page for item in limited} == {1, 2, 3, 4, 5}
+    assert any(item.pdf_page == banner_page for item in just_enough)
+    # 한 방향으로만 움직인다: 제한을 풀수록 후보 수는 줄지 않는다.
+    assert len(limited) <= len(just_enough) <= len(unlimited)
+
+
 def test_build_geometry_context와_select_geometry_headings은_extract와_동일하다():
     lines = _pattern_lines()
     config = TypographyConfig(

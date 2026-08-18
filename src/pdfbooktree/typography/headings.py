@@ -45,6 +45,13 @@ def extract_heading_candidates(
             if font_tiers.tiers
             else None
         )
+        # height_tier는 font_tier와 독립적인 증거가 아니다: OCR overlay는 폰트
+        # 하나로 line마다 font_size를 bbox에 맞춰 정하므로 font_size와 height는
+        # 사실상 같은 측정값이다(실험 117 실측: 상관계수 0.9988~1.0, 두 tier
+        # 집합의 최상위 tier가 표본 전 권에서 100% 동일). 그래서 large_height_tier를
+        # large_font_tier와 별도 evidence로 세면 같은 신호를 두 번 세는 것이다.
+        # height_tier 값 자체는 HeadingCandidate.tier 계산 하위 호환을 위해
+        # 계속 계산해 둔다.
         height_tier = (
             assign_tier(line.height, height_tiers.cut_points)
             if height_tiers.tiers
@@ -53,8 +60,6 @@ def extract_heading_candidates(
         evidence: list[str] = []
         if font_tier is not None and font_tier <= resolved.max_heading_tier:
             evidence.append("large_font_tier")
-        if height_tier is not None and height_tier <= resolved.max_heading_tier:
-            evidence.append("large_height_tier")
         numbering_depth = _numbering_depth(text)
         if numbering_depth is not None:
             evidence.append("numbering_pattern")
@@ -183,8 +188,10 @@ def _is_repeated_margin_line(line: TypographyLine, repeated: set[str]) -> bool:
 
 def _score_candidate(evidence: list[str], line: TypographyLine) -> float:
     score = 0.25
+    # large_height_tier는 더 이상 evidence에 없다 - font_size와 height는 같은
+    # 측정값의 중복 표현이라 별도로 점수를 주지 않는다(위 extract_heading_candidates
+    # 주석 참고).
     score += 0.25 if "large_font_tier" in evidence else 0.0
-    score += 0.2 if "large_height_tier" in evidence else 0.0
     score += 0.18 if "numbering_pattern" in evidence else 0.0
     score += 0.07 if "top_page_position" in evidence else 0.0
     score += 0.05 if line.is_bold else 0.0

@@ -1,15 +1,22 @@
-"""Markdown tree inspection과 compare, CLI markdown command를 검증한다."""
+"""Markdown tree inspection, compare, heading sweep과 CLI command를 검증한다."""
 
 from __future__ import annotations
 
+import dataclasses
 import json
 from pathlib import Path
 from typing import Any
 
+import fitz
 from typer.testing import CliRunner
 
 from pdfbooktree.cli import app
-from pdfbooktree.inspection import inspect_compare_markdown, inspect_markdown_tree
+import pdfbooktree.inspection as inspection_module
+from pdfbooktree.inspection import (
+    inspect_compare_markdown,
+    inspect_heading_sweep,
+    inspect_markdown_tree,
+)
 
 
 def json_result(result: Any, command: str) -> dict[str, object]:
@@ -1085,3 +1092,242 @@ def test_inspect_cli_markdown_missing_path_is_json_input_error(
     assert envelope["ok"] is False
     assert envelope["error"]["code"] == "invalid_input"
     assert envelope["error"]["type"] == "FileNotFoundError"
+
+
+# ---------------------------------------------------------------------------
+# inspect_heading_sweep / `inspect sweep` CLI
+# ---------------------------------------------------------------------------
+
+
+def make_sweepable_book_pdf(path: Path, chapter_count: int = 4) -> None:
+    """chapter heading과 본문이 섞인 검사용 PDF를 만든다."""
+
+    document = fitz.open()
+    try:
+        for chapter in range(1, chapter_count + 1):
+            for offset in range(5):
+                page = document.new_page(width=595, height=842)
+                if offset == 0:
+                    page.insert_text(
+                        (72, 90), f"Chapter {chapter} Overview", fontsize=24
+                    )
+                page.insert_text(
+                    (72, 150), f"{chapter}.{offset} Section body header", fontsize=14
+                )
+                for row in range(12):
+                    page.insert_text(
+                        (72, 250 + row * 20),
+                        "This is ordinary body text for testing purposes today.",
+                        fontsize=10,
+                    )
+        document.save(path)
+    finally:
+        document.close()
+
+
+def test_inspect_heading_sweep은_typography_분석을_1회만_수행한다(
+    tmp_path: Path,
+) -> None:
+    """설정이 여러 개여도 ``analyze_pdf``는 정확히 한 번만 호출돼야 한다."""
+
+    pdf_path = tmp_path / "sweep_book.pdf"
+    make_sweepable_book_pdf(pdf_path)
+    call_count = {"n": 0}
+    original_analyze_pdf = inspection_module.analyze_pdf
+
+    def counting_analyze_pdf(*args: Any, **kwargs: Any) -> Any:
+        call_count["n"] += 1
+        return original_analyze_pdf(*args, **kwargs)
+
+    inspection_module.analyze_pdf = counting_analyze_pdf
+    try:
+        result = inspect_heading_sweep(
+            pdf_path,
+            size_class_depths=[1, 2],
+            max_headings_per_page_values=[1, 3],
+            min_word_counts=[1],
+        )
+    finally:
+        inspection_module.analyze_pdf = original_analyze_pdf
+
+    assert call_count["n"] == 1
+    assert result["settings_tried"] == 4
+    assert len(result["settings"]) == 4
+
+
+def test_inspect_heading_sweep_각_setting은_candidate_수와_page_비율을_담는다(
+    tmp_path: Path,
+) -> None:
+    pdf_path = tmp_path / "sweep_fields.pdf"
+    make_sweepable_book_pdf(pdf_path)
+
+    result = inspect_heading_sweep(
+        pdf_path,
+        size_class_depths=[1],
+        max_headings_per_page_values=[1],
+        min_word_counts=[1],
+    )
+
+    setting = result["settings"][0]
+    assert setting["size_class_depth"] == 1
+    assert setting["max_headings_per_page"] == 1
+    assert setting["min_words"] == 1
+    assert isinstance(setting["candidate_count"], int)
+    assert isinstance(setting["pages_with_candidate_count"], int)
+    assert setting["pages_per_candidate"] is None or isinstance(
+        setting["pages_per_candidate"], float
+    )
+
+
+def test_inspect_heading_sweep_summary는_plausible_setting과_knob_방향을_낸다(
+    tmp_path: Path,
+) -> None:
+    """agent가 책을 다시 읽지 않고 다음 knob 방향을 고를 수 있어야 한다."""
+
+    pdf_path = tmp_path / "sweep_summary.pdf"
+    make_sweepable_book_pdf(pdf_path)
+
+    result = inspect_heading_sweep(pdf_path)
+
+    summary = result["summary"]
+    assert summary["sensible_pages_per_candidate_range"] == [5.0, 40.0]
+    assert isinstance(summary["plausible_setting_count"], int)
+    for setting in summary["plausible_settings"]:
+        low, high = summary["sensible_pages_per_candidate_range"]
+        assert low <= setting["pages_per_candidate"] <= high
+    for knob in (
+        "size_class_depth_direction",
+        "max_headings_per_page_direction",
+        "min_words_direction",
+    ):
+        assert summary[knob] in {
+            "increases_candidates",
+            "mostly_increases_candidates",
+            "decreases_candidates",
+            "mostly_decreases_candidates",
+            "no_effect",
+            "mixed",
+            "unknown",
+        }
+
+
+def test_inspect_heading_sweep은_size_class_depth와_max_headings_per_page가_없으면_명확히_실패한다(
+    tmp_path: Path,
+) -> None:
+    """leader가 두 lane을 함께 검증하므로 field 부재를 조용히 넘기지 않는다."""
+
+    pdf_path = tmp_path / "sweep_missing_field.pdf"
+    make_sweepable_book_pdf(pdf_path, chapter_count=1)
+
+    original_fields = dataclasses.fields
+
+    def fields_without_size_class_depth(target: Any) -> Any:
+        result = original_fields(target)
+        if target is inspection_module.TypographyConfig:
+            return [field for field in result if field.name != "size_class_depth"]
+        return result
+
+    inspection_module.dataclass_fields = fields_without_size_class_depth
+    try:
+        try:
+            inspect_heading_sweep(pdf_path)
+        except ValueError as error:
+            assert "size_class_depth" in str(error)
+        else:
+            raise AssertionError("필요한 field가 없으면 실패해야 한다.")
+    finally:
+        inspection_module.dataclass_fields = original_fields
+
+
+def test_inspect_heading_sweep은_1_미만_값을_거절한다(tmp_path: Path) -> None:
+    pdf_path = tmp_path / "sweep_invalid_value.pdf"
+    make_sweepable_book_pdf(pdf_path, chapter_count=1)
+
+    try:
+        inspect_heading_sweep(pdf_path, size_class_depths=[0])
+    except ValueError as error:
+        assert "size_class_depths" in str(error)
+    else:
+        raise AssertionError("1 미만 값을 거절해야 한다.")
+
+
+def test_inspect_cli_sweep_json_and_human_formats(tmp_path: Path) -> None:
+    pdf_path = tmp_path / "cli_sweep.pdf"
+    make_sweepable_book_pdf(pdf_path)
+
+    json_invocation = CliRunner().invoke(
+        app,
+        [
+            "inspect",
+            "sweep",
+            str(pdf_path),
+            "--size-class-depths",
+            "1,2",
+            "--max-headings-per-page",
+            "1,3",
+            "--min-words",
+            "1",
+            "--format",
+            "json",
+        ],
+    )
+    payload = json_result(json_invocation, "inspect.sweep")
+    assert payload["settings_tried"] == 4
+
+    human_invocation = CliRunner().invoke(
+        app,
+        [
+            "inspect",
+            "sweep",
+            str(pdf_path),
+            "--size-class-depths",
+            "1,2",
+            "--max-headings-per-page",
+            "1,3",
+            "--min-words",
+            "1",
+        ],
+    )
+    assert human_invocation.exit_code == 0
+    assert "settings_tried: 4" in human_invocation.stdout
+    assert "knob direction:" in human_invocation.stdout
+    assert "schema_version" not in human_invocation.stdout
+
+
+def test_inspect_cli_sweep_missing_pdf_is_json_input_error(tmp_path: Path) -> None:
+    missing = tmp_path / "missing.pdf"
+
+    result = CliRunner().invoke(
+        app,
+        ["inspect", "sweep", str(missing), "--format", "json"],
+    )
+
+    assert result.exit_code == 2
+    assert result.stdout == ""
+    envelope = json.loads(result.stderr)
+    assert envelope["command"] == "inspect.sweep"
+    assert envelope["ok"] is False
+    assert envelope["error"]["code"] == "invalid_input"
+    assert envelope["error"]["type"] == "FileNotFoundError"
+
+
+def test_inspect_cli_sweep_invalid_option_value_is_bad_parameter(
+    tmp_path: Path,
+) -> None:
+    pdf_path = tmp_path / "cli_sweep_invalid.pdf"
+    make_sweepable_book_pdf(pdf_path, chapter_count=1)
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "inspect",
+            "sweep",
+            str(pdf_path),
+            "--size-class-depths",
+            "0",
+            "--format",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 2

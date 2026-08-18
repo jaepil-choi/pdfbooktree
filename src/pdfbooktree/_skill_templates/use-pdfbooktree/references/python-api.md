@@ -201,7 +201,7 @@ print(artifacts["bookmark_plan"], applied.output_pdf)
 공개 config dataclass를 조합하라.
 
 - `ProcessingConfig`: 기존 bookmark, artifact, typography, Markdown content mode/split, outline 품질 설정을 묶는다. `ocr_policy`는 현재 `never`만 지원하고 OCR은 별도 전처리한다. `markdown_content_mode` 기본값은 `direct`이며 기존 subtree 본문 포함은 `inclusive`다.
-- `TypographyConfig`: heading 후보, body font coverage, tier/BPE, margin, position fallback 값을 제어한다.
+- `TypographyConfig`: heading 후보, body font coverage, tier/BPE, margin, position fallback 값을 제어한다. `max_headings_per_page`(기본 `0`=비활성화)는 한 page의 top-size-class heading 후보 수가 이 값을 넘으면 그 page 전체를 후보에서 제외한다. `size_class_depth`(기본 `0`=비활성화)는 책 내부에서 큰 순서로 상위 몇 번째 font-size class까지 heading 후보로 볼지 정하는 책 상대값이다. 두 값 모두 절대 font size/tier 번호가 아니라 책 내부에서만 비교하는 상대값이며(OCR overlay가 책마다 다른 지점에서 font size를 clamp하기 때문), corpus 6권 실측에서 책마다 다른 설정이 필요해 단일 정답 기본값이 없다.
 - `MarkdownSplitConfig(enabled=True, max_words=10000, max_words_coverage=0.95, prefer="coarsest")`: 기본 활성화되는 길이 coverage 기반 Markdown split이다. `enabled=False`면 full tree graph를 사용한다.
 - `OutlineQualityConfig(min_item_count=4, max_item_to_page_ratio=0.9, flag_numeric_only_titles=True, replace_when_low_quality=False)`: 기존 outline 품질과 교체 policy를 정한다.
 
@@ -234,6 +234,7 @@ CLI와 같은 읽기 전용 조사 함수를 사용하라.
 - `inspect_ocr_artifact(artifact_dir) -> dict`
 - `inspect_plan_artifact(output_dir, include_items=False, limit=20, item_id=None, page_range=None, level=None, source=None, attention_only=False) -> dict`: plan/review summary와 Markdown manifest를 반환하고 요청할 때만 제한된 review item을 filter한다.
 - `inspect_compare_plans(plan_a, plan_b, page_tolerance=None, title_similarity_threshold=None) -> dict`
+- `inspect_heading_sweep(pdf_path, *, size_class_depths=(1, 2, 3), max_headings_per_page_values=(1, 2, 3, 5, 8, 999), min_word_counts=(1, 2), base_config=None) -> dict`: typography를 정확히 한 번만 분석(`analyze_pdf`)하고 이후 `size_class_depth` x `max_headings_per_page` x 최소 단어 수 조합을 이미 추출한 line에 대해 메모리 안에서만 재평가한다. `process`의 output artifact는 만들지 않는다. 결과는 `settings`(조합별 `candidate_count`, `pages_with_candidate_count`, `pages_per_candidate`)와 `summary`(`plausible_settings`, knob별 `*_direction`: `increases_candidates`/`decreases_candidates`/`mixed`/`no_effect`)를 담는다. `max_headings_per_page`를 올리면 candidate가 줄지 않으므로 이 방향은 항상 단조 hill-climb 가능하다.
 - `inspect_markdown_tree(target, *, limit=20) -> dict`: Markdown tree manifest(`markdown_manifest.json` 경로 또는 process output directory)를 조사해 `graph`, `levels`, `words_per_node`, `pages_per_node`, `coverage`, `sources`, `titles`, `validation`과 함께 `findings`, `verdict`, `retry`를 반환한다. `verdict`는 `findings`가 비어 있으면 `"ok"`이고, 그렇지 않으면 severity 순서(`invalid_graph`, `uncovered`, `duplicated`, `thin`, `over_split`, `fragmented`) 상 가장 먼저 오는 finding의 `code`다. blocking severity는 `invalid_graph`, `uncovered`뿐이고 나머지는 advisory다. 각 finding은 `code`, `severity`, `detail`, `cause`를 가지며 `cause`는 `graph_contract_violation`, `pages_outside_any_node`, `pages_owned_by_multiple_nodes`, `reused_existing_outline`, `sparse_heading_candidates`, `heading_candidates_too_permissive`, `non_heading_text_selected` 중 하나다. `retry`의 각 항목은 `cause`, `overrides`, 사람이 읽는 `command`(재실행 가능한 `pdfbooktree process ...` 문자열, override가 없으면 `None`), shell 없이 그대로 실행 가능한 `command_argv`(argv 문자열 list, override가 없으면 `None`), 실측 근거를 담은 `reason`을 담으며 항상 보장이 아닌 재시도 후보로만 제시한다. `command`는 POSIX single-quoting(`shlex.quote`)을 써서 bash/zsh와 PowerShell에서는 그대로 실행되지만, cmd.exe는 작은따옴표를 quoting으로 취급하지 않아 공백/괄호가 섞인 경로에서 실패할 수 있다. shell 없이 실행하거나 cmd.exe에서 실행할 때는 `command_argv`를 써라.
 - `inspect_compare_markdown(manifest_a, manifest_b) -> dict`: 두 Markdown manifest를 `(level, pdf_start_page, normalized title)` 키로 비교해 `before`, `after`, `delta`를 반환한다. `before`/`after`는 각각 `node_count`, `chosen_level`, `words_per_node_median`(word_count signal이 없는 export에서는 `None`), `words_per_node_has_data`, `pages_per_node_mean`, `unassigned_ratio`, `fragment_ratio`, `verdict`를 담고, `delta`는 그 수치 차이와 `verdict_changed`, `added_node_count`, `removed_node_count`를 담는다. `words_per_node_median`의 delta는 양쪽 다 word_count signal이 있을 때만 계산하고, 한쪽이라도 없으면 `None`이다.
 
@@ -242,7 +243,15 @@ CLI와 같은 읽기 전용 조사 함수를 사용하라.
 비교 결과에서는 added/removed/matched/unchanged/moved/level changed/source changed 수와 item 상세를 확인하라. 평가 결과에서는 precision, recall, F1, Jaccard, exact-page-match rate를 확인하라.
 
 ```python
-from pdfbooktree import inspect_compare_markdown, inspect_markdown_tree
+from pdfbooktree import (
+    inspect_compare_markdown,
+    inspect_heading_sweep,
+    inspect_markdown_tree,
+)
+
+sweep = inspect_heading_sweep("book.pdf")
+print(sweep["summary"]["plausible_settings"])
+print(sweep["summary"]["max_headings_per_page_direction"])
 
 inspection = inspect_markdown_tree("runs/book/book_markdown_split", limit=20)
 if inspection["verdict"] != "ok":

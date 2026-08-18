@@ -175,6 +175,8 @@ pdfbooktree inspect text "book.pdf" --pages 10-12 --format json
 pdfbooktree inspect bookmarks "book.pdf" --format json
 pdfbooktree inspect ocr ".\ocr-artifacts" --format json
 pdfbooktree inspect markdown ".\runs\<run-dir>\book_markdown_split" --format json
+pdfbooktree inspect sweep "book.pdf" --format json
+pdfbooktree inspect sweep "book.pdf" --size-class-depths 1,2,3,4 --max-headings-per-page 2,3,5 --min-words 1,2 --format human
 pdfbooktree inspect compare "plan-a.json" "plan-b.json" --format json
 pdfbooktree inspect compare `
   ".\runs\<run-dir>\book_markdown_split\markdown_manifest.json" `
@@ -201,6 +203,19 @@ PowerShell, but `cmd.exe` does not treat single quotes as quoting and can fail
 on paths with spaces or brackets. To run a candidate without a shell, or under
 `cmd.exe`, use `command_argv` (a list of argv tokens, or `None` when there is
 no override) instead.
+
+`inspect sweep <PDF> [--size-class-depths 1,2,3] [--max-headings-per-page
+1,2,3,5,8,999] [--min-words 1,2] [--format human|json]` runs `analyze_pdf`
+exactly once, then re-evaluates every combination of
+`typography.size_class_depth`, `typography.max_headings_per_page`, and
+minimum heading word count against the already-extracted lines, entirely in
+memory — it writes no `process` output artifact. `--format human` (the
+default) prints `settings_tried`, `plausible_settings` (combinations whose
+pages-per-candidate falls in a sensible range), and a `direction` per knob
+(`increases_candidates`, `decreases_candidates`, `mixed`, `no_effect`).
+`--format json` returns the same `settings` and `summary` structure. Raising
+`max_headings_per_page` never decreases the candidate count, so that
+direction is always safe to hill-climb.
 
 `inspect compare <A> <B>` auto-dispatches: it reads each input exactly once
 and classifies it as a Markdown manifest when its JSON contains `nodes` (a
